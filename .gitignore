@@ -1,0 +1,21 @@
+# Secretos
+.env
+.env.local
+.env.*.local
+application-local.properties
+
+# Backend (Maven)
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# Frontend (Next.js)
+node_modules/
+.next/
+out/
+
+# IDE / SO
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
