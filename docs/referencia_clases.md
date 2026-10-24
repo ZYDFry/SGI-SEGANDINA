@@ -90,6 +90,13 @@ ofrecerse en los formularios. La vista `v_despliegue_por_zona` filtra `WHERE z.e
 
 Spring Data genera el SQL a partir del nombre; por ejemplo `findByEstadoActivoTrue()` en `ZonaDao` equivale a
 `SELECT * FROM zona WHERE estado_activo = true`. `findAll()` sigue devolviendo activos e inactivos.
+
+### Cómo probar
+
+`MapeoEntidadesTest.catalogoNuevoEstaActivoPorDefecto` comprueba que una `Zona`, un `TipoEvento` y un
+`NivelGravedad` nuevos están activos. Para confirmar que las columnas existen en Supabase, usar el arranque con
+`ddl-auto=validate` descrito en la sección de la Fase 1.
+
 ## Fase 2 — Login con JWT, seguridad por roles y auditoría base (RF-01, RF-08)
 
 El usuario inicia sesión con DNI y contraseña (`POST /api/auth/login`); si son válidos recibe un JWT HS256
@@ -145,11 +152,6 @@ En las demás rutas, el `BearerTokenAuthenticationFilter` de Spring Security val
 cd backend
 ./mvnw -q verify
 ```
-<<<<<<< HEAD
-`MapeoEntidadesTest.catalogoNuevoEstaActivoPorDefecto` comprueba que una `Zona`, un `TipoEvento` y un
-`NivelGravedad` nuevos están activos. Para confirmar que las columnas existen en Supabase, usar el arranque con
-`ddl-auto=validate` descrito en la sección anterior.
-=======
 Pasan 24 tests sin BD: `AuthControllerTest` (login 200 sin contraseña en la respuesta, 401 genérico, 400 por
 DNI inválido, 401 sin token o con token alterado, 200 en `/api/auth/yo` con token, 403 de un Vigilante en
 `/api/auditoria`), `AuthServiceImplTest` (éxito y los tres tipos de fallo con su auditoría),
@@ -168,4 +170,48 @@ curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/
 curl http://localhost:8080/api/auth/yo -H "Authorization: Bearer <token>"
 ```
 `JWT_SECRET` (mínimo 32 caracteres) debe estar en el entorno o en `application-local.properties`.
->>>>>>> feature/fase-2-login-auditoria
+
+## Ajuste de zona — ubicación y búsqueda con filtros (RF-09)
+
+La tabla `zona` guarda ahora su ubicación: `departamento`, `provincia`, `distrito` (obligatorios) y `referencia`
+(opcional, hasta 150 caracteres), con el índice `idx_zona_ubicacion (departamento, provincia, distrito)`. El
+backend ofrece una búsqueda de zonas con filtros opcionales y combinables, paginada y ordenada por nombre, que
+usará el endpoint `GET /api/zonas` de RF-09.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `Zona` (modificada) | `model` | Campos `departamento` (50), `provincia` (50), `distrito` (80) no nulos y `referencia` (150) opcional. | Getters y setters de los cuatro campos. |
+| `ZonaFiltro` | `dto.request` | Record con los filtros `nombre`, `departamento`, `provincia`, `distrito`, `activo`, `q`. Un valor `null` o en blanco no filtra. | — |
+| `ZonaResponse` | `dto.response` | Record `idZona`, `nombreZona`, `departamento`, `provincia`, `distrito`, `referencia`, `descripcion`, `estadoActivo`. | `desde(Zona)` → DTO. |
+| `ZonaDao` (modificada) | `dao` | Ahora también extiende `JpaSpecificationExecutor<Zona>`. | `static Specification<Zona> conFiltros(ZonaFiltro)`: condición AND con los filtros que tengan valor. `nombre` → `lower(nombre_zona) LIKE %x%`; `departamento`, `provincia`, `distrito` → igualdad sin mayúsculas; `activo` → `estado_activo = x`; `q` → `referencia` o `descripcion` contienen el texto. Escapa `%`, `_` y `\` para buscarlos literalmente. Se usa con `findAll(Specification, Pageable)`. |
+| `ZonaService` / `ZonaServiceImpl` | `service` / `service.impl` | Lógica de búsqueda de zonas. Constante `TAMANO_MAXIMO = 100`. | `buscar(ZonaFiltro filtro, int pagina, int tamano)` → `Page<ZonaResponse>`. Transacción de solo lectura; `filtro` nulo = todas; página negativa → 0; tamaño acotado a 1..100; orden por `nombre_zona` sin distinguir mayúsculas. |
+
+### Flujo de una búsqueda
+
+1. (Fase 4) El controller de RF-09 arma un `ZonaFiltro` con los query params y llama a `ZonaService.buscar`.
+2. `ZonaServiceImpl.buscar` crea un `PageRequest` con la página y el tamaño acotados y el orden
+   `lower(nombre_zona) ASC`.
+3. `ZonaDao.findAll(ZonaDao.conFiltros(filtro), pageable)` genera, por ejemplo para `nombre=sede&departamento=Lima&q=larco`:
+   ```sql
+   SELECT ... FROM zona
+   WHERE lower(nombre_zona) LIKE '%sede%' ESCAPE '\'
+     AND lower(departamento) = 'lima'
+     AND (lower(referencia) LIKE '%larco%' ESCAPE '\' OR lower(descripcion) LIKE '%larco%' ESCAPE '\')
+   ORDER BY lower(nombre_zona) OFFSET 0 ROWS FETCH FIRST 20 ROWS ONLY
+   ```
+   más un `SELECT count(*)` con el mismo `WHERE` para el total.
+4. Cada `Zona` se convierte en `ZonaResponse`.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw -q verify
+```
+`ZonaServiceImplTest` (16 tests) carga cinco zonas en H2 en memoria (modo PostgreSQL, solo en tests) y ejecuta
+la búsqueda real: sin filtros, nombre parcial sin mayúsculas, departamento + provincia + distrito, distrito
+exacto (no parcial), activas/inactivas, texto libre en referencia y en descripción, nombre + estado, todos los
+filtros juntos, filtros en blanco, sin coincidencias, `%` y `_` literales, paginación y acotado de página y tamaño.
+La dependencia `com.h2database:h2` tiene scope `test`: no se usa al ejecutar la aplicación.

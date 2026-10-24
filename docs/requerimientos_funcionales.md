@@ -1,6 +1,6 @@
 # Requerimientos
 
-Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 definido en el diseño de BD. Los campos de "Entradas", "Reglas" y "Criterios de aceptación" desarrollan lo que el SRS enuncia en una línea; lo marcado como (propuesto) es una decisión por confirmar.
+Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 definido en el diseño de BD y RF-09 (gestión de zonas) agregado en el diseño del sistema. Los campos de "Entradas", "Reglas" y "Criterios de aceptación" desarrollan lo que el SRS enuncia en una línea; lo marcado como (propuesto) es una decisión por confirmar.
 
 ## Roles y permisos
 
@@ -13,6 +13,7 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 | Ver dashboard y despliegue (RF-05, RF-07) | Sí | Sí | No |
 | Exportar reportes (RF-06) | Sí | Sí | No |
 | Consultar auditoría (RF-08) | Sí | No | No |
+| Gestionar zonas (RF-09) | Sí | No | No |
 
 El Supervisor tiene, según las decisiones técnicas, "visualización de dashboard y reportes". El Vigilante usa el formulario móvil.
 
@@ -101,6 +102,41 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   - El log se escribe en la misma transacción que la acción (excepto `LOGIN_FALLIDO`).
   - Consulta solo para Administrador, con filtros por fecha y acción (pantalla "Historial de Incidencias y Auditoría").
 - **Criterios de aceptación:** cada acción listada deja un registro; intentar modificar o borrar un log falla en la BD.
+
+## RF-09 Gestión de zonas (Prioridad: Media)
+
+- **Descripción:** alta, edición, activación/desactivación y listado filtrable de las zonas o sedes donde se asigna personal y ocurren incidencias. Solo Administrador.
+- **Entradas (alta y edición):** `nombre_zona`, `departamento`, `provincia`, `distrito`, `referencia` (opcional; dirección o punto de referencia) y `descripcion` (opcional).
+- **Reglas:**
+  - `nombre_zona` único (hasta 80 caracteres); `departamento` y `provincia` hasta 50, `distrito` hasta 80 y `referencia` hasta 150.
+  - No existe borrado físico: "eliminar" es desactivar (`estado_activo = false`). Una zona inactiva no se ofrece en los formularios (RF-02, RF-03) pero se conserva en el historial y desaparece del despliegue (RF-07).
+  - El listado se puede filtrar por cualquiera de los campos; los filtros son opcionales y combinables (AND) y no distinguen mayúsculas.
+- **Contrato del listado** (se implementa en la Fase 4):
+
+  `GET /api/zonas?nombre=&departamento=&provincia=&distrito=&activo=&q=&page=&size=`
+
+  | Parámetro | Efecto |
+  |---|---|
+  | `nombre` | El nombre de la zona contiene el texto. |
+  | `departamento`, `provincia`, `distrito` | Igualdad exacta (sin distinguir mayúsculas). |
+  | `activo` | `true` solo activas, `false` solo inactivas; sin valor, todas. |
+  | `q` | Texto libre: la `referencia` o la `descripcion` contienen el texto. |
+  | `page` | Página desde 0 (por defecto 0; un valor negativo se toma como 0). |
+  | `size` | Elementos por página (por defecto 20; se acota entre 1 y 100). |
+
+  Un parámetro vacío o ausente no filtra; `%` y `_` se buscan como caracteres normales. Orden por `nombre_zona` ascendente (sin distinguir mayúsculas). Respuesta 200:
+  ```json
+  {
+    "contenido": [
+      { "idZona": 1, "nombreZona": "Sede Miraflores", "departamento": "Lima", "provincia": "Lima",
+        "distrito": "Miraflores", "referencia": "Av. Larco 345", "descripcion": "Edificio corporativo",
+        "estadoActivo": true }
+    ],
+    "pagina": 0, "tamano": 20, "totalElementos": 1, "totalPaginas": 1
+  }
+  ```
+  Sin token → 401; Supervisor o Vigilante → 403.
+- **Criterios de aceptación:** crear, editar y activar/desactivar zonas; nombre duplicado devuelve error claro; sin filtros el listado muestra todas las zonas; con filtros solo las que cumplen todos; un Supervisor o Vigilante recibe 403.
 
 ---
 

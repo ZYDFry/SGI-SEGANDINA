@@ -12,6 +12,35 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] RF-09 — Ubicación de zonas y búsqueda con filtros
+- Qué se hizo:
+  - `zona` tiene `departamento VARCHAR(50) NOT NULL`, `provincia VARCHAR(50) NOT NULL`, `distrito VARCHAR(80) NOT NULL`
+    y `referencia VARCHAR(150)` opcional. `docs/modelo_datos.sql` (versión 1.2) las incluye junto con el índice
+    `idx_zona_ubicacion (departamento, provincia, distrito)`.
+  - Entidad `Zona` con los cuatro campos nuevos.
+  - DTO nuevos: `ZonaResponse` (zona completa para el frontend) y `ZonaFiltro` (filtros de búsqueda).
+  - `ZonaDao` extiende `JpaSpecificationExecutor` y ofrece `conFiltros(ZonaFiltro)`: filtros opcionales y combinables
+    por nombre (contiene), departamento, provincia, distrito (exactos), estado activo y texto libre sobre referencia o
+    descripción, sin distinguir mayúsculas y con `%`/`_` tratados literalmente.
+  - `ZonaService.buscar(filtro, pagina, tamano)`: paginada (tamaño 1..100), ordenada por nombre.
+  - Nuevo RF-09 "Gestión de zonas" en `docs/requerimientos_funcionales.md` con el contrato
+    `GET /api/zonas?nombre=&departamento=&provincia=&distrito=&activo=&q=&page=&size=`.
+  - Dependencia de test `com.h2database:h2` para probar las consultas sin Supabase.
+  - Se resolvió un bloque de conflicto de merge que había quedado en `docs/referencia_clases.md`.
+- Archivos clave: `docs/modelo_datos.sql`, `backend/src/main/java/com/segandina/sgi/model/Zona.java`,
+  `backend/src/main/java/com/segandina/sgi/dao/ZonaDao.java`, `backend/src/main/java/com/segandina/sgi/dto/{request/ZonaFiltro,response/ZonaResponse}.java`,
+  `backend/src/main/java/com/segandina/sgi/service/{ZonaService,impl/ZonaServiceImpl}.java`,
+  `backend/src/test/java/com/segandina/sgi/service/impl/ZonaServiceImplTest.java`, `backend/pom.xml`,
+  `docs/requerimientos_funcionales.md`, `docs/referencia_clases.md`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 41 tests (16 nuevos en `ZonaServiceImplTest`, contra H2 en memoria).
+  - Contra Supabase: `./mvnw spring-boot:run -Dspring-boot.run.profiles=local "-Dspring-boot.run.arguments=--spring.jpa.hibernate.ddl-auto=validate --spring.main.web-application-type=none"`
+    → arranca sin `SchemaManagementException` si las columnas nuevas existen.
+- Pendientes o problemas conocidos:
+  - El controller `GET /api/zonas` (y alta/edición/baja de zonas) se implementa en la Fase 4; convertirá el `Page` al
+    formato de respuesta definido en RF-09.
+  - Crear en Supabase el índice `idx_zona_ubicacion` si aún no existe.
+
 ## [2026-10-24] Fase 1 — Baja lógica en catálogos (`estado_activo`)
 - Qué se hizo:
   - `zona`, `tipo_evento` y `nivel_gravedad` tienen ahora `estado_activo BOOLEAN NOT NULL DEFAULT TRUE`.

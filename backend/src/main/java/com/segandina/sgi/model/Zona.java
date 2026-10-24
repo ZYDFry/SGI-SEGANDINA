@@ -23,6 +23,18 @@ public class Zona {
 	@Column(name = "nombre_zona", nullable = false, unique = true, length = 80)
 	private String nombreZona;
 
+	@Column(name = "departamento", nullable = false, length = 50)
+	private String departamento;
+
+	@Column(name = "provincia", nullable = false, length = 50)
+	private String provincia;
+
+	@Column(name = "distrito", nullable = false, length = 80)
+	private String distrito;
+
+	@Column(name = "referencia", length = 150)
+	private String referencia;
+
 	@Column(name = "descripcion", columnDefinition = "text")
 	private String descripcion;
 
@@ -43,6 +55,38 @@ public class Zona {
 
 	public void setNombreZona(String nombreZona) {
 		this.nombreZona = nombreZona;
+	}
+
+	public String getDepartamento() {
+		return departamento;
+	}
+
+	public void setDepartamento(String departamento) {
+		this.departamento = departamento;
+	}
+
+	public String getProvincia() {
+		return provincia;
+	}
+
+	public void setProvincia(String provincia) {
+		this.provincia = provincia;
+	}
+
+	public String getDistrito() {
+		return distrito;
+	}
+
+	public void setDistrito(String distrito) {
+		this.distrito = distrito;
+	}
+
+	public String getReferencia() {
+		return referencia;
+	}
+
+	public void setReferencia(String referencia) {
+		this.referencia = referencia;
 	}
 
 	public String getDescripcion() {

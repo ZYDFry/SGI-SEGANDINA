@@ -1,6 +1,6 @@
 -- =====================================================
 -- SGI-SEGANDINA | Seguridad Andina S.A.C.
--- Script de creación de base de datos - Versión 1.1
+-- Script de creación de base de datos - Versión 1.2
 -- Motor: PostgreSQL (Supabase) - ejecutar en SQL Editor
 -- 7 tablas: rol, zona, tipo_evento, nivel_gravedad,
 --           usuario, incidencia, auditoria
@@ -16,6 +16,10 @@ CREATE TABLE rol (
 CREATE TABLE zona (
     id_zona      SERIAL PRIMARY KEY,
     nombre_zona    VARCHAR(80) NOT NULL UNIQUE,
+    departamento   VARCHAR(50) NOT NULL,
+    provincia      VARCHAR(50) NOT NULL,
+    distrito       VARCHAR(80) NOT NULL,
+    referencia     VARCHAR(150),                       -- opcional: dirección o punto de referencia
     descripcion    TEXT,
     estado_activo  BOOLEAN NOT NULL DEFAULT TRUE    -- baja lógica
 );
@@ -86,8 +90,9 @@ CREATE TABLE auditoria (
 );
 
 -- =====================================================
--- ÍNDICES (Dashboard y RF-07)
+-- ÍNDICES (Dashboard, RF-07 y búsqueda de zonas RF-09)
 -- =====================================================
+CREATE INDEX idx_zona_ubicacion     ON zona (departamento, provincia, distrito);
 CREATE INDEX idx_usuario_zona       ON usuario (id_zona) WHERE estado_activo;
 CREATE INDEX idx_incidencia_fecha   ON incidencia (fecha_hora DESC);
 CREATE INDEX idx_incidencia_zona    ON incidencia (id_zona, fecha_hora DESC);
