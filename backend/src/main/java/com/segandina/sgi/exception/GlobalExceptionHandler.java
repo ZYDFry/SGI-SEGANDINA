@@ -21,6 +21,12 @@ public class GlobalExceptionHandler {
 		return responder(HttpStatus.UNAUTHORIZED, ex.getMessage(), List.of());
 	}
 
+	/** Regla de negocio incumplida: 400 con el motivo. */
+	@ExceptionHandler(ReglaNegocioException.class)
+	public ResponseEntity<ErrorRespuesta> reglaNegocio(ReglaNegocioException ex) {
+		return responder(HttpStatus.BAD_REQUEST, ex.getMessage(), List.of());
+	}
+
 	/** Errores de {@code @Valid}: 400 con un detalle por campo. */
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorRespuesta> validacion(MethodArgumentNotValidException ex) {
