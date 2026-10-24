@@ -60,7 +60,7 @@ public class Auditoria {
 	/**
 	 * Crea un registro de auditoría listo para insertarse.
 	 *
-	 * @param accionRealizada código de la acción (máx. 60 caracteres), p. ej. {@code LOGIN_EXITOSO}
+	 * @param accionRealizada código de la acción (máx. 60 caracteres), p. ej. {@code LOGIN_OK}
 	 * @param detalleCambio   datos adicionales que se guardan como JSONB; puede ser {@code null}
 	 * @param dniIntentado    DNI usado en un intento de login; {@code null} si no aplica
 	 * @param usuario         usuario que realizó la acción; {@code null} si no se identificó
