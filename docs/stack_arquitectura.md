@@ -51,7 +51,10 @@ backend/src/main/java/com/segandina/sgi/
 - `SMALLSERIAL` → `Short` (rol, tipo_evento, nivel_gravedad). `SERIAL` → `Integer` (zona). `BIGSERIAL` → `Long`.
 - `TIMESTAMPTZ` → `OffsetDateTime` o `Instant`.
 - `JSONB` (`auditoria.detalle_cambio`) → `@JdbcTypeCode(SqlTypes.JSON)` sobre un `Map<String,Object>` o `String`.
-- `CHAR(8)` (`dni`, `dni_intentado`) → `String` con `columnDefinition = "char(8)"`.
+- `CHAR(8)` (`usuario.dni`, `auditoria.dni_intentado`) → `String` con `@JdbcTypeCode(SqlTypes.CHAR)` y
+  `@Column(length = 8)`. Sin `@JdbcTypeCode`, Hibernate trata el `String` como VARCHAR y `ddl-auto=validate`
+  falla, porque PostgreSQL informa la columna como `bpchar` (`Types#CHAR`); `columnDefinition = "char(8)"` no lo evita.
+- `TEXT` → `String` con `columnDefinition = "text"`. `BOOLEAN` → `Boolean`. Ambos pasan la validación sin anotaciones extra.
 - `incidencia.fecha_registro` y `auditoria.fecha_hora` tienen `DEFAULT now()`: mapear con `insertable = false, updatable = false` o dejar que la BD lo asigne.
 - `Auditoria` es inmutable: sin setters, sin `update`/`delete` en `AuditoriaDao` (exponer solo `save` de nuevos registros y consultas).
 - La vista `v_despliegue_por_zona` se consume con una proyección o consulta nativa (no es entidad editable).

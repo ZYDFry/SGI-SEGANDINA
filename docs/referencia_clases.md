@@ -27,7 +27,8 @@ compatibles con proxies LAZY de Hibernate.
 
 Correspondencia de tipos usada: `SMALLSERIAL → Short`, `SERIAL → Integer`, `BIGSERIAL → Long`,
 `TIMESTAMPTZ → OffsetDateTime`, `JSONB → Map<String,Object>` con `@JdbcTypeCode(SqlTypes.JSON)`,
-`CHAR(8) → String` con `columnDefinition = "char(8)"`.
+`CHAR(8) → String` con `@JdbcTypeCode(SqlTypes.CHAR)` y `@Column(length = 8)` (necesario para que
+`ddl-auto=validate` acepte las columnas `bpchar`).
 
 La vista `v_despliegue_por_zona` no se mapea como entidad.
 

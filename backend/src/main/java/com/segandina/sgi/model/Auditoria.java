@@ -44,7 +44,8 @@ public class Auditoria {
 	@Column(name = "fecha_hora", nullable = false, insertable = false, updatable = false)
 	private OffsetDateTime fechaHora;
 
-	@Column(name = "dni_intentado", length = 8, columnDefinition = "char(8)")
+	@JdbcTypeCode(SqlTypes.CHAR)
+	@Column(name = "dni_intentado", length = 8)
 	private String dniIntentado;
 
 	/** Usuario que realizó la acción; nulo si no existe (p. ej. login con DNI desconocido). */

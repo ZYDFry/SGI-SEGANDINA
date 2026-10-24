@@ -12,6 +12,24 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 1 — Corrección del mapeo CHAR(8)
+- Qué se hizo:
+  - Con `ddl-auto=validate` el arranque fallaba en `auditoria.dni_intentado`: Hibernate esperaba VARCHAR y
+    PostgreSQL informa `bpchar` (CHAR). `Usuario.dni` y `Auditoria.dniIntentado` ahora usan
+    `@JdbcTypeCode(SqlTypes.CHAR)` + `@Column(length = 8)` (se quitó `columnDefinition = "char(8)"`).
+  - Se revisaron las demás columnas de `modelo_datos.sql` (TEXT, BOOLEAN, JSONB, TIMESTAMPTZ, enteros):
+    ninguna necesita cambios; la validación contra Supabase pasa completa.
+  - Nuevo test `columnasDniSeMapeanComoChar8` en `MapeoEntidadesTest`.
+- Archivos clave: `backend/src/main/java/com/segandina/sgi/model/Usuario.java`,
+  `backend/src/main/java/com/segandina/sgi/model/Auditoria.java`,
+  `backend/src/test/java/com/segandina/sgi/model/MapeoEntidadesTest.java`, `docs/stack_arquitectura.md`,
+  `docs/referencia_clases.md`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 6 tests.
+  - `./mvnw spring-boot:run -Dspring-boot.run.profiles=local "-Dspring-boot.run.arguments=--spring.jpa.hibernate.ddl-auto=validate --spring.main.web-application-type=none"`
+    → arranca (`Started SgiApplication`) sin `SchemaManagementException`.
+- Pendientes o problemas conocidos: ninguno nuevo. `application.properties` sigue con `ddl-auto=none`.
+
 ## [2026-10-24] Fase 1 — Base del backend: entidades y DAO
 - Qué se hizo:
   - Proyecto Spring Boot 4.1.2 en `/backend` (Java 21, Maven Wrapper) con Web MVC, Data JPA, PostgreSQL,
@@ -35,9 +53,7 @@ Formato de cada entrada:
     `./mvnw spring-boot:run -Dspring-boot.run.profiles=local "-Dspring-boot.run.arguments=--spring.jpa.hibernate.ddl-auto=validate --spring.main.web-application-type=none"`;
     debe arrancar y terminar sin `SchemaManagementException`.
 - Pendientes o problemas conocidos:
-  - **Validación del mapeo contra Supabase (`ddl-auto=validate`) aún no ejecutada**: falta crear
-    `application-local.properties`. Punto a vigilar: las columnas `char(8)` (`dni`, `dni_intentado`);
-    si el validador las rechaza, añadir `@JdbcTypeCode(SqlTypes.CHAR)`.
+  - Validación del mapeo contra Supabase: resuelta en la entrada "Corrección del mapeo CHAR(8)".
   - Mientras no exista configuración de seguridad, Spring Security genera un usuario temporal en memoria
     (se reemplaza en la Fase 2 con login por DNI y JWT).
   - La vista `v_despliegue_por_zona` se consumirá con consulta nativa en la Fase 5.

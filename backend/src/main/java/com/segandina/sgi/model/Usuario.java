@@ -1,5 +1,8 @@
 package com.segandina.sgi.model;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -26,7 +29,8 @@ public class Usuario {
 	@Column(name = "id_usuario")
 	private Long idUsuario;
 
-	@Column(name = "dni", nullable = false, unique = true, length = 8, columnDefinition = "char(8)")
+	@JdbcTypeCode(SqlTypes.CHAR)
+	@Column(name = "dni", nullable = false, unique = true, length = 8)
 	private String dni;
 
 	@Column(name = "nombres", nullable = false, length = 80)
