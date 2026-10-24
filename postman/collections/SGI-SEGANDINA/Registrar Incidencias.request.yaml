@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/incidencias"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"idZona\": 1,\r
+
+    \  \"idTipoEvento\": 1,\r
+
+    \  \"idNivelGravedad\": 2,\r
+
+    \  \"descripcion\": \"Persona sospechosa en la puerta\"\r
+
+    }"
+order: 5000

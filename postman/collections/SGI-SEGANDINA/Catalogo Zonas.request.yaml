@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/catalogos/zonas"
+method: GET
+order: 2000

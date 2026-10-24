@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/catalogos/tipos-evento"
+method: GET
+order: 3000

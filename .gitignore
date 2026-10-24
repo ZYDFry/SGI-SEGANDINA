@@ -19,3 +19,6 @@ out/
 .vscode/
 .DS_Store
 Thumbs.db
+#Postman
+.postman
+postman/environments/
