@@ -36,6 +36,13 @@ public interface ZonaDao extends JpaRepository<Zona, Integer>, JpaSpecificationE
 	List<Zona> findByEstadoActivoTrue();
 
 	/**
+	 * Lista las zonas activas ordenadas por nombre, para el formulario de incidencias.
+	 *
+	 * @return zonas activas ordenadas por {@code nombre_zona} ascendente
+	 */
+	List<Zona> findByEstadoActivoTrueOrderByNombreZonaAsc();
+
+	/**
 	 * Arma la condición de búsqueda de zonas (RF-09) para usar con
 	 * {@link #findAll(Specification, org.springframework.data.domain.Pageable)}. Solo se aplican los
 	 * filtros con valor; todos se combinan con AND y comparan sin distinguir mayúsculas. Los

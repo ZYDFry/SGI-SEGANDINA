@@ -18,4 +18,11 @@ public interface TipoEventoDao extends JpaRepository<TipoEvento, Short> {
 	 */
 	List<TipoEvento> findByEstadoActivoTrue();
 
+	/**
+	 * Lista los tipos de evento activos ordenados por nombre, para el formulario de incidencias.
+	 *
+	 * @return tipos activos ordenados por {@code nombre_tipo_evento} ascendente
+	 */
+	List<TipoEvento> findByEstadoActivoTrueOrderByNombreTipoEventoAsc();
+
 }
