@@ -12,6 +12,39 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 3 / RF-03 — Catálogos activos y registro de incidencias
+- Qué se hizo:
+  - `GET /api/catalogos/zonas`, `/tipos-evento` y `/niveles-gravedad` (cualquier usuario con token): solo
+    registros con `estado_activo = true`; zonas y tipos por nombre, niveles por `orden`.
+  - `POST /api/incidencias` (Vigilante y Administrador) → 201 con la incidencia guardada. El usuario sale del
+    `sub` del JWT, nunca del body. Reglas:
+    - zona, tipo de evento y nivel de gravedad deben existir y estar activos (si no → 400 con mensaje claro);
+    - descripción obligatoria (máx. 2000 caracteres) y recortada; si el tipo es "Otro" debe tener al menos 20
+      caracteres;
+    - `fechaHora` opcional: por defecto la hora actual; no puede ser futura (se aceptan 2 minutos de desfase del
+      reloj del celular);
+    - usuario del token inexistente o inactivo → 401.
+  - Auditoría `REGISTRAR_INCIDENCIA` en la misma transacción, con `{idIncidencia, idZona, idTipoEvento, idNivelGravedad}`.
+  - `ReglaNegocioException` → 400 en el formato de error uniforme. Bean `Clock` (hora de Lima) para poder fijar la
+    hora en los tests.
+  - RF-03 en `docs/requerimientos_funcionales.md` incluye las reglas nuevas y el contrato del endpoint.
+- Archivos clave: `controller/{CatalogoController,IncidenciaController}.java`,
+  `service/{CatalogoService,IncidenciaService}.java`, `service/impl/{CatalogoServiceImpl,IncidenciaServiceImpl}.java`,
+  `dto/request/IncidenciaRequest.java`, `dto/response/{IncidenciaResponse,TipoEventoResponse,NivelGravedadResponse}.java`,
+  `exception/{ReglaNegocioException,GlobalExceptionHandler}.java`, `config/RelojConfig.java`,
+  `dao/{ZonaDao,TipoEventoDao}.java`; tests `service/impl/{IncidenciaServiceImplTest,CatalogoServiceImplTest}.java`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 60 tests (19 nuevos).
+  - Con la app en perfil `local` y un token: los tres `GET /api/catalogos/...` devuelven solo activos;
+    `POST /api/incidencias` con
+    `{"idZona":1,"idTipoEvento":1,"idNivelGravedad":2,"descripcion":"Persona sospechosa en la puerta"}` → 201;
+    con token de Supervisor → 403; tipo "Otro" con descripción corta → 400; zona inactiva → 400; fecha futura → 400.
+  - Auditoría: `SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria WHERE accion_realizada = 'REGISTRAR_INCIDENCIA';`
+- Pendientes o problemas conocidos:
+  - La regla de "Otro" depende del nombre del tipo de evento; si se renombra en la BD, deja de aplicarse.
+  - `GET /api/catalogos/roles` se agrega con el CRUD de usuarios (Fase 4).
+  - Zona preseleccionada con la del vigilante: la resuelve el frontend (Fase 7) con `idZona` de `/api/auth/yo`.
+
 ## [2026-10-24] RF-09 — Ubicación de zonas y búsqueda con filtros
 - Qué se hizo:
   - `zona` tiene `departamento VARCHAR(50) NOT NULL`, `provincia VARCHAR(50) NOT NULL`, `distrito VARCHAR(80) NOT NULL`

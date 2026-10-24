@@ -58,7 +58,16 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   - `descripcion` obligatoria y no vacía.
   - Zona preseleccionada con la zona asignada al vigilante (propuesto), editable.
   - Tipos y gravedades vienen de los catálogos (`tipo_evento`, `nivel_gravedad`).
+  - Zona, tipo y nivel deben existir y estar activos (`estado_activo = true`); los catálogos se obtienen con
+    `GET /api/catalogos/zonas`, `/tipos-evento` y `/niveles-gravedad`, que solo devuelven los activos.
+  - Si el tipo de evento es "Otro", la descripción (sin espacios en los extremos) debe tener al menos 20 caracteres.
+  - Máximo 2000 caracteres de descripción. Para `fecha_hora` se aceptan hasta 2 minutos de adelanto por desfase
+    del reloj del celular.
   - Se audita `REGISTRAR_INCIDENCIA`.
+- **Contrato:** `POST /api/incidencias` (Vigilante, Administrador) con
+  `{ "idZona", "idTipoEvento", "idNivelGravedad", "descripcion", "fechaHora"? }`. Respuestas: 201 con la incidencia
+  guardada (zona, tipo y nivel con sus nombres); 400 por datos faltantes o regla incumplida (catálogo inactivo,
+  fecha futura, "Otro" corto); 401 sin token o con usuario inactivo; 403 con rol Supervisor.
 - **Criterios de aceptación:** el flujo completo se hace con selectores rápidos y un campo de texto; el servidor responde en menos de 3 segundos en red móvil (RNF-04); tras guardar se muestra confirmación y el formulario queda listo para otro registro.
 
 ## RF-04 Historial y filtros (Prioridad: Alta)
