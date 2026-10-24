@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 /**
  * Catálogo de niveles de gravedad (Baja, Media, Alta, Crítica). Tabla {@code nivel_gravedad}.
  * El campo {@code orden} permite ordenar de menos grave (1) a más grave.
+ * No hay borrado físico: la baja es lógica con {@code estadoActivo = false}.
  */
 @Entity
 @Table(name = "nivel_gravedad")
@@ -25,6 +26,9 @@ public class NivelGravedad {
 
 	@Column(name = "orden", nullable = false, unique = true)
 	private Short orden;
+
+	@Column(name = "estado_activo", nullable = false)
+	private Boolean estadoActivo = Boolean.TRUE;
 
 	public Short getIdNivelGravedad() {
 		return idNivelGravedad;
@@ -48,6 +52,14 @@ public class NivelGravedad {
 
 	public void setOrden(Short orden) {
 		this.orden = orden;
+	}
+
+	public Boolean getEstadoActivo() {
+		return estadoActivo;
+	}
+
+	public void setEstadoActivo(Boolean estadoActivo) {
+		this.estadoActivo = estadoActivo;
 	}
 
 	@Override

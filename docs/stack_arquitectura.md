@@ -55,6 +55,9 @@ backend/src/main/java/com/segandina/sgi/
   `@Column(length = 8)`. Sin `@JdbcTypeCode`, Hibernate trata el `String` como VARCHAR y `ddl-auto=validate`
   falla, porque PostgreSQL informa la columna como `bpchar` (`Types#CHAR`); `columnDefinition = "char(8)"` no lo evita.
 - `TEXT` → `String` con `columnDefinition = "text"`. `BOOLEAN` → `Boolean`. Ambos pasan la validación sin anotaciones extra.
+- `estado_activo` (`usuario`, `zona`, `tipo_evento`, `nivel_gravedad`) → `Boolean` inicializado en `TRUE` en Java,
+  igual que el `DEFAULT TRUE` de la BD. Es la baja lógica: nada se borra. Los formularios listan con
+  `findByEstadoActivoTrue()` en el DAO; la vista `v_despliegue_por_zona` ya excluye zonas inactivas.
 - `incidencia.fecha_registro` y `auditoria.fecha_hora` tienen `DEFAULT now()`: mapear con `insertable = false, updatable = false` o dejar que la BD lo asigne.
 - `Auditoria` es inmutable: sin setters, sin `update`/`delete` en `AuditoriaDao` (exponer solo `save` de nuevos registros y consultas).
 - La vista `v_despliegue_por_zona` se consume con una proyección o consulta nativa (no es entidad editable).

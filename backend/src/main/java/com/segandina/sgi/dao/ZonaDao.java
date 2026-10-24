@@ -1,5 +1,6 @@
 package com.segandina.sgi.dao;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,5 +19,12 @@ public interface ZonaDao extends JpaRepository<Zona, Integer> {
 	 * @return la zona, o vacío si no existe
 	 */
 	Optional<Zona> findByNombreZona(String nombreZona);
+
+	/**
+	 * Lista solo las zonas activas (las dadas de baja no se ofrecen en formularios).
+	 *
+	 * @return zonas con {@code estado_activo = true}
+	 */
+	List<Zona> findByEstadoActivoTrue();
 
 }

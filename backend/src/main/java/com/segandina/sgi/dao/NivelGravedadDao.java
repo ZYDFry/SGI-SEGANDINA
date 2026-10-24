@@ -18,4 +18,18 @@ public interface NivelGravedadDao extends JpaRepository<NivelGravedad, Short> {
 	 */
 	List<NivelGravedad> findAllByOrderByOrdenAsc();
 
+	/**
+	 * Lista solo los niveles de gravedad activos (los dados de baja no se ofrecen en formularios).
+	 *
+	 * @return niveles con {@code estado_activo = true}
+	 */
+	List<NivelGravedad> findByEstadoActivoTrue();
+
+	/**
+	 * Lista los niveles de gravedad activos de menos a más grave, para el formulario de incidencias.
+	 *
+	 * @return niveles activos ordenados por {@code orden} ascendente
+	 */
+	List<NivelGravedad> findByEstadoActivoTrueOrderByOrdenAsc();
+
 }

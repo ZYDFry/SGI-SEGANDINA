@@ -1,6 +1,6 @@
 -- =====================================================
 -- SGI-SEGANDINA | Seguridad Andina S.A.C.
--- Script de creación de base de datos - Versión 1.0
+-- Script de creación de base de datos - Versión 1.1
 -- Motor: PostgreSQL (Supabase) - ejecutar en SQL Editor
 -- 7 tablas: rol, zona, tipo_evento, nivel_gravedad,
 --           usuario, incidencia, auditoria
@@ -15,21 +15,24 @@ CREATE TABLE rol (
 -- 2. ZONA
 CREATE TABLE zona (
     id_zona      SERIAL PRIMARY KEY,
-    nombre_zona  VARCHAR(80) NOT NULL UNIQUE,
-    descripcion  TEXT
+    nombre_zona    VARCHAR(80) NOT NULL UNIQUE,
+    descripcion    TEXT,
+    estado_activo  BOOLEAN NOT NULL DEFAULT TRUE    -- baja lógica
 );
 
 -- 3. TIPO_EVENTO (catálogo)
 CREATE TABLE tipo_evento (
     id_tipo_evento      SMALLSERIAL PRIMARY KEY,
-    nombre_tipo_evento  VARCHAR(30) NOT NULL UNIQUE
+    nombre_tipo_evento  VARCHAR(30) NOT NULL UNIQUE,
+    estado_activo       BOOLEAN NOT NULL DEFAULT TRUE    -- baja lógica
 );
 
 -- 4. NIVEL_GRAVEDAD (catálogo)
 CREATE TABLE nivel_gravedad (
     id_nivel_gravedad  SMALLSERIAL PRIMARY KEY,
     nombre_nivel       VARCHAR(20) NOT NULL UNIQUE,
-    orden              SMALLINT NOT NULL UNIQUE          -- 1 = menos grave
+    orden              SMALLINT NOT NULL UNIQUE,         -- 1 = menos grave
+    estado_activo      BOOLEAN NOT NULL DEFAULT TRUE     -- baja lógica
 );
 
 -- 5. USUARIO
@@ -113,7 +116,7 @@ BEFORE TRUNCATE ON auditoria
 FOR EACH STATEMENT EXECUTE FUNCTION fn_auditoria_inmutable();
 
 -- =====================================================
--- RF-07: VIGILANTES ACTIVOS POR ZONA
+-- RF-07: VIGILANTES ACTIVOS POR ZONA (solo zonas activas)
 -- security_invoker: la vista respeta el RLS de las tablas base
 -- =====================================================
 CREATE OR REPLACE VIEW v_despliegue_por_zona
@@ -126,6 +129,7 @@ LEFT JOIN usuario u
        ON u.id_zona = z.id_zona
       AND u.estado_activo = TRUE
       AND u.id_rol = (SELECT id_rol FROM rol WHERE nombre_rol = 'Vigilante')
+WHERE z.estado_activo = TRUE
 GROUP BY z.id_zona, z.nombre_zona;
 
 -- =====================================================

@@ -12,6 +12,30 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 1 — Baja lógica en catálogos (`estado_activo`)
+- Qué se hizo:
+  - `zona`, `tipo_evento` y `nivel_gravedad` tienen ahora `estado_activo BOOLEAN NOT NULL DEFAULT TRUE`.
+    Un catálogo dado de baja no se borra (las incidencias antiguas lo siguen referenciando), solo deja de
+    ofrecerse. La vista `v_despliegue_por_zona` muestra únicamente zonas activas.
+  - `docs/modelo_datos.sql` (versión 1.1) refleja las tres columnas y la vista con `WHERE z.estado_activo = TRUE`.
+  - Entidades `Zona`, `TipoEvento` y `NivelGravedad`: campo `estadoActivo` (`true` por defecto) con getter/setter.
+  - DAO: `findByEstadoActivoTrue()` en `ZonaDao`, `TipoEventoDao` y `NivelGravedadDao`; además
+    `NivelGravedadDao.findByEstadoActivoTrueOrderByOrdenAsc()` para listar niveles activos de menos a más grave.
+  - Nuevo test `catalogoNuevoEstaActivoPorDefecto` en `MapeoEntidadesTest`.
+  - El mapeo `CHAR(8)` (`@JdbcTypeCode(SqlTypes.CHAR)` + `@Column(length = 8)`) ya estaba aplicado en
+    `Usuario.dni` y `Auditoria.dniIntentado`; no requirió cambios.
+- Archivos clave: `docs/modelo_datos.sql`, `backend/src/main/java/com/segandina/sgi/model/{Zona,TipoEvento,NivelGravedad}.java`,
+  `backend/src/main/java/com/segandina/sgi/dao/{ZonaDao,TipoEventoDao,NivelGravedadDao}.java`,
+  `backend/src/test/java/com/segandina/sgi/model/MapeoEntidadesTest.java`, `docs/referencia_clases.md`,
+  `docs/stack_arquitectura.md`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 7 tests.
+  - `./mvnw spring-boot:run -Dspring-boot.run.profiles=local "-Dspring-boot.run.arguments=--spring.jpa.hibernate.ddl-auto=validate --spring.main.web-application-type=none"`
+    → arranca sin `SchemaManagementException` (confirma que las columnas existen en Supabase).
+- Pendientes o problemas conocidos: los servicios de catálogos (Fase 3) deben usar los métodos
+  `findByEstadoActivoTrue*` para los formularios; `findAll` sigue devolviendo también los inactivos
+  (útil para historial y administración).
+
 ## [2026-10-24] Fase 1 — Corrección del mapeo CHAR(8)
 - Qué se hizo:
   - Con `ddl-auto=validate` el arranque fallaba en `auditoria.dni_intentado`: Hibernate esperaba VARCHAR y

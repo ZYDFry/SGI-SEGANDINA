@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 
 /**
  * Zona o sede donde se asigna personal y ocurren incidencias. Tabla {@code zona}.
+ * No hay borrado físico: la baja es lógica con {@code estadoActivo = false}.
  */
 @Entity
 @Table(name = "zona")
@@ -24,6 +25,9 @@ public class Zona {
 
 	@Column(name = "descripcion", columnDefinition = "text")
 	private String descripcion;
+
+	@Column(name = "estado_activo", nullable = false)
+	private Boolean estadoActivo = Boolean.TRUE;
 
 	public Integer getIdZona() {
 		return idZona;
@@ -47,6 +51,14 @@ public class Zona {
 
 	public void setDescripcion(String descripcion) {
 		this.descripcion = descripcion;
+	}
+
+	public Boolean getEstadoActivo() {
+		return estadoActivo;
+	}
+
+	public void setEstadoActivo(Boolean estadoActivo) {
+		this.estadoActivo = estadoActivo;
 	}
 
 	@Override

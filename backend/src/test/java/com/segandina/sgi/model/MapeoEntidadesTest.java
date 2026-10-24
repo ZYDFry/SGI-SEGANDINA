@@ -87,4 +87,11 @@ class MapeoEntidadesTest {
 		assertTrue(new Usuario().getEstadoActivo());
 	}
 
+	@Test
+	void catalogoNuevoEstaActivoPorDefecto() {
+		assertTrue(new Zona().getEstadoActivo());
+		assertTrue(new TipoEvento().getEstadoActivo());
+		assertTrue(new NivelGravedad().getEstadoActivo());
+	}
+
 }

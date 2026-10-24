@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 
 /**
  * Catálogo de tipos de evento (Robo, Accidente, Alerta, Otro). Tabla {@code tipo_evento}.
+ * No hay borrado físico: la baja es lógica con {@code estadoActivo = false}.
  */
 @Entity
 @Table(name = "tipo_evento")
@@ -21,6 +22,9 @@ public class TipoEvento {
 
 	@Column(name = "nombre_tipo_evento", nullable = false, unique = true, length = 30)
 	private String nombreTipoEvento;
+
+	@Column(name = "estado_activo", nullable = false)
+	private Boolean estadoActivo = Boolean.TRUE;
 
 	public Short getIdTipoEvento() {
 		return idTipoEvento;
@@ -36,6 +40,14 @@ public class TipoEvento {
 
 	public void setNombreTipoEvento(String nombreTipoEvento) {
 		this.nombreTipoEvento = nombreTipoEvento;
+	}
+
+	public Boolean getEstadoActivo() {
+		return estadoActivo;
+	}
+
+	public void setEstadoActivo(Boolean estadoActivo) {
+		this.estadoActivo = estadoActivo;
 	}
 
 	@Override
