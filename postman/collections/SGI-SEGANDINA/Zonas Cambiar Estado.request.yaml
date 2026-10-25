@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/zonas/1/estado"
+method: PATCH
+body:
+  type: json
+  content: '{"activo": false}'
+order: 7400

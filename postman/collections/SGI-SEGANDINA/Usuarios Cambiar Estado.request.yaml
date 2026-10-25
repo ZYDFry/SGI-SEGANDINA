@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/usuarios/2/estado"
+method: PATCH
+body:
+  type: json
+  content: '{"activo": false}'
+order: 6400

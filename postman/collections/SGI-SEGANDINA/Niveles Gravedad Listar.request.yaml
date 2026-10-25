@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/niveles-gravedad"
+method: GET
+order: 9000

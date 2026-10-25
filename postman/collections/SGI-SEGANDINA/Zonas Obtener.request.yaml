@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/zonas/1"
+method: GET
+order: 7100

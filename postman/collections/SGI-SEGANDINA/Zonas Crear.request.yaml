@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/zonas"
+method: POST
+body:
+  type: json
+  content: '{"nombreZona": "Sede Surco", "departamento": "Lima", "provincia": "Lima", "distrito": "Santiago de Surco", "referencia": "Av. Primavera 1050", "descripcion": "Oficina administrativa"}'
+order: 7200

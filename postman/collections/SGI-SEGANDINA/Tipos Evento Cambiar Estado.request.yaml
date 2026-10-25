@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tipos-evento/1/estado"
+method: PATCH
+body:
+  type: json
+  content: '{"activo": false}'
+order: 8300

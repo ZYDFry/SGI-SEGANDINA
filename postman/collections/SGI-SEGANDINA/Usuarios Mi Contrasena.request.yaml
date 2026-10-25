@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/usuarios/me/contrasena"
+method: PATCH
+body:
+  type: json
+  content: '{"contrasenaActual": "ClaveInicial1", "contrasenaNueva": "ClaveNueva123"}'
+order: 6500

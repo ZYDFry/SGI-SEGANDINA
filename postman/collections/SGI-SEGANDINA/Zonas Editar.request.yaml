@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/zonas/1"
+method: PUT
+body:
+  type: json
+  content: '{"nombreZona": "Sede Miraflores", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores", "referencia": "Av. Larco 345", "descripcion": "Edificio corporativo"}'
+order: 7300

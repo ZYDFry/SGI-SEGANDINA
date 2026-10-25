@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tipos-evento/1"
+method: PUT
+body:
+  type: json
+  content: '{"nombreTipoEvento": "Robo o hurto"}'
+order: 8200

@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/zonas?nombre=&departamento=&provincia=&distrito=&activo=&q=&page=0&size=20"
+method: GET
+order: 7000

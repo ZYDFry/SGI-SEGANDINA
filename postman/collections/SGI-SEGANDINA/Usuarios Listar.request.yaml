@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/usuarios?activo=true&page=0&size=20"
+method: GET
+order: 6000

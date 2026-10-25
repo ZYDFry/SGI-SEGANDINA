@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/usuarios/2"
+method: PUT
+body:
+  type: json
+  content: '{"dni": "33333333", "nombres": "Luis", "apellidoPaterno": "Rojas", "apellidoMaterno": null, "contrasena": null, "idRol": 3, "idZona": 1}'
+order: 6300

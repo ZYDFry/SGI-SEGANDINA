@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/niveles-gravedad/1"
+method: PUT
+body:
+  type: json
+  content: '{"nombreNivel": "Baja", "orden": 2}'
+order: 9100
