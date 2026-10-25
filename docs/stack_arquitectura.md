@@ -97,8 +97,8 @@ Prefijo `/api`. Todo requiere JWT salvo el login.
 | `GET /catalogos/zonas`, `/tipos-evento`, `/niveles-gravedad`, `/roles` | autenticado | RF-02/03 |
 | `GET /usuarios`, `POST /usuarios`, `PUT /usuarios/{id}`, `PATCH /usuarios/{id}/estado` | Administrador | RF-02 |
 | `POST /incidencias` | Vigilante, Administrador | RF-03 |
-| `GET /incidencias?desde&hasta&idZona&idNivelGravedad&page&size` | Administrador, Supervisor | RF-04 |
-| `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo` | Administrador, Supervisor | RF-05 |
+| `GET /incidencias?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento&page&size` | Administrador, Supervisor | RF-04 |
+| `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |
 | `GET /dashboard/despliegue` | Administrador, Supervisor | RF-07 |
 | `GET /reportes/excel?...` y `GET /reportes/pdf?...` (mismos filtros que RF-04) | Administrador, Supervisor | RF-06 |
 | `GET /auditoria?desde&hasta&accion&page&size` | Administrador | RF-08 |

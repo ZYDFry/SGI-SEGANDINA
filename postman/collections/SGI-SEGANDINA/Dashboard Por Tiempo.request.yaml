@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/dashboard/incidencias-por-tiempo?periodo={{periodo}}&idZona=&idNivelGravedad=&idTipoEvento=&agrupacion="
+method: GET
+queryParams:
+  periodo: "{{periodo}}"
+  idZona: ""
+  idNivelGravedad: ""
+  idTipoEvento: ""
+  agrupacion: ""
+order: 11300

@@ -363,3 +363,88 @@ curl -X PATCH http://localhost:8080/api/usuarios/me/contrasena -H "Authorization
 → 204; ese mismo token en `GET /api/usuarios` → 403. Auditoría:
 `SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria ORDER BY id_auditoria DESC LIMIT 10;`
 La colección de Postman (`postman/collections/SGI-SEGANDINA`) incluye todas estas peticiones.
+
+---
+
+## Fase 5 — Historial (RF-04), dashboard (RF-05) y despliegue (RF-07)
+
+Supervisores y Administradores consultan el historial paginado de incidencias y las métricas del dashboard. Todos
+estos endpoints comparten un mismo filtro: un periodo predefinido o un rango personalizado de días (en hora de
+Lima, máximo 366 días) más zona, nivel de gravedad y tipo de evento opcionales. El despliegue lee la vista
+`v_despliegue_por_zona` y no depende del rango.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `Periodo` | `dto.request` | Enum `HOY`, `ULTIMOS_7_DIAS`, `ULTIMOS_30_DIAS`, `MES_ACTUAL`, `ANIO_ACTUAL`, `PERSONALIZADO`. | — |
+| `RangoFechas` | `dto.request` | Record `desde`, `hasta` (días inclusive). Es la única clase que calcula rangos; la reutilizarán los reportes (RF-06). Constantes `MAX_DIAS = 366` y `PERIODO_POR_DEFECTO = ULTIMOS_30_DIAS`. | `resolver(Periodo, LocalDate desde, LocalDate hasta, Clock)` → `RangoFechas`: calcula el periodo con "hoy" en Lima; lanza `ReglaNegocioException` si hay fechas sin `PERSONALIZADO`, faltan con `PERSONALIZADO`, `desde > hasta` o hay más de 366 días. `inicio()` / `fin()` → `OffsetDateTime` en Lima del intervalo semiabierto `[desde 00:00, hasta+1 00:00)`. `dias()` → largo inclusive. |
+| `IncidenciaFiltro` | `dto.request` | Record de query params `periodo`, `desde`, `hasta` (`AAAA-MM-DD`), `idZona`, `idNivelGravedad`, `idTipoEvento`. Spring lo arma desde la URL (sin anotación en el controller). | — |
+| `Agrupacion` | `dto.request` | Enum `DIA`, `SEMANA`, `MES` para la serie por tiempo. | `porDefecto(RangoFechas)` → `DIA` hasta 31 días, `SEMANA` hasta 180, `MES` si es mayor. |
+| `IncidenciaDao` (modificado) | `dao` | Ahora también `JpaSpecificationExecutor` y el fragmento `IncidenciaEstadisticasDao`. | `findAll(Specification, Pageable)` con `@EntityGraph` de zona, tipo, nivel y usuario (una sola consulta por página). `conFiltros(RangoFechas, IncidenciaFiltro)` → `Specification` con `fechaHora >= inicio AND fechaHora < fin` y los filtros que tengan valor. |
+| `IncidenciaEstadisticasDao` / `IncidenciaEstadisticasDaoImpl` | `dao` | Consultas agregadas con `EntityManager`. Las condiciones opcionales se agregan al texto solo cuando tienen valor, para no enviar parámetros nulos a PostgreSQL. | `contarPorZona`, `contarPorTipo`, `contarPorNivel(RangoFechas, IncidenciaFiltro)` → `List<ConteoAgrupado>` (JPQL, mayor total primero). `contarPorDia(...)` → `List<ConteoDiario>` (nativa, agrupa por `fecha_hora AT TIME ZONE 'America/Lima'`; solo días con datos). |
+| `ConteoAgrupado`, `ConteoDiario` | `dao` | Records de resultado: `(id, nombre, total)` y `(dia, total)`. | — |
+| `DespliegueZona` | `model` | Entidad `@Immutable` de la vista `v_despliegue_por_zona` (`idZona`, `nombreZona`, `vigilantesActivos`), sin setters. | Getters. |
+| `DespliegueZonaDao` | `dao` | Solo lectura (`Repository`). | `findAll(Sort)` → una fila por zona activa. |
+| `IncidenciaService` / `IncidenciaServiceImpl` (modificados) | `service` / `service.impl` | Historial. Constante `TAMANO_MAXIMO = 100`. | `buscar(IncidenciaFiltro, int pagina, int tamano)` → `Page<IncidenciaHistorialResponse>`, orden `fechaHora` y luego `idIncidencia` descendentes; tamaño acotado entre 1 y 100. |
+| `DashboardService` / `DashboardServiceImpl` | `service` / `service.impl` | Métricas de RF-05 y despliegue de RF-07 (transacciones de solo lectura). | `kpis(IncidenciaFiltro)` → `KpisResponse`. `incidenciasPorZona` / `incidenciasPorTipo(IncidenciaFiltro)` → `List<ConteoResponse>`. `incidenciasPorTiempo(IncidenciaFiltro, Agrupacion)` → `SerieTiempoResponse`, con todos los tramos del rango en orden (0 si no hay datos). `despliegue()` → `List<DespliegueZonaResponse>` por nombre de zona. |
+| `IncidenciaController` (modificado) | `controller` | Historial. | `buscar(IncidenciaFiltro, page, size)` → `PaginaResponse<IncidenciaHistorialResponse>` (`GET /api/incidencias`). |
+| `DashboardController` | `controller` | `/api/dashboard`, roles Administrador y Supervisor. | `kpis` (`GET /kpis`), `incidenciasPorZona` (`GET /incidencias-por-zona`), `incidenciasPorTipo` (`GET /incidencias-por-tipo`), `incidenciasPorTiempo(filtro, agrupacion)` (`GET /incidencias-por-tiempo`), `despliegue()` (`GET /despliegue`). |
+| `IncidenciaHistorialResponse` | `dto.response` | Fila del historial: `idIncidencia`, `fechaHora`, `fechaRegistro`, `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `usuario` (`Registrador`: `idUsuario`, `dni`, `nombreCompleto`). | `desde(Incidencia)`. |
+| `KpisResponse` | `dto.response` | `desde`, `hasta`, `incidenciasHoy`, `incidenciasPeriodo`, `porGravedad` (`ConteoGravedad`: id, nombre, orden, total). | — |
+| `ConteoResponse` | `dto.response` | `(id, nombre, total)` para los gráficos por zona y por tipo. | `desde(ConteoAgrupado)`. |
+| `SerieTiempoResponse` | `dto.response` | `agrupacion`, `desde`, `hasta`, `puntos` (`Punto`: `inicio`, `fin`, `total`). | — |
+| `DespliegueZonaResponse` | `dto.response` | `(idZona, nombreZona, vigilantesActivos)`. | `desde(DespliegueZona)`. |
+| `GlobalExceptionHandler` (modificado) | `exception` | Un query param que no se puede convertir (`periodo=AYER`, `desde=24-10-2026`, `agrupacion=ANIO`) responde 400 con `"<campo>: valor no válido '<valor>'"` en `detalles`. | `parametrosInvalidos(BindException)`, `tipoInvalido(MethodArgumentTypeMismatchException)`. |
+
+### Flujo de `GET /api/dashboard/incidencias-por-tiempo?periodo=MES_ACTUAL&idZona=1`
+
+1. `SecurityConfig` exige rol Administrador o Supervisor (`/api/dashboard/**`).
+2. Spring arma `IncidenciaFiltro(MES_ACTUAL, null, null, 1, null, null)` con los query params; `agrupacion` llega
+   como `null`. Un valor que no se puede convertir responde 400 sin llegar al servicio.
+3. `DashboardServiceImpl.incidenciasPorTiempo`:
+   1. `RangoFechas.resolver` calcula del día 1 del mes a hoy (hora de Lima); un rango inválido lanza
+      `ReglaNegocioException` (400) antes de consultar la BD.
+   2. Sin agrupación pedida, `Agrupacion.porDefecto` elige `DIA` (el mes tiene 31 días o menos).
+   3. `IncidenciaDao.contarPorDia` ejecuta
+      `SELECT to_char(i.fecha_hora AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS dia, COUNT(*) FROM incidencia i
+      WHERE i.fecha_hora >= :inicio AND i.fecha_hora < :fin AND i.id_zona = :idZona GROUP BY dia ORDER BY dia`
+      (puede usar el índice `idx_incidencia_zona (id_zona, fecha_hora DESC)`).
+   4. Recorre el rango tramo a tramo (día, semana de lunes a domingo o mes calendario, recortados a los bordes),
+      suma los conteos de cada tramo y pone 0 en los que no tienen datos.
+4. Responde 200 con `SerieTiempoResponse`.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw -q verify
+```
+Pasan 148 tests. Nuevos:
+- `IncidenciaDaoTest` (5, contra H2 en modo PostgreSQL): el historial incluye las 00:00:00 y las 23:59:59 del
+  día en Lima y excluye las 00:00:00 del día siguiente, ordena descendente y combina zona, nivel y tipo; los
+  conteos por zona, tipo y nivel; el conteo por día agrupa en hora de Lima (las 03:30 UTC del 25 cuentan para
+  el 24); un rango sin datos devuelve listas vacías.
+- `RangoFechasTest` (12): periodo por defecto, cada periodo, límites del día en Lima, cambio de día (las 23:59:59
+  de Lima ya son el día siguiente en UTC), fin de mes, año bisiesto (29 de febrero, 2028 completo = 366 días),
+  rango de un día, rango invertido, rango de 367 días, `PERSONALIZADO` sin fechas, fechas sin `PERSONALIZADO` y
+  agrupación por defecto en 31/32 y 180/181 días.
+- `DashboardServiceImplTest` (9): serie sin datos (todo en 0), huecos rellenados, semanas recortadas, meses que
+  cruzan el año con febrero bisiesto, agrupación por defecto, rango inválido sin consultar la BD, KPIs con
+  niveles en 0 y niveles inactivos ocultos, conteos por zona y tipo, despliegue.
+- `IncidenciaServiceImplTest` (+2): orden y tamaño máximo del historial, rango inválido.
+- `DashboardControllerTest` (10): filtros y paginación llegan al servicio, 403 para Vigilante, 401 sin token,
+  400 con `periodo`, fecha o `agrupacion` no válidos y con rango invertido.
+- `MapeoEntidadesTest` (+1): `DespliegueZona` apunta a la vista y no tiene setters.
+
+Con la BD (`.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local`) y un token de Supervisor o Administrador:
+```
+curl "http://localhost:8080/api/incidencias?periodo=ULTIMOS_7_DIAS&page=0&size=20" -H "Authorization: Bearer <token>"
+curl "http://localhost:8080/api/dashboard/kpis" -H "Authorization: Bearer <token>"
+curl "http://localhost:8080/api/dashboard/incidencias-por-tiempo?periodo=PERSONALIZADO&desde=2026-10-01&hasta=2026-10-24&agrupacion=SEMANA" -H "Authorization: Bearer <token>"
+curl "http://localhost:8080/api/dashboard/despliegue" -H "Authorization: Bearer <token>"
+curl "http://localhost:8080/api/incidencias?periodo=PERSONALIZADO&desde=2026-10-10&hasta=2026-10-01" -H "Authorization: Bearer <token>"
+```
+La última responde 400 ("La fecha desde no puede ser posterior a hasta"). Con un token de Vigilante, todas
+responden 403. La colección de Postman incluye estas peticiones ("Historial …" y "Dashboard …") y toma
+`periodo`, `desde` y `hasta` de las variables del environment.

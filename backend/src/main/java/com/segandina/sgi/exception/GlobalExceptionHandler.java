@@ -6,9 +6,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Convierte las excepciones de los controllers en respuestas {@link ErrorRespuesta}.
@@ -49,19 +51,41 @@ public class GlobalExceptionHandler {
 		return responder(HttpStatus.CONFLICT, "El dato ya existe o entra en conflicto con otro registro", List.of());
 	}
 
-	/** Errores de {@code @Valid}: 400 con un detalle por campo. */
+	/**
+	 * Errores de {@code @Valid} o de conversión al armar un objeto de filtros desde los query params (p. ej.
+	 * {@code periodo=AYER} o {@code desde=24-10-2026}): 400 con un detalle por campo.
+	 */
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorRespuesta> validacion(MethodArgumentNotValidException ex) {
-		List<String> detalles = ex.getBindingResult().getFieldErrors().stream()
-				.map(error -> error.getField() + ": " + error.getDefaultMessage())
-				.toList();
-		return responder(HttpStatus.BAD_REQUEST, "Datos de entrada inválidos", detalles);
+		return responder(HttpStatus.BAD_REQUEST, "Datos de entrada inválidos", detallesCampos(ex));
+	}
+
+	/** Error de enlace de query params fuera de {@code @Valid}: 400 con un detalle por campo. */
+	@ExceptionHandler(BindException.class)
+	public ResponseEntity<ErrorRespuesta> parametrosInvalidos(BindException ex) {
+		return responder(HttpStatus.BAD_REQUEST, "Parámetros de consulta inválidos", detallesCampos(ex));
+	}
+
+	/** Query param suelto con un tipo incorrecto (p. ej. {@code agrupacion=ANIO}): 400. */
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ErrorRespuesta> tipoInvalido(MethodArgumentTypeMismatchException ex) {
+		return responder(HttpStatus.BAD_REQUEST, "Parámetros de consulta inválidos",
+				List.of(ex.getName() + ": valor no válido '" + ex.getValue() + "'"));
 	}
 
 	/** Cuerpo ausente o JSON mal formado: 400. */
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorRespuesta> cuerpoIlegible(HttpMessageNotReadableException ex) {
 		return responder(HttpStatus.BAD_REQUEST, "El cuerpo de la petición no es un JSON válido", List.of());
+	}
+
+	// Un detalle por campo; los fallos de conversión de tipo no exponen el mensaje técnico de Spring
+	private static List<String> detallesCampos(BindException ex) {
+		return ex.getBindingResult().getFieldErrors().stream()
+				.map(error -> error.isBindingFailure()
+						? error.getField() + ": valor no válido '" + error.getRejectedValue() + "'"
+						: error.getField() + ": " + error.getDefaultMessage())
+				.toList();
 	}
 
 	private static ResponseEntity<ErrorRespuesta> responder(HttpStatus status, String mensaje, List<String> detalles) {

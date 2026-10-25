@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/dashboard/despliegue"
+method: GET
+order: 11500

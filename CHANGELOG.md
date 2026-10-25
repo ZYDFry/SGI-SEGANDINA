@@ -12,6 +12,45 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 5 / RF-04, RF-05, RF-07 — Historial, dashboard y despliegue
+- Qué se hizo:
+  - Filtro de rango común (`RangoFechas` + `Periodo`): `HOY`, `ULTIMOS_7_DIAS`, `ULTIMOS_30_DIAS` (por defecto),
+    `MES_ACTUAL`, `ANIO_ACTUAL` y `PERSONALIZADO` con `desde`/`hasta` (`AAAA-MM-DD`, máximo 366 días,
+    `desde <= hasta`). Los días se calculan en America/Lima sobre `fecha_hora`, con intervalo semiabierto.
+    Se combina con `idZona`, `idNivelGravedad` e `idTipoEvento` (`IncidenciaFiltro`).
+  - RF-04: `GET /api/incidencias` paginado (`size` máximo 100), orden por `fecha_hora` descendente; cada fila trae
+    zona, tipo, nivel y el usuario que la registró (id, DNI, nombre completo).
+  - RF-05: `GET /api/dashboard/kpis` (hoy, periodo y por gravedad con ceros), `/incidencias-por-zona`,
+    `/incidencias-por-tipo` e `/incidencias-por-tiempo` con `agrupacion` `DIA`/`SEMANA`/`MES` (por defecto según
+    el largo del rango: hasta 31 días DIA, hasta 180 SEMANA, si no MES) y todos los tramos del rango, incluidos
+    los vacíos.
+  - RF-07: `GET /api/dashboard/despliegue` desde la vista `v_despliegue_por_zona` (entidad de solo lectura).
+  - Query params con valor no válido (`periodo`, fechas, `agrupacion`) → 400 con el campo en `detalles`.
+  - Índices: `idx_incidencia_fecha (fecha_hora DESC)` e `idx_incidencia_zona (id_zona, fecha_hora DESC)` ya
+    están en `docs/modelo_datos.sql`; no se agregó SQL.
+  - `docs/requerimientos_funcionales.md`: filtros comunes, RF-04, RF-05 y RF-07 con parámetros, rangos y
+    respuestas. `docs/stack_arquitectura.md`: tabla de endpoints. Postman: 8 peticiones nuevas y variables
+    `periodo`, `desde`, `hasta`.
+- Archivos clave: `dto/request/{Periodo,RangoFechas,IncidenciaFiltro,Agrupacion}.java`,
+  `dao/{IncidenciaDao,IncidenciaEstadisticasDao,IncidenciaEstadisticasDaoImpl,ConteoAgrupado,ConteoDiario,
+  DespliegueZonaDao}.java`, `model/DespliegueZona.java`, `service/{IncidenciaService,DashboardService}.java` y sus
+  `impl`, `controller/{IncidenciaController,DashboardController}.java`,
+  `dto/response/{IncidenciaHistorialResponse,KpisResponse,ConteoResponse,SerieTiempoResponse,
+  DespliegueZonaResponse}.java`, `exception/GlobalExceptionHandler.java`; tests `dto/request/RangoFechasTest`,
+  `service/impl/{DashboardServiceImplTest,IncidenciaServiceImplTest}`, `controller/DashboardControllerTest`,
+  `dao/IncidenciaDaoTest` (consultas contra H2), `model/MapeoEntidadesTest`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 148 tests (39 nuevos).
+  - Con la app en perfil `local` y token de Supervisor: `GET /api/incidencias?periodo=ULTIMOS_7_DIAS` → página
+    de la más reciente a la más antigua; `GET /api/dashboard/incidencias-por-tiempo?periodo=MES_ACTUAL` → un
+    punto por día del mes hasta hoy (0 en los días sin incidencias); `GET /api/dashboard/despliegue` → zonas
+    activas con sus vigilantes; `?periodo=PERSONALIZADO&desde=2026-10-10&hasta=2026-10-01` → 400; con token de
+    Vigilante → 403.
+- Pendientes o problemas conocidos:
+  - Las consultas del historial y del dashboard se probaron contra H2 en modo PostgreSQL; falta ejecutarlas
+    contra Supabase (la nativa por día usa `AT TIME ZONE` y `to_char`, cuya semántica en H2 no es idéntica).
+  - El rango personalizado acepta fechas futuras (devuelven 0 incidencias).
+
 ## [2026-10-24] Fase 4 / RF-02, RF-09 — Gestión de usuarios, de catálogos y cambio de contraseña
 - Qué se hizo:
   - Usuarios (solo Administrador, sin `DELETE`): `GET /api/usuarios` paginado con filtros `idRol`, `idZona`,

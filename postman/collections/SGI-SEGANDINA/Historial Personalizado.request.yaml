@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/incidencias?periodo=PERSONALIZADO&desde={{desde}}&hasta={{hasta}}&idZona=&idNivelGravedad=&idTipoEvento=&page=0&size=20"
+method: GET
+queryParams:
+  periodo: "PERSONALIZADO"
+  desde: "{{desde}}"
+  hasta: "{{hasta}}"
+  idZona: ""
+  idNivelGravedad: ""
+  idTipoEvento: ""
+  page: "0"
+  size: "20"
+order: 10100

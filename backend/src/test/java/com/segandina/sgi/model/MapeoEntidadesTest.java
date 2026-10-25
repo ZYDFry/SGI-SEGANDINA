@@ -37,7 +37,8 @@ class MapeoEntidadesTest {
 				NivelGravedad.class, "nivel_gravedad",
 				Usuario.class, "usuario",
 				Incidencia.class, "incidencia",
-				Auditoria.class, "auditoria");
+				Auditoria.class, "auditoria",
+				DespliegueZona.class, "v_despliegue_por_zona");
 
 		esperadas.forEach((clase, tabla) -> {
 			assertNotNull(clase.getAnnotation(Entity.class), clase.getSimpleName() + " sin @Entity");
@@ -53,6 +54,14 @@ class MapeoEntidadesTest {
 		boolean tieneSetters = Arrays.stream(Auditoria.class.getMethods())
 				.anyMatch(m -> m.getName().startsWith("set"));
 		assertFalse(tieneSetters, "Auditoria no debe exponer setters");
+	}
+
+	@Test
+	void despliegueEsDeSoloLectura() {
+		assertNotNull(DespliegueZona.class.getAnnotation(Immutable.class));
+		boolean tieneSetters = Arrays.stream(DespliegueZona.class.getMethods())
+				.anyMatch(m -> m.getName().startsWith("set"));
+		assertFalse(tieneSetters, "DespliegueZona no debe exponer setters");
 	}
 
 	@Test

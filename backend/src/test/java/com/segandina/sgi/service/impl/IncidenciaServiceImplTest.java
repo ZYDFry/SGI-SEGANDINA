@@ -12,13 +12,20 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 import com.segandina.sgi.config.RelojConfig;
 import com.segandina.sgi.dao.IncidenciaDao;
@@ -26,7 +33,10 @@ import com.segandina.sgi.dao.NivelGravedadDao;
 import com.segandina.sgi.dao.TipoEventoDao;
 import com.segandina.sgi.dao.UsuarioDao;
 import com.segandina.sgi.dao.ZonaDao;
+import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
+import com.segandina.sgi.dto.request.Periodo;
+import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
 import com.segandina.sgi.exception.CredencialesInvalidasException;
 import com.segandina.sgi.exception.ReglaNegocioException;
@@ -37,9 +47,10 @@ import com.segandina.sgi.model.TipoEvento;
 import com.segandina.sgi.model.Usuario;
 import com.segandina.sgi.model.Zona;
 import com.segandina.sgi.service.AuditoriaService;
+import com.segandina.sgi.service.IncidenciaService;
 
 /**
- * Pruebas unitarias del registro de incidencias (RF-03) con DAO y auditoría simulados y un reloj fijo.
+ * Pruebas unitarias del registro (RF-03) y del historial (RF-04) de incidencias con DAO y auditoría simulados y un reloj fijo.
  */
 class IncidenciaServiceImplTest {
 
@@ -258,6 +269,46 @@ class IncidenciaServiceImplTest {
 		assertThrows(CredencialesInvalidasException.class, () -> incidenciaService.registrar(
 				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
 		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void historialOrdenaPorFechaDescendenteYAcotaElTamano() {
+		Incidencia incidencia = new Incidencia();
+		incidencia.setIdIncidencia(100L);
+		incidencia.setFechaHora(AHORA.minusHours(1));
+		incidencia.setDescripcion(DESCRIPCION);
+		incidencia.setZona(zona);
+		incidencia.setTipoEvento(robo);
+		incidencia.setNivelGravedad(nivel);
+		usuario.setDni("12345678");
+		usuario.setNombres("Ana");
+		usuario.setApellidoPaterno("Quispe");
+		incidencia.setUsuario(usuario);
+		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(incidenciaDao.findAll(any(Specification.class), pageable.capture()))
+				.thenAnswer(invocacion -> new PageImpl<>(List.of(incidencia), invocacion.getArgument(1), 1));
+
+		Page<IncidenciaHistorialResponse> pagina = incidenciaService.buscar(
+				new IncidenciaFiltro(Periodo.HOY, null, null, ID_ZONA, null, null), -3, 500);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(IncidenciaService.TAMANO_MAXIMO, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Order.desc("fechaHora"), Sort.Order.desc("idIncidencia")),
+				pageable.getValue().getSort());
+		IncidenciaHistorialResponse fila = pagina.getContent().get(0);
+		assertEquals(100L, fila.idIncidencia());
+		assertEquals("Ana Quispe", fila.usuario().nombreCompleto());
+		assertEquals("Sede Miraflores", fila.zona().nombreZona());
+	}
+
+	@Test
+	void historialConRangoInvalidoNoConsultaLaBd() {
+		IncidenciaFiltro invertido = new IncidenciaFiltro(Periodo.PERSONALIZADO, LocalDate.of(2026, 10, 10),
+				LocalDate.of(2026, 10, 1), null, null, null);
+
+		assertThrows(ReglaNegocioException.class, () -> incidenciaService.buscar(invertido, 0, 20));
+		verifyNoInteractions(incidenciaDao);
 	}
 
 	private Incidencia capturarGuardada() {

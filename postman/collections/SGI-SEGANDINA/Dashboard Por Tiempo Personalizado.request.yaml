@@ -1,0 +1,9 @@
+$kind: http-request
+url: "{{baseUrl}}/api/dashboard/incidencias-por-tiempo?periodo=PERSONALIZADO&desde={{desde}}&hasta={{hasta}}&agrupacion=SEMANA"
+method: GET
+queryParams:
+  periodo: "PERSONALIZADO"
+  desde: "{{desde}}"
+  hasta: "{{hasta}}"
+  agrupacion: "SEMANA"
+order: 11400

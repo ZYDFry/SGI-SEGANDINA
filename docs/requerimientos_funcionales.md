@@ -91,23 +91,48 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   fecha futura, "Otro" corto); 401 sin token o con usuario inactivo; 403 con rol Supervisor.
 - **Criterios de aceptación:** el flujo completo se hace con selectores rápidos y un campo de texto; el servidor responde en menos de 3 segundos en red móvil (RNF-04); tras guardar se muestra confirmación y el formulario queda listo para otro registro.
 
+## Rango de fechas y filtros comunes (RF-04, RF-05 y RF-06)
+
+El historial, el dashboard y los reportes reciben los mismos query params, todos opcionales y combinables con AND:
+
+| Parámetro | Valores | Descripción |
+|---|---|---|
+| `periodo` | `HOY`, `ULTIMOS_7_DIAS`, `ULTIMOS_30_DIAS`, `MES_ACTUAL`, `ANIO_ACTUAL`, `PERSONALIZADO` | Sin valor se usa `ULTIMOS_30_DIAS`. |
+| `desde`, `hasta` | fecha `AAAA-MM-DD` | Obligatorias con `PERSONALIZADO` y rechazadas con cualquier otro periodo. Ambos días se incluyen. |
+| `idZona` | id | Solo incidencias de esa zona. |
+| `idNivelGravedad` | id | Solo incidencias de ese nivel. |
+| `idTipoEvento` | id | Solo incidencias de ese tipo. |
+
+- **Cómo se calculan los periodos** (con "hoy" según la hora de Lima): `HOY` = hoy; `ULTIMOS_7_DIAS` = hoy y los 6 días anteriores; `ULTIMOS_30_DIAS` = hoy y los 29 anteriores; `MES_ACTUAL` = del día 1 del mes a hoy; `ANIO_ACTUAL` = del 1 de enero a hoy.
+- **Límites del día:** se calculan en la zona horaria America/Lima sobre `fecha_hora`. La consulta usa el intervalo semiabierto `[desde 00:00, (hasta + 1 día) 00:00)` en hora de Lima, así que una incidencia de las 23:59:59 entra en su día y una de las 00:00:00 del día siguiente no.
+- **Validaciones (400):** `desde` posterior a `hasta`; rango personalizado de más de 366 días (un año bisiesto completo es el máximo); `PERSONALIZADO` sin alguna de las fechas; fechas enviadas sin `PERSONALIZADO`; `periodo` o fecha con formato no válido.
+- Un id de zona, nivel o tipo que no existe no es error: simplemente no devuelve resultados.
+
 ## RF-04 Historial y filtros (Prioridad: Alta)
 
 - **Descripción:** listado general de incidencias con filtros.
-- **Filtros (opcionales y combinables):** rango de fechas (sobre `fecha_hora`), zona, nivel de gravedad.
-- **Reglas:** orden por `fecha_hora` descendente; paginación en servidor.
-- **Columnas:** Fecha, Zona, Tipo, Gravedad, Usuario (y descripción en el detalle).
-- **Criterios de aceptación:** sin filtros muestra todo; con filtros solo lo que cumple todos; los filtros vigentes son los que usa la exportación (RF-06).
+- **Endpoint:** `GET /api/incidencias` (Administrador y Supervisor; Vigilante recibe 403).
+- **Parámetros:** los filtros comunes (rango de fechas sobre `fecha_hora`, zona, nivel de gravedad y tipo de evento) más `page` (desde 0, por defecto 0) y `size` (por defecto 20, se acota entre 1 y 100).
+- **Reglas:** orden por `fecha_hora` descendente (a igual fecha, por id descendente, para que la paginación sea estable); paginación en servidor.
+- **Respuesta:** página con `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`. Cada fila trae `idIncidencia`, `fechaHora`, `fechaRegistro`, `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `usuario` (`idUsuario`, `dni`, `nombreCompleto`; nunca la contraseña).
+- **Columnas en pantalla:** Fecha, Zona, Tipo, Gravedad, Usuario (y descripción en el detalle).
+- **Criterios de aceptación:** sin filtros muestra los últimos 30 días; con filtros solo lo que cumple todos; los filtros vigentes son los que usa la exportación (RF-06).
 
 ## RF-05 Dashboard analítico (Prioridad: Alta)
 
 - **Descripción:** panel gerencial con gráficos dinámicos. Vista Desktop.
-- **Contenido:**
-  - KPI: incidencias de hoy.
-  - Gráfico de barras: incidencias por zona.
-  - Gráfico de anillo (en el diseño UI figura como "pastel"): incidencias por tipo de evento.
-  - Despliegue por zona (ver RF-07).
-- **Reglas:** los datos salen de consultas agregadas en el backend (ejemplos en el Capítulo IV, sección 4.4). El flujo TO-BE habla de métricas "en tiempo real": cargar al abrir y refrescar cada 30–60 s (propuesto).
+- **Endpoints** (Administrador y Supervisor), todos con los filtros comunes:
+
+| Endpoint | Contenido |
+|---|---|
+| `GET /api/dashboard/kpis` | `desde`, `hasta`, `incidenciasHoy` (hoy en Lima, con los mismos filtros de zona, nivel y tipo), `incidenciasPeriodo` y `porGravedad`: todos los niveles activos ordenados de menos a más grave, con 0 si no tienen incidencias (un nivel inactivo solo aparece si tiene incidencias en el rango). |
+| `GET /api/dashboard/incidencias-por-zona` | Lista `{id, nombre, total}` de las zonas con incidencias en el rango, de mayor a menor (gráfico de barras). |
+| `GET /api/dashboard/incidencias-por-tipo` | Igual, por tipo de evento (gráfico de anillo; en el diseño UI figura como "pastel"). |
+| `GET /api/dashboard/incidencias-por-tiempo` | Serie `{agrupacion, desde, hasta, puntos[{inicio, fin, total}]}`. |
+
+- **Serie por tiempo:** parámetro opcional `agrupacion` = `DIA`, `SEMANA` o `MES`. Sin valor: `DIA` si el rango tiene hasta 31 días, `SEMANA` hasta 180 y `MES` si es mayor. Se devuelven todos los tramos del rango, también los que no tienen incidencias (con `total` 0). Las semanas van de lunes a domingo y los meses son calendario; el primer y el último tramo se recortan a `desde` y `hasta` (por ejemplo, del jueves 1 al domingo 4).
+- **Despliegue por zona:** ver RF-07.
+- **Reglas:** los datos salen de consultas agregadas en el backend; el conteo por día se hace con `fecha_hora AT TIME ZONE 'America/Lima'` y la agrupación en semanas o meses y el relleno con ceros se hacen en Java. El flujo TO-BE habla de métricas "en tiempo real": cargar al abrir y refrescar cada 30–60 s (propuesto).
 - **Criterios de aceptación:** estados de carga y de error visibles; un registro nuevo aparece en las métricas sin recargar manualmente tras el siguiente refresco.
 
 ## RF-06 Exportación de reportes (Prioridad: Media)
@@ -119,6 +144,7 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 ## RF-07 Control de despliegue (Prioridad: Alta)
 
 - **Descripción:** en el dashboard, cantidad de vigilantes activos por zona para decidir reasignaciones.
+- **Endpoint:** `GET /api/dashboard/despliegue` (Administrador y Supervisor). No usa filtros ni rango de fechas. Devuelve `[{idZona, nombreZona, vigilantesActivos}]` ordenado por nombre de zona.
 - **Reglas:** se obtiene de la vista `v_despliegue_por_zona` (cuenta usuarios con rol Vigilante y `estado_activo = true` por zona; las zonas sin vigilantes aparecen con 0).
 - **Criterios de aceptación:** al activar, desactivar o reasignar un vigilante, el conteo se actualiza en el siguiente refresco.
 

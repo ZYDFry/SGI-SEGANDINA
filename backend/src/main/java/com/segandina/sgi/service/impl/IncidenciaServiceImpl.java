@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +18,10 @@ import com.segandina.sgi.dao.NivelGravedadDao;
 import com.segandina.sgi.dao.TipoEventoDao;
 import com.segandina.sgi.dao.UsuarioDao;
 import com.segandina.sgi.dao.ZonaDao;
+import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
+import com.segandina.sgi.dto.request.RangoFechas;
+import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
 import com.segandina.sgi.exception.CredencialesInvalidasException;
 import com.segandina.sgi.exception.ReglaNegocioException;
@@ -29,6 +36,9 @@ import com.segandina.sgi.service.IncidenciaService;
 
 @Service
 public class IncidenciaServiceImpl implements IncidenciaService {
+
+	// Más reciente primero; el id desempata incidencias con la misma fecha para que la paginación sea estable
+	private static final Sort ORDEN_HISTORIAL = Sort.by(Sort.Order.desc("fechaHora"), Sort.Order.desc("idIncidencia"));
 
 	private final IncidenciaDao incidenciaDao;
 	private final UsuarioDao usuarioDao;
@@ -93,6 +103,16 @@ public class IncidenciaServiceImpl implements IncidenciaService {
 				"idNivelGravedad", nivel.getIdNivelGravedad()), null, usuario);
 
 		return IncidenciaResponse.desde(guardada);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Page<IncidenciaHistorialResponse> buscar(IncidenciaFiltro filtro, int pagina, int tamano) {
+		RangoFechas rango = RangoFechas.resolver(filtro.periodo(), filtro.desde(), filtro.hasta(), reloj);
+		Pageable pageable = PageRequest.of(Math.max(pagina, 0), Math.clamp(tamano, 1, TAMANO_MAXIMO),
+				ORDEN_HISTORIAL);
+		return incidenciaDao.findAll(IncidenciaDao.conFiltros(rango, filtro), pageable)
+				.map(IncidenciaHistorialResponse::desde);
 	}
 
 	// Devuelve el registro del catálogo si existe y está activo; si no, rechaza con el mensaje indicado
