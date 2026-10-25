@@ -1,6 +1,7 @@
 package com.segandina.sgi.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -97,6 +98,26 @@ class IncidenciaDaoTest {
 		assertEquals(OffsetDateTime.parse("2026-10-25T04:59:59Z").toInstant(), fechas.get(0).toInstant());
 		assertEquals(OffsetDateTime.parse("2026-10-25T03:30:00Z").toInstant(), fechas.get(1).toInstant());
 		assertEquals(OffsetDateTime.parse("2026-10-24T05:00:00Z").toInstant(), fechas.get(2).toInstant());
+	}
+
+	@Test
+	void reporteSinPaginarUsaElOrdenDelHistorialYCargaLasRelaciones() {
+		entityManager.clear();
+
+		List<Incidencia> incidencias = incidenciaDao.findAll(IncidenciaDao.conFiltros(DIA_24, SIN_FILTROS),
+				IncidenciaDao.ORDEN_HISTORIAL);
+		entityManager.clear();
+
+		assertEquals(3, incidencias.size());
+		assertEquals(OffsetDateTime.parse("2026-10-25T04:59:59Z").toInstant(),
+				incidencias.get(0).getFechaHora().toInstant());
+		// Con la sesión cerrada, las relaciones solo se leen si vinieron en la misma consulta
+		for (Incidencia incidencia : incidencias) {
+			assertNotNull(incidencia.getUsuario().getDni());
+			assertNotNull(incidencia.getZona().getNombreZona());
+			assertNotNull(incidencia.getTipoEvento().getNombreTipoEvento());
+			assertNotNull(incidencia.getNivelGravedad().getNombreNivel());
+		}
 	}
 
 	@Test

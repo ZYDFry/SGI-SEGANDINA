@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,6 +25,12 @@ public interface IncidenciaDao extends JpaRepository<Incidencia, Long>, JpaSpeci
 		IncidenciaEstadisticasDao {
 
 	/**
+	 * Orden del historial y de los reportes: más reciente primero; el id desempata incidencias con la misma fecha
+	 * para que la paginación sea estable.
+	 */
+	Sort ORDEN_HISTORIAL = Sort.by(Sort.Order.desc("fechaHora"), Sort.Order.desc("idIncidencia"));
+
+	/**
 	 * Busca incidencias paginadas cargando zona, tipo, nivel y usuario en la misma consulta (historial RF-04).
 	 *
 	 * @param spec     condición de búsqueda, normalmente {@link #conFiltros(RangoFechas, IncidenciaFiltro)}
@@ -33,6 +40,18 @@ public interface IncidenciaDao extends JpaRepository<Incidencia, Long>, JpaSpeci
 	@Override
 	@EntityGraph(attributePaths = { "zona", "tipoEvento", "nivelGravedad", "usuario" })
 	Page<Incidencia> findAll(Specification<Incidencia> spec, Pageable pageable);
+
+	/**
+	 * Busca todas las incidencias que cumplen la condición, sin paginar, cargando zona, tipo, nivel y usuario en
+	 * la misma consulta (reportes RF-06).
+	 *
+	 * @param spec condición de búsqueda, normalmente {@link #conFiltros(RangoFechas, IncidenciaFiltro)}
+	 * @param sort orden, normalmente {@link #ORDEN_HISTORIAL}
+	 * @return las incidencias con sus relaciones cargadas
+	 */
+	@Override
+	@EntityGraph(attributePaths = { "zona", "tipoEvento", "nivelGravedad", "usuario" })
+	List<Incidencia> findAll(Specification<Incidencia> spec, Sort sort);
 
 	/**
 	 * Arma la condición de búsqueda de incidencias: {@code fecha_hora} dentro de

@@ -9,7 +9,6 @@ import java.util.function.Function;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,9 +35,6 @@ import com.segandina.sgi.service.IncidenciaService;
 
 @Service
 public class IncidenciaServiceImpl implements IncidenciaService {
-
-	// Más reciente primero; el id desempata incidencias con la misma fecha para que la paginación sea estable
-	private static final Sort ORDEN_HISTORIAL = Sort.by(Sort.Order.desc("fechaHora"), Sort.Order.desc("idIncidencia"));
 
 	private final IncidenciaDao incidenciaDao;
 	private final UsuarioDao usuarioDao;
@@ -110,7 +106,7 @@ public class IncidenciaServiceImpl implements IncidenciaService {
 	public Page<IncidenciaHistorialResponse> buscar(IncidenciaFiltro filtro, int pagina, int tamano) {
 		RangoFechas rango = RangoFechas.resolver(filtro.periodo(), filtro.desde(), filtro.hasta(), reloj);
 		Pageable pageable = PageRequest.of(Math.max(pagina, 0), Math.clamp(tamano, 1, TAMANO_MAXIMO),
-				ORDEN_HISTORIAL);
+				IncidenciaDao.ORDEN_HISTORIAL);
 		return incidenciaDao.findAll(IncidenciaDao.conFiltros(rango, filtro), pageable)
 				.map(IncidenciaHistorialResponse::desde);
 	}
