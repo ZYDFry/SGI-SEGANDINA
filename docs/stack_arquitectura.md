@@ -69,7 +69,25 @@ backend/src/main/java/com/segandina/sgi/
 - Autorización por rol en cada endpoint (`@PreAuthorize` o reglas en `SecurityConfig`).
 - El `id_usuario` de una incidencia o de un log de auditoría siempre sale del token, nunca del body.
 - Mensaje de error de login genérico (no revelar si el DNI existe).
-- CORS limitado al dominio del frontend.
+- CORS limitado al dominio del frontend: `CorsConfig` lee `cors.origenes-permitidos` (variable `CORS_ORIGENES`,
+  lista separada por comas; por defecto `http://localhost:3000`). Sin credenciales: el token viaja en el header.
+
+### JWT en el frontend
+
+El frontend guarda `{ token, expiraEn, usuario }` en `localStorage` (clave `sgi.sesion`) y envía
+`Authorization: Bearer <token>` en cada petición. Motivos:
+
+- Frontend (Vercel) y API (Render/Railway) están en dominios distintos. Una cookie httpOnly la emitiría el dominio
+  de la API, sería una cookie de terceros (Safari/iOS la bloquea, justo el celular del vigilante) y obligaría a
+  reactivar CSRF en el backend. La API ya es un resource server sin estado que lee el header.
+- `localStorage` (no `sessionStorage`) mantiene la sesión durante el turno aunque el vigilante cambie de app.
+
+Mitigaciones: React escapa todo el contenido y no se usa `dangerouslySetInnerHTML`; el token dura 8 h; la sesión
+se borra al cerrar sesión, al llegar a `expiraEn` y ante cualquier 401 de una petición con token; cabeceras
+`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` y `Permissions-Policy` en `next.config.ts`.
+La protección de rutas del frontend solo decide qué se muestra; la autorización real la hace la API por rol.
+
+Variable del frontend: `NEXT_PUBLIC_API_URL` (URL base de la API, sin `/` final), en `frontend/.env.local`.
 - BD (RNF-01), tres capas: triggers que bloquean UPDATE/DELETE/TRUNCATE en `auditoria`; RLS activo en todas las tablas; el backend conecta con `app_sgi` (sin UPDATE ni DELETE sobre `auditoria`).
 
 ### Conexión a Supabase

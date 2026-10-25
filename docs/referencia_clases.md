@@ -525,3 +525,74 @@ curl -OJ "http://localhost:8080/api/reportes/pdf?periodo=HOY&idZona=999" -H "Aut
 tiene resultados y genera un PDF con solo los encabezados. Cada descarga deja una fila `EXPORTAR_REPORTE` en
 `auditoria` con los filtros en `detalle_cambio`. En Postman, las peticiones "Reportes Excel", "Reportes PDF" y
 "Reportes PDF Personalizado" se ejecutan con "Send and Download" para guardar el archivo.
+
+---
+
+## Fase 7 — Frontend base: login, rutas por rol y registro de incidencias (RF-01, RF-03)
+
+Aplicación Next.js 16 (App Router, TypeScript, Tailwind) en `/frontend`. El usuario inicia sesión con DNI y
+contraseña; el Vigilante llega al formulario móvil de incidencias y el Administrador o Supervisor al dashboard.
+La sesión (JWT) se guarda en `localStorage` y se cierra sola al vencer o ante un 401. En el backend se agrega CORS
+para que el navegador pueda llamar a la API desde el dominio del frontend.
+
+### Backend: clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `CorsConfig` | `config` | Reglas CORS de `/api/**`: orígenes de `cors.origenes-permitidos` (`CORS_ORIGENES`), métodos GET/POST/PUT/PATCH/DELETE/OPTIONS, headers `Authorization` y `Content-Type`, expone `Content-Disposition`, sin credenciales, preflight cacheado 1 h. | `corsConfigurationSource(String origenes)` → `CorsConfigurationSource`. |
+| `SecurityConfig` (modificado) | `config` | Activa CORS en la cadena de filtros con `.cors(Customizer.withDefaults())`, que usa el bean de `CorsConfig`. | — |
+
+### Frontend: módulos y componentes
+
+| Archivo (`frontend/src/`) | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/tipos.ts` | Tipos TypeScript de los DTO de la API (`Usuario`, `LoginResponse`, `Zona`, `TipoEvento`, `NivelGravedad`, `IncidenciaRequest`, `IncidenciaResponse`, `ErrorRespuesta`). | — |
+| `lib/sesion.ts` | Almacén de la sesión en `localStorage` (clave `sgi.sesion`) con aviso a los suscriptores; recuerda el motivo del último cierre. | `guardarSesion(sesion)`, `borrarSesion(motivo = "manual" \| "expirada")`, `leerSesion()` → sesión vigente o `null`, `suscribirSesion(oyente)` → función para desuscribirse, `consumirMotivoCierre()` → motivo y lo olvida. |
+| `lib/api.ts` | Instancia Axios con `baseURL = NEXT_PUBLIC_API_URL`. Interceptor de petición: agrega `Authorization: Bearer`. Interceptor de respuesta: un 401 de una petición con token llama a `borrarSesion("expirada")`. | `api`; `errorDeApi(error)` → `{ status, mensaje, detalles }` (lee el `ErrorRespuesta` del backend o informa falta de conexión). |
+| `lib/servicios.ts` | Llamadas a la API que usan las pantallas. | `iniciarSesion(dni, contrasena)` → `Usuario` (guarda la sesión); `cargarCatalogos()` → `{ zonas, tipos, niveles }` (tres GET en paralelo); `registrarIncidencia(IncidenciaRequest)` → `IncidenciaResponse`. |
+| `lib/roles.ts` | Rutas y menú por rol. | `rutaInicio(rol)` → `/incidencias/nueva` (Vigilante) o `/dashboard`; `menuDe(rol)` → opciones visibles; constantes `ROLES_REGISTRO` y `ROLES_GERENCIA`. |
+| `context/SesionContext.tsx` | `SesionProvider` (en el layout raíz) lee la sesión con `useSyncExternalStore` y programa su cierre al llegar a `expiraEn`. | `useSesion()` → `{ cargando, sesion, cerrarSesion }`. |
+| `components/RutaProtegida.tsx` | Muestra la página solo con sesión y rol permitido. Sin sesión → `/login` (o `/login?motivo=expirada` si venció); otro rol → `rutaInicio(rol)`. | Props `roles: Rol[]`, `children`. |
+| `components/SelectorRapido.tsx` | Grupo de botones grandes con semántica de radio (`role="radiogroup"`, `aria-checked`). | Props `titulo`, `opciones: { valor, etiqueta, clases? }[]`, `valor`, `onCambio`, `columnas`. |
+| `components/Encabezado.tsx` | Barra azul marino con nombre y rol, menú filtrado por rol y botón "Cerrar sesión". | — |
+| `components/Boton.tsx`, `Alerta.tsx`, `Cargando.tsx` | Botón (`primario`, `secundario`, `peligro`), mensaje (`error`, `aviso`, `exito`) e indicador de carga. | — |
+| `app/login/` | `/login`: DNI de 8 dígitos (teclado numérico) y contraseña; mensaje genérico ante 401; aviso "Tu sesión venció" con `?motivo=expirada`; con sesión activa redirige a `rutaInicio`. | — |
+| `app/(privado)/incidencias/nueva/` | `/incidencias/nueva` (Vigilante, Administrador): selectores de zona (preseleccionada con `usuario.idZona`), tipo y gravedad (verde, amarillo, naranja, rojo según `orden`), descripción con contador y mínimo de 20 caracteres para "Otro", fecha y hora opcional (por defecto la actual), botón fijo abajo en móvil y confirmación con el número de incidencia. | — |
+| `app/(privado)/dashboard/` | `/dashboard` (Administrador, Supervisor): pantalla de bienvenida; los indicadores y gráficos se agregan después. | — |
+| `app/page.tsx` | `/`: redirige a `rutaInicio(rol)` o a `/login`. | — |
+
+### Flujo: login de un Vigilante y registro de una incidencia
+
+1. `/login` → `FormularioLogin` valida el DNI (`^\d{8}$`) y llama a `iniciarSesion`, que hace
+   `POST /api/auth/login`. El backend valida con BCrypt y responde `{ token, expiraEn, usuario }`.
+2. `guardarSesion` escribe en `localStorage` y avisa a `SesionProvider`; el efecto del login ve la sesión y
+   redirige a `rutaInicio("Vigilante")` = `/incidencias/nueva`.
+3. `RutaProtegida` comprueba el rol; `FormularioIncidencia` llama a `cargarCatalogos()` (tres `GET /api/catalogos/...`
+   con `Authorization: Bearer`) y marca la zona del vigilante.
+4. Al enviar, valida en el cliente y llama a `registrarIncidencia` → `POST /api/incidencias`. El backend toma el
+   usuario del token, valida reglas (fecha no futura, 20 caracteres para "Otro") e inserta en `incidencia`.
+5. Con 201 se muestra la confirmación y se limpia el formulario (se conserva la zona). Con 400 se muestran
+   `mensaje` y `detalles`. Con 401 el interceptor borra la sesión y `RutaProtegida` lleva a
+   `/login?motivo=expirada`.
+
+### Cómo probar
+
+```
+cd backend && ./mvnw -q verify          # incluye CorsConfigTest
+cd frontend && npm install && npm run lint && npm run build
+```
+`CorsConfigTest` (3): preflight desde un origen permitido → 200 con `Access-Control-Allow-Origin`; preflight con
+`Authorization` hacia `/api/incidencias` → 200; desde un origen no permitido → 403 sin cabeceras CORS.
+
+Prueba manual:
+1. Backend: `cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local`.
+2. Frontend: copiar `frontend/.env.example` a `frontend/.env.local` con `NEXT_PUBLIC_API_URL=http://localhost:8080`
+   y ejecutar `npm run dev`; abrir `http://localhost:3000`.
+3. Login con DNI de 7 dígitos → "El DNI debe tener 8 dígitos". Contraseña incorrecta → "DNI o contraseña incorrectos".
+4. Vigilante → `/incidencias/nueva` con su zona marcada. Registrar → tarjeta verde con el número; el formulario
+   queda listo para otro. Abrir `/dashboard` → vuelve al formulario.
+5. Supervisor → `/dashboard`; abrir `/incidencias/nueva` → vuelve al dashboard. Administrador → ve ambas en el menú.
+6. "Cerrar sesión" → `/login`; el botón Atrás no muestra páginas privadas.
+7. Token vencido: en DevTools → Application → Local Storage, cambiar `expiraEn` de `sgi.sesion` a una fecha pasada y
+   recargar, o alterar el `token` y registrar una incidencia → `/login` con el aviso "Tu sesión venció".
+8. DevTools en modo móvil (360 px): botones táctiles, botón "Registrar incidencia" fijo abajo, sin scroll horizontal.

@@ -12,6 +12,43 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 7 / RF-01, RF-03 — Frontend base: login, rutas por rol y formulario de incidencias
+- Qué se hizo:
+  - Proyecto Next.js 16.4 (App Router, TypeScript, Tailwind 4, Axios) en `/frontend`. URL de la API en
+    `NEXT_PUBLIC_API_URL`; `frontend/.env.example` sin valores reales (el `.gitignore` del frontend lo permite).
+  - Login por DNI (8 dígitos, teclado numérico) y contraseña, con mensaje genérico ante credenciales inválidas.
+    Redirección por rol: Vigilante → `/incidencias/nueva`; Administrador y Supervisor → `/dashboard`.
+  - Sesión en `localStorage` (`sgi.sesion`) con `Authorization: Bearer`. Se eligió `localStorage` porque frontend
+    y API están en dominios distintos: una cookie httpOnly sería de terceros (bloqueada en Safari/iOS) y obligaría a
+    reactivar CSRF. La sesión se cierra con "Cerrar sesión", al llegar a `expiraEn` (temporizador) y ante un 401
+    de una petición con token; en ambos casos de vencimiento el login muestra "Tu sesión venció".
+  - Protección de rutas por rol (`RutaProtegida`) y menú filtrado por rol en el encabezado.
+  - Formulario `/incidencias/nueva` Mobile-First: selectores rápidos de zona (preseleccionada con la zona del
+    vigilante), tipo y gravedad (verde/amarillo/naranja/rojo según `orden`), descripción con contador y mínimo de 20
+    caracteres para "Otro", fecha y hora opcional (por defecto la actual; nunca futura), botón fijo abajo en móvil,
+    confirmación con el número de incidencia y formulario listo para otro registro.
+  - `/dashboard`: pantalla de bienvenida para gerencia (los KPI y gráficos van en la fase siguiente).
+  - Cabeceras de seguridad en `next.config.ts` (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+    `Permissions-Policy`).
+  - Backend: `CorsConfig` (orígenes desde `CORS_ORIGENES`, por defecto `http://localhost:3000`) y `.cors(...)` en
+    `SecurityConfig`. Variable agregada a `application.properties` y `backend/.env.example`.
+- Archivos clave: `frontend/src/lib/{api,sesion,servicios,roles,tipos}.ts`, `frontend/src/context/SesionContext.tsx`,
+  `frontend/src/components/{RutaProtegida,Encabezado,SelectorRapido,Boton,Alerta,Cargando}.tsx`,
+  `frontend/src/app/login/`, `frontend/src/app/(privado)/{incidencias/nueva,dashboard}/`, `frontend/next.config.ts`,
+  `frontend/.env.example`; backend `config/CorsConfig.java`, `config/SecurityConfig.java`, test `config/CorsConfigTest`.
+  Docs: sección Fase 7 en `docs/referencia_clases.md`; CORS y JWT en el frontend en `docs/stack_arquitectura.md`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → pasan 170 tests (3 nuevos de CORS).
+  - `cd frontend && npm install && npm run lint && npm run build` → sin errores; rutas `/`, `/login`, `/dashboard`,
+    `/incidencias/nueva`.
+  - Manual: backend en perfil `local`, `frontend/.env.local` con `NEXT_PUBLIC_API_URL=http://localhost:8080`,
+    `npm run dev`. Entrar como Vigilante, Supervisor y Administrador y revisar redirecciones, registro con
+    confirmación, cierre de sesión y vencimiento del token (detalle en `docs/referencia_clases.md`, Fase 7).
+- Pendientes o problemas conocidos:
+  - Dashboard, historial y gestión de personal en el frontend (siguiente fase); el menú se amplía entonces.
+  - En producción, definir `CORS_ORIGENES` con el dominio de Vercel y `NEXT_PUBLIC_API_URL` con el del backend.
+  - El formulario necesita conexión: no guarda incidencias sin red para enviarlas después.
+
 ## [2026-10-24] Fase 6 / RF-06 — Exportación de reportes en Excel y PDF
 - Qué se hizo:
   - `GET /api/reportes/excel` y `GET /api/reportes/pdf` (Administrador y Supervisor) con los mismos filtros que el
