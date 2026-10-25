@@ -275,3 +275,91 @@ curl -X POST http://localhost:8080/api/incidencias -H "Authorization: Bearer <to
 ```
 La última debe responder 201. Para comprobar la auditoría:
 `SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria WHERE accion_realizada = 'REGISTRAR_INCIDENCIA' ORDER BY fecha_hora DESC;`
+
+---
+
+## Fase 4 — Gestión de usuarios (RF-02) y de catálogos (RF-09)
+
+El Administrador da de alta, edita, reasigna de zona y activa/desactiva al personal, y administra zonas, tipos de
+evento y niveles de gravedad. No existe `DELETE`: la baja es lógica (`estado_activo`). Las contraseñas se guardan
+con BCrypt y nunca salen en las respuestas. Cualquier usuario autenticado puede cambiar su propia contraseña. Cada
+cambio se audita con los valores antes y después.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `UsuarioController` | `controller` | `/api/usuarios` (Administrador) y `/api/usuarios/me/contrasena` (cualquier rol). El actor es el `sub` del token. | `buscar(idRol, idZona, activo, q, page, size)` → `PaginaResponse<UsuarioResponse>` (`GET`). `obtener(id)` (`GET /{id}`). `crear(UsuarioCrearRequest, Jwt)` → 201 (`POST`). `actualizar(id, UsuarioActualizarRequest, Jwt)` (`PUT /{id}`). `cambiarEstado(id, CambioEstadoRequest, Jwt)` (`PATCH /{id}/estado`). `cambiarContrasenaPropia(CambioContrasenaRequest, Jwt)` → 204 (`PATCH /me/contrasena`). |
+| `UsuarioService` / `UsuarioServiceImpl` | `service` / `service.impl` | Reglas de RF-02. Constantes `ROL_ADMINISTRADOR`, `ROL_VIGILANTE`, `TAMANO_MAXIMO = 100`. | `buscar(UsuarioFiltro, pagina, tamano)` → `Page<UsuarioResponse>` ordenada por apellidos y nombres. `obtener(Long)` (404 si no existe). `crear(request, idActor)`: DNI único (409), rol existente, hash BCrypt, audita `CREAR_USUARIO`. `actualizar(id, request, idActor)`: DNI único frente a otros, contraseña opcional, audita `MODIFICAR_USUARIO` solo si algo cambió. `cambiarEstado(id, activo, idActor)`: audita `CAMBIAR_ESTADO_USUARIO` solo si cambia. `cambiarContrasenaPropia(idUsuario, request)`: valida la actual, exige una distinta, audita `CAMBIAR_CONTRASENA`. |
+| `ZonaController` | `controller` | `/api/zonas` (Administrador). | `buscar(nombre, departamento, provincia, distrito, activo, q, page, size)` → `PaginaResponse<ZonaResponse>` con el contrato de RF-09. `obtener(id)`, `crear(ZonaRequest, Jwt)` → 201, `actualizar(id, ZonaRequest, Jwt)`, `cambiarEstado(id, CambioEstadoRequest, Jwt)`. |
+| `ZonaService` / `ZonaServiceImpl` (ampliados) | `service` / `service.impl` | Además de `buscar`, el alta y la edición con nombre único sin distinguir mayúsculas. | `obtener(Integer)`. `crear(request, idActor)` → audita `CREAR_ZONA`. `actualizar(id, request, idActor)` → `MODIFICAR_ZONA`. `cambiarEstado(id, activo, idActor)` → `CAMBIAR_ESTADO_ZONA`. |
+| `TipoEventoController` | `controller` | `/api/tipos-evento` (Administrador). | `listar()` (todos, por nombre), `crear(TipoEventoRequest, Jwt)` → 201, `actualizar(id, TipoEventoRequest, Jwt)` (`PUT /{id}`), `cambiarEstado(id, CambioEstadoRequest, Jwt)` (`PATCH /{id}/estado`). |
+| `TipoEventoService` / `TipoEventoServiceImpl` | `service` / `service.impl` | Nombre único sin distinguir mayúsculas; el tipo "Otro" no se puede renombrar porque la regla de 20 caracteres de RF-03 depende de su nombre. | `listar()`. `crear(request, idActor)` → `CREAR_TIPO_EVENTO`. `actualizar(id, request, idActor)` → `MODIFICAR_TIPO_EVENTO`. `cambiarEstado(id, activo, idActor)` → `CAMBIAR_ESTADO_TIPO_EVENTO`. |
+| `NivelGravedadController` | `controller` | `/api/niveles-gravedad` (Administrador). | `listar()` (todos, por `orden`). `actualizar(id, NivelGravedadRequest, Jwt)` (`PUT /{id}`). |
+| `NivelGravedadService` / `NivelGravedadServiceImpl` | `service` / `service.impl` | Edición de nombre y orden. `orden` es UNIQUE en la BD: si el orden pedido lo tiene otro nivel, ese nivel pasa por `ORDEN_TEMPORAL` (`Short.MIN_VALUE`) y luego toma el orden anterior, todo en una transacción. | `listar()`. `actualizar(id, request, idActor)` → audita `MODIFICAR_NIVEL_GRAVEDAD` con `antes`, `despues` e `intercambiadoCon` si hubo intercambio. |
+| `CatalogoController` / `CatalogoService` (modificados) | `controller` / `service` | Roles para el formulario de usuarios. | `roles()` / `listarRoles()` → `List<RolResponse>` (`GET /api/catalogos/roles`, cualquier usuario autenticado). |
+| `SoporteServicio` | `service.impl` | Utilidad interna: actor del token (activo o 401), recorte de textos opcionales y detalle `{id, antes, despues}` de auditoría. | (paquete) `actor`, `opcional`, `cambio`. |
+| `UsuarioDao` (modificado) | `dao` | Búsqueda con filtros (`JpaSpecificationExecutor`); el listado carga rol y zona en la misma consulta (`@EntityGraph`). | `conFiltros(UsuarioFiltro)`, `existsByDniAndIdUsuarioNot`, `findAll(Specification, Pageable)`. |
+| `ZonaDao`, `TipoEventoDao`, `NivelGravedadDao` (modificados) | `dao` | Unicidad sin distinguir mayúsculas y consultas de administración. | `existsByNombreZonaIgnoreCase[AndIdZonaNot]`, `existsByNombreTipoEventoIgnoreCase[AndIdTipoEventoNot]`, `findAllByOrderByNombreTipoEventoAsc`, `existsByNombreNivelIgnoreCaseAndIdNivelGravedadNot`, `findByOrden`. |
+| `FiltrosTexto` | `dao` | Utilidad interna compartida por `ZonaDao` y `UsuarioDao`: `LIKE` sin distinguir mayúsculas con `%`/`_` literales e igualdad sin mayúsculas. | (paquete) `limpiar`, `contiene`, `igualSinMayusculas`. |
+| `UsuarioCrearRequest`, `UsuarioActualizarRequest` | `dto.request` | DNI de 8 dígitos, nombres (80), apellidos (50), contraseña de 8 a 72 caracteres (obligatoria al crear, opcional al editar), `idRol`, `idZona`. Su `toString()` oculta la contraseña. | — |
+| `CambioContrasenaRequest` | `dto.request` | `contrasenaActual`, `contrasenaNueva` (8 a 72). | — |
+| `CambioEstadoRequest` | `dto.request` | `activo` (obligatorio). Lo usan usuarios, zonas y tipos de evento. | — |
+| `UsuarioFiltro`, `ZonaRequest`, `TipoEventoRequest`, `NivelGravedadRequest` | `dto.request` | Filtros del listado de usuarios y cuerpos de alta/edición de catálogos con los largos de la BD; `orden` ≥ 1. | — |
+| `UsuarioResponse` | `dto.response` | Usuario con `idRol`, `rol`, `idZona`, `nombreZona` y `estadoActivo`. Sin contraseña. | `desde(Usuario)`. |
+| `PaginaResponse<T>` | `dto.response` | Formato de listados: `contenido`, `pagina`, `tamano`, `totalElementos`, `totalPaginas`. | `desde(Page<T>)`. |
+| `RolResponse` | `dto.response` | `idRol`, `nombreRol`. | `desde(Rol)`. |
+| `TipoEventoResponse`, `NivelGravedadResponse` (modificados) | `dto.response` | Incluyen `estadoActivo`. | `desde(...)`. |
+| `RecursoNoEncontradoException`, `DatoDuplicadoException` | `exception` | `GlobalExceptionHandler` las responde con 404 y 409. Además, una `DataIntegrityViolationException` (dos altas simultáneas con el mismo dato único) se responde con 409 genérico. | Constructor `(String mensaje)`. |
+| `AccionAuditoria` (modificado) | `model` | Acciones nuevas: `CAMBIAR_CONTRASENA`, `CREAR_ZONA`, `MODIFICAR_ZONA`, `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`, `CAMBIAR_ESTADO_TIPO_EVENTO`, `MODIFICAR_NIVEL_GRAVEDAD`. | — |
+| `SecurityConfig` (modificado) | `config` | `PATCH /api/usuarios/me/contrasena` para cualquier usuario con token (se evalúa antes que `/api/usuarios/**`); `/api/zonas/**`, `/api/tipos-evento/**` y `/api/niveles-gravedad/**` solo Administrador. | — |
+
+### Flujo de `PUT /api/usuarios/{id}`
+
+1. `SecurityConfig` valida el JWT y exige rol Administrador (otro rol → 403, sin token → 401).
+2. `UsuarioController.actualizar` recibe el JSON; `@Valid` responde 400 si el DNI no tiene 8 dígitos, falta un
+   campo obligatorio o la contraseña enviada no tiene entre 8 y 72 caracteres.
+3. `UsuarioServiceImpl.actualizar` (una transacción):
+   1. `UsuarioDao.findById(sub del token)`: el Administrador debe seguir activo (si no → 401).
+   2. `UsuarioDao.findById(id)`: el usuario a editar debe existir (si no → 404).
+   3. `UsuarioDao.existsByDniAndIdUsuarioNot`: el DNI no puede tenerlo otro usuario (si no → 409).
+   4. `RolDao.findById`: el rol debe existir. Si el Administrador se edita a sí mismo, no puede quitarse el rol
+      Administrador (400).
+   5. Zona: un Vigilante debe tener zona; una zona nueva o distinta de la actual debe existir y estar activa
+      (`ZonaDao.findById`). La zona actual se conserva aunque se haya desactivado después.
+   6. Copia los datos; si llegó contraseña, guarda `PasswordEncoder.encode(...)`. Hibernate emite el `UPDATE` al
+      confirmar la transacción.
+   7. Si algo cambió, `AuditoriaService.registrar(MODIFICAR_USUARIO, {idUsuario, antes, despues, contrasenaCambiada}, null, admin)`.
+      `antes` y `despues` tienen DNI, nombres, apellidos, rol, zona y estado; nunca el hash.
+4. Responde 200 con `UsuarioResponse`.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw -q verify
+```
+Pasan 109 tests. Nuevos: `UsuarioServiceImplTest` (17: alta con hash y auditoría sin contraseña, DNI repetido,
+Vigilante sin zona, Supervisor sin zona, zona inactiva, edición con antes/después, zona inactiva conservada,
+edición sin cambios no audita, autoprotección del Administrador, cambio de estado, 404, actor inactivo, cambio de
+contraseña propia correcto, con la actual errónea e igual a la actual), `TipoEventoServiceImplTest` (7),
+`NivelGravedadServiceImplTest` (5, contra H2: intercambio de orden con la restricción UNIQUE real),
+`ZonaServiceImplTest` (6 más: alta, duplicado sin mayúsculas, edición, estado), `UsuarioControllerTest` (10) y
+`ZonaControllerTest` (4): 401 sin token, 403 para Supervisor y Vigilante, 204 al cambiar la contraseña propia
+como Vigilante, `contrasena` ausente en el JSON, formato de página de RF-09.
+
+Con la BD (`.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local`) y un token de Administrador (CMD):
+```
+curl -X POST http://localhost:8080/api/usuarios -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d "{\"dni\":\"33333333\",\"nombres\":\"Luis\",\"apellidoPaterno\":\"Rojas\",\"contrasena\":\"ClaveInicial1\",\"idRol\":3,\"idZona\":1}"
+curl "http://localhost:8080/api/usuarios?q=rojas" -H "Authorization: Bearer <token>"
+curl "http://localhost:8080/api/zonas?distrito=miraflores&activo=true" -H "Authorization: Bearer <token>"
+curl -X PUT http://localhost:8080/api/niveles-gravedad/1 -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d "{\"nombreNivel\":\"Baja\",\"orden\":2}"
+```
+El primero responde 201 (repetirlo → 409); el último deja "Baja" en orden 2 y "Media" en orden 1. Con el token del
+vigilante creado:
+```
+curl -X PATCH http://localhost:8080/api/usuarios/me/contrasena -H "Authorization: Bearer <token vigilante>" -H "Content-Type: application/json" -d "{\"contrasenaActual\":\"ClaveInicial1\",\"contrasenaNueva\":\"ClaveNueva123\"}"
+```
+→ 204; ese mismo token en `GET /api/usuarios` → 403. Auditoría:
+`SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria ORDER BY id_auditoria DESC LIMIT 10;`
+La colección de Postman (`postman/collections/SGI-SEGANDINA`) incluye todas estas peticiones.

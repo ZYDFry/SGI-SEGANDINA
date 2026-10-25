@@ -12,6 +12,54 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 4 / RF-02, RF-09 — Gestión de usuarios, de catálogos y cambio de contraseña
+- Qué se hizo:
+  - Usuarios (solo Administrador, sin `DELETE`): `GET /api/usuarios` paginado con filtros `idRol`, `idZona`,
+    `activo` y `q` (DNI, nombres, apellidos); `GET /api/usuarios/{id}`; `POST` (201); `PUT /{id}` (datos, rol,
+    zona y contraseña opcional); `PATCH /{id}/estado` (baja lógica). Respuestas sin `contrasena`.
+    Reglas: DNI único (409), contraseña de 8 a 72 caracteres guardada con BCrypt, rol existente, Vigilante con
+    zona obligatoria, zona nueva o cambiada activa, el Administrador no puede desactivarse ni quitarse su rol.
+  - `PATCH /api/usuarios/me/contrasena` para cualquier usuario con token: exige la contraseña actual, mínimo 8
+    caracteres y una nueva distinta; responde 204.
+  - `GET /api/catalogos/roles` para el formulario de usuarios.
+  - Zonas (`/api/zonas`): búsqueda con el contrato de RF-09 (vía `ZonaService.buscar`), detalle, alta, edición y
+    activar/desactivar. Tipos de evento (`/api/tipos-evento`): listar todos, alta, renombrar, activar/desactivar;
+    el tipo "Otro" no se puede renombrar. Niveles de gravedad (`/api/niveles-gravedad`): listar y editar nombre y
+    orden; si el orden lo tiene otro nivel, se intercambian. Nombres únicos sin distinguir mayúsculas (409).
+  - Auditoría en la misma transacción con `{id, antes, despues}`; nunca guarda el hash (solo
+    `contrasenaCambiada`). Acciones nuevas: `CAMBIAR_CONTRASENA`, `CREAR_ZONA`, `MODIFICAR_ZONA`,
+    `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`, `CAMBIAR_ESTADO_TIPO_EVENTO`,
+    `MODIFICAR_NIVEL_GRAVEDAD`. Editar sin cambios o pedir el mismo estado no audita.
+  - Errores nuevos: 404 (`RecursoNoEncontradoException`), 409 (`DatoDuplicadoException` y violaciones de
+    restricciones de la BD), en el formato `{ timestamp, status, mensaje, detalles }`.
+  - `TipoEventoResponse` y `NivelGravedadResponse` incluyen `estadoActivo`. Listados con `PaginaResponse`.
+  - `docs/requerimientos_funcionales.md`: contrato de RF-02 y del cambio de contraseña, RF-09 ampliado a tipos y
+    niveles, acciones nuevas en RF-08. Colección de Postman con las peticiones nuevas.
+- Archivos clave: `controller/{UsuarioController,ZonaController,TipoEventoController,NivelGravedadController}.java`,
+  `service/{UsuarioService,ZonaService,TipoEventoService,NivelGravedadService}.java` y sus `impl`,
+  `service/impl/SoporteServicio.java`, `dao/{UsuarioDao,ZonaDao,TipoEventoDao,NivelGravedadDao,FiltrosTexto}.java`,
+  `dto/request/*`, `dto/response/{UsuarioResponse,PaginaResponse,RolResponse}.java`, `exception/*`,
+  `config/SecurityConfig.java`, `model/AccionAuditoria.java`; tests `service/impl/{UsuarioServiceImplTest,
+  TipoEventoServiceImplTest,NivelGravedadServiceImplTest,ZonaServiceImplTest}.java`,
+  `controller/{UsuarioControllerTest,ZonaControllerTest}.java`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 109 tests (49 nuevos).
+  - Con la app en perfil `local` y token de Administrador: `POST /api/usuarios` con
+    `{"dni":"33333333","nombres":"Luis","apellidoPaterno":"Rojas","contrasena":"ClaveInicial1","idRol":3,"idZona":1}`
+    → 201 sin `contrasena`; repetirlo → 409; sin `idZona` → 400; `PATCH /api/usuarios/<id propio>/estado`
+    `{"activo":false}` → 400; con token de Supervisor → 403.
+  - Login con el vigilante creado → `PATCH /api/usuarios/me/contrasena`
+    `{"contrasenaActual":"ClaveInicial1","contrasenaNueva":"ClaveNueva123"}` → 204; login con la nueva → 200.
+  - `GET /api/zonas?distrito=miraflores&activo=true` → página con el formato de RF-09;
+    `PUT /api/niveles-gravedad/1` `{"nombreNivel":"Baja","orden":2}` → "Baja" en orden 2 y "Media" en 1.
+  - Auditoría: `SELECT accion_realizada, detalle_cambio FROM auditoria ORDER BY id_auditoria DESC LIMIT 10;`
+- Pendientes o problemas conocidos:
+  - Desactivar una zona no reasigna a los vigilantes que la tienen: siguen asignados (y dejan de contarse en el
+    despliegue de RF-07) hasta que se les cambie la zona.
+  - Un token emitido antes de cambiar el rol o desactivar a un usuario sigue llevando el rol anterior hasta que
+    vence (8 h); los servicios rechazan al actor inactivo, pero las reglas por rol de `SecurityConfig` usan el claim.
+  - La consulta de auditoría (`GET /api/auditoria`) queda para la Fase 5 o posterior.
+
 ## [2026-10-24] Fase 3 / RF-03 — Catálogos activos y registro de incidencias
 - Qué se hizo:
   - `GET /api/catalogos/zonas`, `/tipos-evento` y `/niveles-gravedad` (cualquier usuario con token): solo

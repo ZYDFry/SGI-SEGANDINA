@@ -13,7 +13,8 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 | Ver dashboard y despliegue (RF-05, RF-07) | Sí | Sí | No |
 | Exportar reportes (RF-06) | Sí | Sí | No |
 | Consultar auditoría (RF-08) | Sí | No | No |
-| Gestionar zonas (RF-09) | Sí | No | No |
+| Gestionar zonas, tipos de evento y niveles de gravedad (RF-09) | Sí | No | No |
+| Cambiar su propia contraseña | Sí | Sí | Sí |
 
 El Supervisor tiene, según las decisiones técnicas, "visualización de dashboard y reportes". El Vigilante usa el formulario móvil.
 
@@ -41,11 +42,31 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 - **Entradas (alta):** `dni`, `nombres`, `apellido_paterno`, `apellido_materno` (opcional), `contrasena` inicial, `id_rol`, `id_zona` (opcional).
 - **Reglas:**
   - `dni` único y de 8 dígitos numéricos.
-  - La contraseña se guarda siempre como BCrypt; nunca se devuelve.
-  - Administrador y Supervisor pueden no tener zona; para Vigilante la zona es obligatoria (propuesto).
+  - La contraseña (8 a 72 caracteres) se guarda siempre como BCrypt; nunca se devuelve.
+  - Administrador y Supervisor pueden no tener zona; para Vigilante la zona es obligatoria. Una zona nueva o
+    distinta de la actual debe estar activa; la zona actual se conserva aunque se haya desactivado después.
   - No existe borrado físico: "eliminar" es desactivar (`estado_activo = false`) para conservar el historial.
   - Reasignar zona = editar `id_zona`.
-  - Se audita: `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`, con valores antes y después en `detalle_cambio`.
+  - El Administrador no puede desactivarse a sí mismo ni quitarse el rol Administrador (evita quedarse sin acceso).
+  - Se audita: `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`, con valores antes y después en
+    `detalle_cambio` (sin la contraseña; si cambió, solo `"contrasenaCambiada": true`). Una edición sin cambios o
+    un cambio al mismo estado no se audita.
+- **Contrato** (Administrador; sin `DELETE`):
+
+  | Método y ruta | Cuerpo | Respuestas |
+  |---|---|---|
+  | `GET /api/usuarios?idRol=&idZona=&activo=&q=&page=&size=` | — | 200 página `{ contenido, pagina, tamano, totalElementos, totalPaginas }`; `q` busca en DNI, nombres y apellidos; orden por apellidos y nombres; `size` de 1 a 100 (por defecto 20) |
+  | `GET /api/usuarios/{id}` | — | 200; 404 |
+  | `POST /api/usuarios` | `{ dni, nombres, apellidoPaterno, apellidoMaterno?, contrasena, idRol, idZona? }` | 201; 400 datos inválidos, rol inexistente o zona inválida; 409 DNI duplicado |
+  | `PUT /api/usuarios/{id}` | igual al alta, con `contrasena` opcional (`null` la conserva) | 200; 400; 404; 409 |
+  | `PATCH /api/usuarios/{id}/estado` | `{ activo }` | 200; 400 si el Administrador se desactiva a sí mismo; 404 |
+  | `GET /api/catalogos/roles` | — | 200 `[{ idRol, nombreRol }]` (cualquier usuario autenticado) |
+
+  Cada usuario se devuelve como `{ idUsuario, dni, nombres, apellidoPaterno, apellidoMaterno, idRol, rol, idZona,
+  nombreZona, estadoActivo }`. Sin token → 401; Supervisor o Vigilante → 403.
+- **Cambio de contraseña propia:** `PATCH /api/usuarios/me/contrasena` con `{ contrasenaActual, contrasenaNueva }`,
+  para cualquier usuario autenticado. La actual debe coincidir y la nueva debe tener de 8 a 72 caracteres y ser
+  distinta de la actual (si no → 400). Responde 204 y audita `CAMBIAR_CONTRASENA`.
 - **Criterios de aceptación:** crear, listar (con rol, zona y estado), editar y activar/desactivar; DNI duplicado devuelve error claro; un Supervisor o Vigilante recibe 403.
 
 ## RF-03 Registro de incidencias (Prioridad: Alta)
@@ -106,21 +127,28 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 - **Descripción:** registro automático de acciones críticas con fecha, hora y usuario.
 - **Reglas:**
   - La tabla `auditoria` es solo inserción: ni el código ni los tests hacen UPDATE o DELETE.
-  - Acciones: `LOGIN_OK`, `LOGIN_FALLIDO`, `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`, `REGISTRAR_INCIDENCIA`, `EXPORTAR_REPORTE`.
+  - Acciones: `LOGIN_OK`, `LOGIN_FALLIDO`, `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`,
+    `CAMBIAR_CONTRASENA`, `REGISTRAR_INCIDENCIA`, `EXPORTAR_REPORTE`, `CREAR_ZONA`, `MODIFICAR_ZONA`,
+    `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`, `CAMBIAR_ESTADO_TIPO_EVENTO`,
+    `MODIFICAR_NIVEL_GRAVEDAD`.
   - `detalle_cambio` (JSONB) guarda los valores antes y después cuando aplica.
   - El log se escribe en la misma transacción que la acción (excepto `LOGIN_FALLIDO`).
   - Consulta solo para Administrador, con filtros por fecha y acción (pantalla "Historial de Incidencias y Auditoría").
 - **Criterios de aceptación:** cada acción listada deja un registro; intentar modificar o borrar un log falla en la BD.
 
-## RF-09 Gestión de zonas (Prioridad: Media)
+## RF-09 Gestión de zonas y catálogos (Prioridad: Media)
 
-- **Descripción:** alta, edición, activación/desactivación y listado filtrable de las zonas o sedes donde se asigna personal y ocurren incidencias. Solo Administrador.
+- **Descripción:** alta, edición, activación/desactivación y listado filtrable de las zonas o sedes donde se asigna personal y ocurren incidencias; administración de los catálogos de tipos de evento y niveles de gravedad. Solo Administrador.
 - **Entradas (alta y edición):** `nombre_zona`, `departamento`, `provincia`, `distrito`, `referencia` (opcional; dirección o punto de referencia) y `descripcion` (opcional).
 - **Reglas:**
   - `nombre_zona` único (hasta 80 caracteres); `departamento` y `provincia` hasta 50, `distrito` hasta 80 y `referencia` hasta 150.
   - No existe borrado físico: "eliminar" es desactivar (`estado_activo = false`). Una zona inactiva no se ofrece en los formularios (RF-02, RF-03) pero se conserva en el historial y desaparece del despliegue (RF-07).
   - El listado se puede filtrar por cualquiera de los campos; los filtros son opcionales y combinables (AND) y no distinguen mayúsculas.
-- **Contrato del listado** (se implementa en la Fase 4):
+  - Nombres únicos sin distinguir mayúsculas (zona, tipo de evento y nivel); los textos se guardan sin espacios en
+    los extremos.
+  - Cada alta, edición y cambio de estado se audita con valores antes y después (`CREAR_ZONA`, `MODIFICAR_ZONA`,
+    `CAMBIAR_ESTADO_ZONA` y equivalentes para tipos y niveles).
+- **Contrato del listado:**
 
   `GET /api/zonas?nombre=&departamento=&provincia=&distrito=&activo=&q=&page=&size=`
 
@@ -145,6 +173,24 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   }
   ```
   Sin token → 401; Supervisor o Vigilante → 403.
+- **Resto del contrato** (Administrador; sin `DELETE`):
+
+  | Método y ruta | Cuerpo | Respuestas |
+  |---|---|---|
+  | `GET /api/zonas/{id}` | — | 200; 404 |
+  | `POST /api/zonas` | `{ nombreZona, departamento, provincia, distrito, referencia?, descripcion? }` | 201; 400; 409 nombre duplicado |
+  | `PUT /api/zonas/{id}` | igual al alta | 200; 400; 404; 409 |
+  | `PATCH /api/zonas/{id}/estado` | `{ activo }` | 200; 404 |
+  | `GET /api/tipos-evento` | — | 200 todos (activos e inactivos) por nombre: `[{ idTipoEvento, nombreTipoEvento, estadoActivo }]` |
+  | `POST /api/tipos-evento` | `{ nombreTipoEvento }` (hasta 30) | 201; 400; 409 |
+  | `PUT /api/tipos-evento/{id}` | `{ nombreTipoEvento }` | 200; 400 (el tipo "Otro" no se puede renombrar: la regla de RF-03 depende de su nombre); 404; 409 |
+  | `PATCH /api/tipos-evento/{id}/estado` | `{ activo }` | 200; 404 |
+  | `GET /api/niveles-gravedad` | — | 200 todos por `orden`: `[{ idNivelGravedad, nombreNivel, orden, estadoActivo }]` |
+  | `PUT /api/niveles-gravedad/{id}` | `{ nombreNivel, orden }` (nombre hasta 20, orden ≥ 1) | 200; 400; 404; 409 |
+
+  Los niveles de gravedad solo admiten edición de nombre y orden. Si el `orden` pedido ya lo tiene otro nivel, los
+  dos niveles intercambian su orden en la misma transacción y la auditoría lo registra en `intercambiadoCon`.
+  Los formularios siguen usando `GET /api/catalogos/...`, que devuelve solo los activos.
 - **Criterios de aceptación:** crear, editar y activar/desactivar zonas; nombre duplicado devuelve error claro; sin filtros el listado muestra todas las zonas; con filtros solo las que cumplen todos; un Supervisor o Vigilante recibe 403.
 
 ---
