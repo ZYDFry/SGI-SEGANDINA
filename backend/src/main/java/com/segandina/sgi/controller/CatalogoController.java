@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.segandina.sgi.dto.response.NivelGravedadResponse;
+import com.segandina.sgi.dto.response.RolResponse;
 import com.segandina.sgi.dto.response.TipoEventoResponse;
 import com.segandina.sgi.dto.response.ZonaResponse;
 import com.segandina.sgi.service.CatalogoService;
@@ -52,6 +53,16 @@ public class CatalogoController {
 	@GetMapping("/niveles-gravedad")
 	public List<NivelGravedadResponse> nivelesGravedad() {
 		return catalogoService.listarNivelesGravedadActivos();
+	}
+
+	/**
+	 * Roles del sistema, para el formulario de usuarios.
+	 *
+	 * @return 200 con la lista de roles
+	 */
+	@GetMapping("/roles")
+	public List<RolResponse> roles() {
+		return catalogoService.listarRoles();
 	}
 
 }

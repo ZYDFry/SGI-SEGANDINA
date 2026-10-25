@@ -1,6 +1,7 @@
 package com.segandina.sgi.dao;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -31,5 +32,22 @@ public interface NivelGravedadDao extends JpaRepository<NivelGravedad, Short> {
 	 * @return niveles activos ordenados por {@code orden} ascendente
 	 */
 	List<NivelGravedad> findByEstadoActivoTrueOrderByOrdenAsc();
+
+	/**
+	 * Busca el nivel que ocupa un orden (la columna {@code orden} es única).
+	 *
+	 * @param orden posición en la escala de gravedad
+	 * @return el nivel, o vacío si el orden está libre
+	 */
+	Optional<NivelGravedad> findByOrden(Short orden);
+
+	/**
+	 * Indica si otro nivel (distinto de {@code idNivelGravedad}) ya usa ese nombre, sin distinguir mayúsculas.
+	 *
+	 * @param nombreNivel     nombre a comprobar
+	 * @param idNivelGravedad nivel que se está editando
+	 * @return {@code true} si otro nivel ya usa el nombre
+	 */
+	boolean existsByNombreNivelIgnoreCaseAndIdNivelGravedadNot(String nombreNivel, Short idNivelGravedad);
 
 }

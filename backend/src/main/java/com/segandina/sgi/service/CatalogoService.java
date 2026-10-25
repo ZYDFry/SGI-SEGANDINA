@@ -3,6 +3,7 @@ package com.segandina.sgi.service;
 import java.util.List;
 
 import com.segandina.sgi.dto.response.NivelGravedadResponse;
+import com.segandina.sgi.dto.response.RolResponse;
 import com.segandina.sgi.dto.response.TipoEventoResponse;
 import com.segandina.sgi.dto.response.ZonaResponse;
 
@@ -32,5 +33,12 @@ public interface CatalogoService {
 	 * @return niveles con {@code estado_activo = true}, de menos a más grave
 	 */
 	List<NivelGravedadResponse> listarNivelesGravedadActivos();
+
+	/**
+	 * Lista los roles del sistema, para el formulario de usuarios (RF-02).
+	 *
+	 * @return roles ordenados por id
+	 */
+	List<RolResponse> listarRoles();
 
 }
