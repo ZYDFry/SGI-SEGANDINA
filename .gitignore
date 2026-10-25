@@ -1,8 +1,15 @@
-# Secretos
+# Secretos y variables de entorno
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+frontend/.env*
+!frontend/.env.example
 application-local.properties
+application-local.yml
+*.pem
+*.key
 
 # Backend (Maven)
 target/
@@ -13,12 +20,18 @@ node_modules/
 .next/
 out/
 
+# Postman (las colecciones sí se versionan; los environments y metadatos no)
+.postman
+postman/environments/
+
+# Logs y archivos temporales
+*.log
+logs/
+salida.txt
+
 # IDE / SO
 .idea/
 *.iml
 .vscode/
 .DS_Store
 Thumbs.db
-#Postman
-.postman
-postman/environments/
