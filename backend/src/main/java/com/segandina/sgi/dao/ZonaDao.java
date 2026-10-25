@@ -1,5 +1,9 @@
 package com.segandina.sgi.dao;
 
+import static com.segandina.sgi.dao.FiltrosTexto.contiene;
+import static com.segandina.sgi.dao.FiltrosTexto.igualSinMayusculas;
+import static com.segandina.sgi.dao.FiltrosTexto.limpiar;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -11,8 +15,6 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import com.segandina.sgi.dto.request.ZonaFiltro;
 import com.segandina.sgi.model.Zona;
 
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 
 /**
@@ -43,6 +45,23 @@ public interface ZonaDao extends JpaRepository<Zona, Integer>, JpaSpecificationE
 	List<Zona> findByEstadoActivoTrueOrderByNombreZonaAsc();
 
 	/**
+	 * Indica si ya hay una zona con ese nombre, sin distinguir mayúsculas (alta de RF-09).
+	 *
+	 * @param nombreZona nombre a comprobar
+	 * @return {@code true} si el nombre ya está en uso
+	 */
+	boolean existsByNombreZonaIgnoreCase(String nombreZona);
+
+	/**
+	 * Indica si otra zona (distinta de {@code idZona}) ya usa ese nombre, sin distinguir mayúsculas (edición).
+	 *
+	 * @param nombreZona nombre a comprobar
+	 * @param idZona     zona que se está editando
+	 * @return {@code true} si otra zona ya usa el nombre
+	 */
+	boolean existsByNombreZonaIgnoreCaseAndIdZonaNot(String nombreZona, Integer idZona);
+
+	/**
 	 * Arma la condición de búsqueda de zonas (RF-09) para usar con
 	 * {@link #findAll(Specification, org.springframework.data.domain.Pageable)}. Solo se aplican los
 	 * filtros con valor; todos se combinan con AND y comparan sin distinguir mayúsculas. Los
@@ -61,15 +80,15 @@ public interface ZonaDao extends JpaRepository<Zona, Integer>, JpaSpecificationE
 				}
 				String departamento = limpiar(filtro.departamento());
 				if (departamento != null) {
-					condiciones.add(cb.equal(cb.lower(root.get("departamento")), departamento.toLowerCase()));
+					condiciones.add(igualSinMayusculas(cb, root.get("departamento"), departamento));
 				}
 				String provincia = limpiar(filtro.provincia());
 				if (provincia != null) {
-					condiciones.add(cb.equal(cb.lower(root.get("provincia")), provincia.toLowerCase()));
+					condiciones.add(igualSinMayusculas(cb, root.get("provincia"), provincia));
 				}
 				String distrito = limpiar(filtro.distrito());
 				if (distrito != null) {
-					condiciones.add(cb.equal(cb.lower(root.get("distrito")), distrito.toLowerCase()));
+					condiciones.add(igualSinMayusculas(cb, root.get("distrito"), distrito));
 				}
 				if (filtro.activo() != null) {
 					condiciones.add(cb.equal(root.get("estadoActivo"), filtro.activo()));
@@ -83,23 +102,6 @@ public interface ZonaDao extends JpaRepository<Zona, Integer>, JpaSpecificationE
 			}
 			return cb.and(condiciones.toArray(Predicate[]::new));
 		};
-	}
-
-	/** Recorta el texto; devuelve {@code null} si queda vacío. */
-	private static String limpiar(String valor) {
-		if (valor == null || valor.isBlank()) {
-			return null;
-		}
-		return valor.trim();
-	}
-
-	/** {@code lower(campo) LIKE %texto%} escapando los comodines del texto. */
-	private static Predicate contiene(CriteriaBuilder cb, Expression<String> campo, String texto) {
-		String escapado = texto.toLowerCase()
-				.replace("\\", "\\\\")
-				.replace("%", "\\%")
-				.replace("_", "\\_");
-		return cb.like(cb.lower(campo), "%" + escapado + "%", '\\');
 	}
 
 }

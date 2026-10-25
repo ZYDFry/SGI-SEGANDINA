@@ -51,7 +51,9 @@ public class SecurityConfig {
 	static final String VIGILANTE = "Vigilante";
 
 	/**
-	 * Cadena de filtros: login público, el resto de {@code /api/**} con token y reglas por rol.
+	 * Cadena de filtros: login público, el resto de {@code /api/**} con token y reglas por rol. El cambio de
+	 * contraseña propia ({@code PATCH /api/usuarios/me/contrasena}) se evalúa antes que la regla de
+	 * {@code /api/usuarios/**} para que cualquier rol pueda usarlo.
 	 *
 	 * @param http       configurador de Spring Security
 	 * @param jsonMapper serializador para las respuestas 401/403
@@ -67,7 +69,10 @@ public class SecurityConfig {
 				.sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+						.requestMatchers(HttpMethod.PATCH, "/api/usuarios/me/contrasena").authenticated()
 						.requestMatchers("/api/usuarios/**", "/api/auditoria/**").hasRole(ADMINISTRADOR)
+						.requestMatchers("/api/zonas/**", "/api/tipos-evento/**", "/api/niveles-gravedad/**")
+								.hasRole(ADMINISTRADOR)
 						.requestMatchers("/api/dashboard/**", "/api/reportes/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
 						.requestMatchers(HttpMethod.POST, "/api/incidencias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
 						.requestMatchers(HttpMethod.GET, "/api/incidencias/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
