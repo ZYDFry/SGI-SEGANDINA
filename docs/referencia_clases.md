@@ -448,3 +448,80 @@ curl "http://localhost:8080/api/incidencias?periodo=PERSONALIZADO&desde=2026-10-
 La última responde 400 ("La fecha desde no puede ser posterior a hasta"). Con un token de Vigilante, todas
 responden 403. La colección de Postman incluye estas peticiones ("Historial …" y "Dashboard …") y toma
 `periodo`, `desde` y `hasta` de las variables del environment.
+
+---
+
+## Fase 6 — Exportación de reportes en Excel y PDF (RF-06)
+
+Administradores y Supervisores descargan el historial de incidencias en Excel (Apache POI) o PDF (OpenPDF) con
+los mismos filtros y el mismo orden que el historial de la Fase 5. Cada formato es una implementación de
+`ExportadorReporte`; el servicio consulta, elige el exportador, audita `EXPORTAR_REPORTE` y arma el nombre del
+archivo con la fecha de hoy en Lima.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `FormatoReporte` | `export` | Enum `EXCEL` y `PDF` con su extensión y tipo de contenido. | `extension()` → `"xlsx"` / `"pdf"`. `tipoContenido()` → `MediaType` para `Content-Type`. |
+| `DatosReporte` | `export` | Record de entrada de un exportador: `periodo` aplicado (nunca nulo), `rango` resuelto, `generadoEn` y `filas` (`List<IncidenciaHistorialResponse>`, ya ordenadas). | — |
+| `ExportadorReporte` | `export` | Interfaz común de los formatos. Agregar un formato es agregar un bean que la implemente, sin tocar el servicio. | `formato()` → `FormatoReporte`. `exportar(DatosReporte)` → `byte[]` del archivo; con cero filas, solo encabezados. |
+| `ExcelExportador` | `export` | `.xlsx` con una hoja `Incidencias` (constante `NOMBRE_HOJA`): encabezados en negrita, fila fija, autofiltro, fecha como celda de fecha en hora de Lima, descripción con ajuste de línea. | `exportar(DatosReporte)`. |
+| `PdfExportador` | `export` | PDF A4 horizontal: título, `Periodo: …`, `Generado el: …`, `Total de incidencias: N` y una tabla cuyos encabezados se repiten en cada página. | `exportar(DatosReporte)`. |
+| `ColumnasReporte` | `export` | (Solo del paquete) Encabezados, título y formatos que comparten Excel y PDF: fecha en Lima, `DNI - nombre` y etiqueta del periodo (`Últimos 30 días (25/09/2026 al 24/10/2026)`). | — |
+| `ArchivoReporte` | `dto.response` | Record `nombreArchivo`, `formato`, `contenido` (bytes). | — |
+| `ReporteService` / `ReporteServiceImpl` | `service` / `service.impl` | Exportación. Constantes `MAX_FILAS = 10 000` y `PREFIJO_ARCHIVO = "incidencias_"`. Recibe todos los `ExportadorReporte` y los indexa por formato (dos del mismo formato es un error al arrancar). | `exportar(FormatoReporte, IncidenciaFiltro, Long idUsuario)` → `ArchivoReporte`; lanza `CredencialesInvalidasException` (401) si el usuario está inactivo y `ReglaNegocioException` (400) si el rango no es válido o hay más de `MAX_FILAS` incidencias. |
+| `ReporteController` | `controller` | `/api/reportes`, roles Administrador y Supervisor (regla ya existente en `SecurityConfig`). | `excel(IncidenciaFiltro, Jwt)` (`GET /excel`) y `pdf(IncidenciaFiltro, Jwt)` (`GET /pdf`) → `ResponseEntity<byte[]>` con `Content-Type` y `Content-Disposition: attachment; filename="…"`. |
+| `IncidenciaDao` (modificado) | `dao` | Constante `ORDEN_HISTORIAL` (fecha y luego id descendentes), compartida por el historial y los reportes. | `findAll(Specification, Sort)` → `List<Incidencia>` sin paginar, con `@EntityGraph` de zona, tipo, nivel y usuario (una sola consulta). |
+| `IncidenciaServiceImpl` (modificado) | `service.impl` | Usa `IncidenciaDao.ORDEN_HISTORIAL` en lugar de su constante privada. | — |
+
+### Flujo de `GET /api/reportes/pdf?periodo=MES_ACTUAL&idZona=1`
+
+1. `SecurityConfig` exige rol Administrador o Supervisor (`/api/reportes/**`); Vigilante → 403, sin token → 401.
+2. Spring arma `IncidenciaFiltro(MES_ACTUAL, null, null, 1, null, null)`; un valor que no se puede convertir
+   (`periodo=AYER`) responde 400 sin llegar al servicio.
+3. `ReporteController.pdf` llama a `ReporteServiceImpl.exportar(PDF, filtro, <sub del token>)`, que en una
+   transacción:
+   1. Obtiene el usuario activo del token (`SoporteServicio.actor`).
+   2. `RangoFechas.resolver` calcula del día 1 del mes a hoy en Lima; un rango inválido → 400, sin consultar ni
+      auditar.
+   3. `IncidenciaDao.count(conFiltros(rango, filtro))`; si supera 10 000 → 400.
+   4. `IncidenciaDao.findAll(conFiltros(rango, filtro), ORDEN_HISTORIAL)` trae las incidencias con sus relaciones
+      (`fecha_hora >= inicio AND fecha_hora < fin AND id_zona = 1 ORDER BY fecha_hora DESC, id_incidencia DESC`)
+      y las convierte en `IncidenciaHistorialResponse`.
+   5. `PdfExportador.exportar(new DatosReporte(MES_ACTUAL, rango, ahora, filas))` genera los bytes.
+   6. `AuditoriaService.registrar(EXPORTAR_REPORTE, {formato: "PDF", periodo: "MES_ACTUAL", desde, hasta,
+      idZona: 1, idNivelGravedad: null, idTipoEvento: null, totalRegistros}, null, usuario)`. Si algo falla
+      antes del commit, el registro de auditoría se revierte junto con la operación.
+   7. Devuelve `ArchivoReporte("incidencias_2026-10-24.pdf", PDF, bytes)`.
+4. El controller responde 200 con `Content-Type: application/pdf` y
+   `Content-Disposition: attachment; filename="incidencias_2026-10-24.pdf"`.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw -q verify
+```
+Pasan 167 tests. Nuevos:
+- `ExcelExportadorTest` (3): reabre el `.xlsx` con POI y revisa encabezados, valores de una fila (fecha en hora de
+  Lima, `DNI - nombre`, acentos), el orden de las filas y que con cero filas solo queden los encabezados.
+- `PdfExportadorTest` (3): el archivo empieza con `%PDF`; el texto extraído con OpenPDF contiene título, periodo,
+  fecha de generación, total y los datos de la fila; con cero filas trae los encabezados y "Total de
+  incidencias: 0"; con 80 filas hay más de una página y los encabezados se repiten en la segunda.
+- `ReporteServiceImplTest` (6): elige el exportador del formato pedido, nombre con la fecha de Lima (a las 00:30
+  ya es el día nuevo), periodo por defecto, detalle de auditoría con los filtros, rango inválido y más de
+  10 000 filas sin generar ni auditar, usuario inactivo → 401, exportadores duplicados.
+- `ReporteControllerTest` (6): Excel y PDF como adjunto con el nombre y tipo correctos y los filtros pasados al
+  servicio, 403 para Vigilante, 401 sin token, 400 con `periodo=AYER` y 400 en JSON con un rango invertido.
+- `IncidenciaDaoTest` (+1): la consulta sin paginar respeta el orden y carga las relaciones en la misma consulta.
+
+Con la BD (`.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local`) y un token de Supervisor o Administrador:
+```
+curl -OJ "http://localhost:8080/api/reportes/excel?periodo=ULTIMOS_30_DIAS" -H "Authorization: Bearer <token>"
+curl -OJ "http://localhost:8080/api/reportes/pdf?periodo=PERSONALIZADO&desde=2026-10-01&hasta=2026-10-24" -H "Authorization: Bearer <token>"
+curl -OJ "http://localhost:8080/api/reportes/pdf?periodo=HOY&idZona=999" -H "Authorization: Bearer <token>"
+```
+`-OJ` guarda el archivo con el nombre que envía el servidor (`incidencias_<fecha>.xlsx` / `.pdf`). La última no
+tiene resultados y genera un PDF con solo los encabezados. Cada descarga deja una fila `EXPORTAR_REPORTE` en
+`auditoria` con los filtros en `detalle_cambio`. En Postman, las peticiones "Reportes Excel", "Reportes PDF" y
+"Reportes PDF Personalizado" se ejecutan con "Send and Download" para guardar el archivo.

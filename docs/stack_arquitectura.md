@@ -11,8 +11,8 @@ Sistema Web Interno (no es app móvil nativa: se descartó por costo de smartpho
 | Seguridad | Spring Security + JWT HS256 (`spring-boot-starter-oauth2-resource-server`, Nimbus JOSE), BCrypt | Rol de BD `app_sgi` con privilegios mínimos. |
 | Frontend | Next.js 16 (App Router), Tailwind CSS | Mobile-First en el formulario del vigilante. |
 | Gráficos / HTTP | Chart.js (con `react-chartjs-2`), Axios | Barras por zona, anillo por tipo de evento. |
-| Excel | Apache POI | RF-06. Hecho nativo en Java. |
-| PDF | OpenPDF (propuesto) | RF-06. Alternativa: iText. |
+| Excel | Apache POI 5.5.1 (`poi-ooxml`) | RF-06. Archivos `.xlsx`. |
+| PDF | OpenPDF 2.4.0 (`com.github.librepdf:openpdf`, paquete `com.lowagie.text`) | RF-06. Fork libre de iText 4 (LGPL/MPL). |
 | Logging | Logback (viene con Spring Boot) | Config en `logback-spring.xml`. |
 | Utilidades | Google Guava (opcional) | Solo si aporta (p. ej. `Preconditions`); el curso pide mostrar uso de librerías Java. |
 | Base de datos | PostgreSQL en Supabase | Project Settings → Database para la cadena de conexión. |
@@ -100,7 +100,7 @@ Prefijo `/api`. Todo requiere JWT salvo el login.
 | `GET /incidencias?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento&page&size` | Administrador, Supervisor | RF-04 |
 | `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |
 | `GET /dashboard/despliegue` | Administrador, Supervisor | RF-07 |
-| `GET /reportes/excel?...` y `GET /reportes/pdf?...` (mismos filtros que RF-04) | Administrador, Supervisor | RF-06 |
+| `GET /reportes/excel?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento` y `GET /reportes/pdf?...` (mismos filtros que RF-04, sin paginación; responden el archivo como adjunto) | Administrador, Supervisor | RF-06 |
 | `GET /auditoria?desde&hasta&accion&page&size` | Administrador | RF-08 |
 
 Formato de error uniforme: `{ "timestamp", "status", "mensaje", "detalles": [] }`.

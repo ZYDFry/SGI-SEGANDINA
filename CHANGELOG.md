@@ -12,6 +12,39 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] Fase 6 / RF-06 — Exportación de reportes en Excel y PDF
+- Qué se hizo:
+  - `GET /api/reportes/excel` y `GET /api/reportes/pdf` (Administrador y Supervisor) con los mismos filtros que el
+    historial (`periodo`, `desde`, `hasta`, `idZona`, `idNivelGravedad`, `idTipoEvento`), el mismo orden y sin
+    paginar. Responden el archivo como adjunto: `incidencias_AAAA-MM-DD.xlsx` / `.pdf` (fecha de hoy en Lima).
+  - Interfaz `ExportadorReporte` con `ExcelExportador` (Apache POI 5.5.1) y `PdfExportador` (OpenPDF 2.4.0).
+    Columnas: N°, fecha y hora (Lima), zona, tipo, gravedad, registrado por (DNI - nombre) y descripción.
+    Excel: encabezados en negrita, fijos y con autofiltro; fecha como celda de fecha. PDF: A4 horizontal con
+    título, periodo aplicado con sus fechas, fecha de generación, total y encabezados repetidos en cada página.
+    Con cero resultados, el archivo trae solo encabezados.
+  - Se audita `EXPORTAR_REPORTE` con `{formato, periodo, desde, hasta, idZona, idNivelGravedad, idTipoEvento,
+    totalRegistros}` en la misma transacción. Un rango inválido (400) no se audita.
+  - Límite de 10 000 incidencias por reporte (400 pidiendo acotar los filtros).
+  - `IncidenciaDao`: `findAll(Specification, Sort)` con `@EntityGraph` y constante `ORDEN_HISTORIAL` compartida
+    con el historial.
+  - Docs: RF-06 detallado en `docs/requerimientos_funcionales.md`; versiones de POI/OpenPDF y endpoints en
+    `docs/stack_arquitectura.md`. Postman: "Reportes Excel", "Reportes PDF" y "Reportes PDF Personalizado".
+- Archivos clave: `backend/pom.xml`, `export/{FormatoReporte,DatosReporte,ExportadorReporte,ExcelExportador,
+  PdfExportador,ColumnasReporte}.java`, `dto/response/ArchivoReporte.java`,
+  `service/ReporteService.java`, `service/impl/ReporteServiceImpl.java`, `controller/ReporteController.java`,
+  `dao/IncidenciaDao.java`; tests `export/{ExcelExportadorTest,PdfExportadorTest}`,
+  `service/impl/ReporteServiceImplTest`, `controller/ReporteControllerTest`, `dao/IncidenciaDaoTest`.
+- Cómo probarlo:
+  - `cd backend && ./mvnw -q verify` → compila y pasan 167 tests (19 nuevos).
+  - Con la app en perfil `local` y token de Supervisor, en Postman "Send and Download" de "Reportes Excel" y
+    "Reportes PDF": los archivos abren en Excel y en un visor PDF y traen lo mismo que el historial con esos
+    filtros. `?periodo=HOY&idZona=999` → archivo con solo encabezados. Token de Vigilante → 403. En `auditoria`
+    aparece una fila `EXPORTAR_REPORTE` por descarga.
+- Pendientes o problemas conocidos:
+  - Cuando se configure CORS para el frontend (otro dominio), hay que exponer la cabecera `Content-Disposition`
+    (`exposedHeaders`) para que el navegador pueda leer el nombre del archivo.
+  - Los reportes no se probaron todavía contra Supabase (solo H2 y pruebas unitarias).
+
 ## [2026-10-24] Fase 5 / RF-04, RF-05, RF-07 — Historial, dashboard y despliegue
 - Qué se hizo:
   - Filtro de rango común (`RangoFechas` + `Periodo`): `HOY`, `ULTIMOS_7_DIAS`, `ULTIMOS_30_DIAS` (por defecto),

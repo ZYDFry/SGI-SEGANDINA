@@ -138,7 +138,16 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 ## RF-06 Exportación de reportes (Prioridad: Media)
 
 - **Descripción:** descargar el historial en Excel o PDF aplicando los filtros vigentes.
-- **Reglas:** mismos filtros y mismas columnas que RF-04 (más descripción). Excel con Apache POI; PDF con OpenPDF. Nombre de archivo con fecha, p. ej. `incidencias_2026-10-23.xlsx`. Se audita `EXPORTAR_REPORTE` con los filtros usados.
+- **Endpoints** (Administrador y Supervisor; Vigilante recibe 403): `GET /api/reportes/excel` y `GET /api/reportes/pdf`, con los filtros comunes (sin `page` ni `size`: el reporte trae todas las incidencias que cumplen los filtros).
+- **Respuesta:** 200 con el archivo como adjunto (`Content-Disposition: attachment; filename="incidencias_2026-10-24.xlsx"`). Tipo de contenido `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` o `application/pdf`. La fecha del nombre es la de generación, en hora de Lima. Los errores (400, 401, 403) se responden en JSON como el resto de la API.
+- **Reglas:**
+  - Mismos filtros y mismo orden que RF-04 (`fecha_hora` descendente, luego id descendente).
+  - Columnas: N°, Fecha y hora (en hora de Lima, `dd/MM/yyyy HH:mm`), Zona, Tipo de evento, Gravedad, Registrado por (`DNI - nombre completo`) y Descripción.
+  - Excel (Apache POI): una hoja "Incidencias" con la fila de encabezados en negrita, fija al desplazarse y con autofiltro; la fecha es una celda de fecha real (se puede ordenar y filtrar).
+  - PDF (OpenPDF): A4 horizontal con título "Reporte de incidencias", periodo aplicado con sus fechas (p. ej. `Periodo: Últimos 30 días (25/09/2026 al 24/10/2026)`), fecha y hora de generación, total de incidencias y la tabla, con los encabezados repetidos en cada página.
+  - Con cero resultados se genera el archivo con solo los encabezados (en el PDF también el título, el periodo y "Total de incidencias: 0").
+  - Máximo 10 000 incidencias por reporte; si hay más responde 400 pidiendo acotar el periodo o los filtros.
+  - Se audita `EXPORTAR_REPORTE` con el detalle `{formato, periodo, desde, hasta, idZona, idNivelGravedad, idTipoEvento, totalRegistros}` (`desde`/`hasta` son las fechas ya resueltas del periodo; los filtros no enviados quedan en `null`). Si la petición es rechazada (400) no se audita.
 - **Criterios de aceptación:** el archivo abre correctamente, trae solo lo filtrado y encabezados legibles; con cero resultados se genera un archivo con solo encabezados.
 
 ## RF-07 Control de despliegue (Prioridad: Alta)

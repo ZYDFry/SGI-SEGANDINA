@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{baseUrl}}/api/reportes/pdf?periodo=PERSONALIZADO&desde={{desde}}&hasta={{hasta}}&idZona=&idNivelGravedad=&idTipoEvento="
+method: GET
+queryParams:
+  periodo: "PERSONALIZADO"
+  desde: "{{desde}}"
+  hasta: "{{hasta}}"
+  idZona: ""
+  idNivelGravedad: ""
+  idTipoEvento: ""
+order: 12200
