@@ -1,4 +1,8 @@
 $kind: http-request
 url: "{{baseUrl}}/api/usuarios?activo=true&page=0&size=20"
 method: GET
+queryParams:
+  activo: "true"
+  page: "0"
+  size: "20"
 order: 6000

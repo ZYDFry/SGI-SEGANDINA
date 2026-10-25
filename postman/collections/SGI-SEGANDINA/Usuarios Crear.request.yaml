@@ -3,5 +3,5 @@ url: "{{baseUrl}}/api/usuarios"
 method: POST
 body:
   type: json
-  content: '{"dni": "33333333", "nombres": "Luis", "apellidoPaterno": "Rojas", "apellidoMaterno": "Quispe", "contrasena": "ClaveInicial1", "idRol": 3, "idZona": 1}'
+  content: '{"dni": "10414545", "nombres": "Elma", "apellidoPaterno": "Yaicate", "apellidoMaterno": "Huaymacari", "contrasena": "nautilus", "idRol": 3, "idZona": 2}'
 order: 6200

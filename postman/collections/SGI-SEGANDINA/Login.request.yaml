@@ -1,5 +1,22 @@
 $kind: http-request
 description: ""
-url: ""
+url: "{{baseUrl}}/api/auth/login"
 method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"dni\": \"{{dni}}\",\r
+
+    \  \"contrasena\": \"{{contrasena}}\"\r
+
+    }"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: "const data = pm.response.json();\r
+
+      pm.environment.set(\"token\", data.token);"
+    language: text/javascript
 order: 1000
