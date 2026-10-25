@@ -41,6 +41,9 @@ public class UsuarioServiceImpl implements UsuarioService {
 			Sort.Order.asc("apellidoMaterno").ignoreCase(),
 			Sort.Order.asc("nombres").ignoreCase());
 
+	// Clave del detalle de auditoría cuando la contraseña asignada es temporal
+	private static final String DEBE_CAMBIAR_CONTRASENA = "debeCambiarContrasena";
+
 	private final UsuarioDao usuarioDao;
 	private final RolDao rolDao;
 	private final ZonaDao zonaDao;
@@ -86,13 +89,16 @@ public class UsuarioServiceImpl implements UsuarioService {
 		usuario.setApellidoPaterno(request.apellidoPaterno().trim());
 		usuario.setApellidoMaterno(opcional(request.apellidoMaterno()));
 		usuario.setContrasena(passwordEncoder.encode(request.contrasena()));
+		// La contraseña inicial es temporal: el usuario debe cambiarla en su primer inicio de sesión
+		usuario.setDebeCambiarContrasena(Boolean.TRUE);
 		usuario.setEstadoActivo(Boolean.TRUE);
 		usuario.setRol(rol);
 		usuario.setZona(resolverZona(rol, request.idZona(), null));
 		Usuario guardado = usuarioDao.save(usuario);
 
-		auditoriaService.registrar(AccionAuditoria.CREAR_USUARIO,
-				cambio("idUsuario", guardado.getIdUsuario(), null, datos(guardado)), null, admin);
+		Map<String, Object> detalle = cambio("idUsuario", guardado.getIdUsuario(), null, datos(guardado));
+		detalle.put(DEBE_CAMBIAR_CONTRASENA, true);
+		auditoriaService.registrar(AccionAuditoria.CREAR_USUARIO, detalle, null, admin);
 		return UsuarioResponse.desde(guardado);
 	}
 
@@ -120,6 +126,7 @@ public class UsuarioServiceImpl implements UsuarioService {
 		boolean contrasenaCambiada = request.contrasena() != null;
 		if (contrasenaCambiada) {
 			usuario.setContrasena(passwordEncoder.encode(request.contrasena()));
+			usuario.setDebeCambiarContrasena(Boolean.TRUE);
 		}
 		Map<String, Object> despues = datos(usuario);
 
@@ -127,6 +134,9 @@ public class UsuarioServiceImpl implements UsuarioService {
 			Map<String, Object> detalle = cambio("idUsuario", idUsuario, antes, despues);
 			// Solo se registra que la contraseña cambió; nunca el hash
 			detalle.put("contrasenaCambiada", contrasenaCambiada);
+			if (contrasenaCambiada) {
+				detalle.put(DEBE_CAMBIAR_CONTRASENA, true);
+			}
 			auditoriaService.registrar(AccionAuditoria.MODIFICAR_USUARIO, detalle, null, admin);
 		}
 		return UsuarioResponse.desde(usuario);
@@ -159,9 +169,27 @@ public class UsuarioServiceImpl implements UsuarioService {
 		if (passwordEncoder.matches(request.contrasenaNueva(), usuario.getContrasena())) {
 			throw new ReglaNegocioException("La nueva contraseña debe ser distinta de la actual");
 		}
+		boolean eraObligatorio = Boolean.TRUE.equals(usuario.getDebeCambiarContrasena());
 		usuario.setContrasena(passwordEncoder.encode(request.contrasenaNueva()));
+		usuario.setDebeCambiarContrasena(Boolean.FALSE);
 		auditoriaService.registrar(AccionAuditoria.CAMBIAR_CONTRASENA,
-				Map.of("idUsuario", idUsuario, "origen", "propio"), null, usuario);
+				Map.of("idUsuario", idUsuario, "origen", "propio", "cambioObligatorio", eraObligatorio), null, usuario);
+	}
+
+	@Override
+	@Transactional
+	public void restablecerContrasena(Long idUsuario, String contrasenaNueva, Long idActor) {
+		Usuario admin = actor(usuarioDao, idActor);
+		Usuario usuario = buscarExistente(idUsuario);
+		if (usuario.equals(admin)) {
+			throw new ReglaNegocioException(
+					"Para cambiar su propia contraseña use PATCH /api/usuarios/me/contrasena");
+		}
+		usuario.setContrasena(passwordEncoder.encode(contrasenaNueva));
+		usuario.setDebeCambiarContrasena(Boolean.TRUE);
+		// Solo el id del afectado y la marca de cambio obligatorio; nunca la contraseña ni el hash
+		auditoriaService.registrar(AccionAuditoria.RESTABLECER_CONTRASENA,
+				Map.of("idUsuario", idUsuario, DEBE_CAMBIAR_CONTRASENA, true), null, admin);
 	}
 
 	private Usuario buscarExistente(Long idUsuario) {

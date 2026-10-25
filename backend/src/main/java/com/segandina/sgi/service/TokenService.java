@@ -16,6 +16,12 @@ public interface TokenService {
 	String CLAIM_DNI = "dni";
 
 	/**
+	 * Claim presente (con valor {@code true}) solo cuando el usuario tiene una contraseña temporal. Un token con
+	 * este claim solo sirve para cambiar la contraseña propia y consultar {@code /api/auth/yo}.
+	 */
+	String CLAIM_CAMBIO_PENDIENTE = "cambioPendiente";
+
+	/**
 	 * Token emitido y su vencimiento.
 	 *
 	 * @param token    JWT codificado
@@ -25,7 +31,8 @@ public interface TokenService {
 	}
 
 	/**
-	 * Genera un JWT con {@code sub} = id del usuario y los claims {@code rol} y {@code dni}.
+	 * Genera un JWT con {@code sub} = id del usuario y los claims {@code rol} y {@code dni}, más
+	 * {@link #CLAIM_CAMBIO_PENDIENTE} si el usuario debe cambiar su contraseña.
 	 * Debe llamarse dentro de una transacción (lee el rol, que es LAZY).
 	 *
 	 * @param usuario usuario autenticado

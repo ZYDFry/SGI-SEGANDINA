@@ -2,6 +2,7 @@ package com.segandina.sgi.config;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 
 import javax.crypto.SecretKey;
@@ -18,14 +19,19 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -41,6 +47,9 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>
  * El rol viaja en el claim {@code rol} del token y se convierte en la autoridad {@code ROLE_<rol>}
  * (p. ej. {@code ROLE_Administrador}), por lo que las reglas usan {@code hasRole("Administrador")}.
+ * <p>
+ * Un token con el claim {@code cambioPendiente} (contraseña temporal) no recibe la autoridad de su rol: solo
+ * puede cambiar la contraseña propia y consultar {@code GET /api/auth/yo}; el resto responde 403.
  */
 @Configuration
 @EnableMethodSecurity
@@ -51,10 +60,14 @@ public class SecurityConfig {
 	static final String SUPERVISOR = "Supervisor";
 	static final String VIGILANTE = "Vigilante";
 
+	static final String MENSAJE_SIN_PERMISOS = "No tiene permisos para esta operación";
+	static final String MENSAJE_CAMBIO_PENDIENTE = "Debe cambiar su contraseña antes de continuar";
+
 	/**
 	 * Cadena de filtros: login público, el resto de {@code /api/**} con token y reglas por rol. El cambio de
 	 * contraseña propia ({@code PATCH /api/usuarios/me/contrasena}) se evalúa antes que la regla de
-	 * {@code /api/usuarios/**} para que cualquier rol pueda usarlo.
+	 * {@code /api/usuarios/**} para que cualquier rol pueda usarlo. Junto con {@code GET /api/auth/yo}, son las
+	 * únicas rutas que acepta un token con cambio de contraseña pendiente.
 	 *
 	 * @param http       configurador de Spring Security
 	 * @param jsonMapper serializador para las respuestas 401/403
@@ -72,6 +85,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
 						.requestMatchers(HttpMethod.PATCH, "/api/usuarios/me/contrasena").authenticated()
+						.requestMatchers(HttpMethod.GET, "/api/auth/yo").authenticated()
 						.requestMatchers("/api/usuarios/**", "/api/auditoria/**").hasRole(ADMINISTRADOR)
 						.requestMatchers("/api/zonas/**", "/api/tipos-evento/**", "/api/niveles-gravedad/**")
 								.hasRole(ADMINISTRADOR)
@@ -79,7 +93,8 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/incidencias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
 						.requestMatchers(HttpMethod.GET, "/api/incidencias/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
 						.requestMatchers("/error").permitAll()
-						.anyRequest().authenticated())
+						// Exige un rol (no solo token) para que un token con cambio pendiente no pase
+						.anyRequest().hasAnyRole(ADMINISTRADOR, SUPERVISOR, VIGILANTE))
 				.oauth2ResourceServer(oauth2 -> oauth2
 						.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
 						.authenticationEntryPoint((request, response, ex) -> escribirError(response, jsonMapper,
@@ -88,7 +103,9 @@ public class SecurityConfig {
 						.authenticationEntryPoint((request, response, ex) -> escribirError(response, jsonMapper,
 								HttpStatus.UNAUTHORIZED, "Debe iniciar sesión o el token no es válido"))
 						.accessDeniedHandler((request, response, ex) -> escribirError(response, jsonMapper,
-								HttpStatus.FORBIDDEN, "No tiene permisos para esta operación")));
+								HttpStatus.FORBIDDEN, cambioPendiente(SecurityContextHolder.getContext().getAuthentication())
+										? MENSAJE_CAMBIO_PENDIENTE
+										: MENSAJE_SIN_PERMISOS)));
 		return http.build();
 	}
 
@@ -115,8 +132,20 @@ public class SecurityConfig {
 		roles.setAuthoritiesClaimName(TokenService.CLAIM_ROL);
 		roles.setAuthorityPrefix("ROLE_");
 		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-		converter.setJwtGrantedAuthoritiesConverter(roles);
+		converter.setJwtGrantedAuthoritiesConverter(jwt -> autoridades(jwt, roles));
 		return converter;
+	}
+
+	// Sin autoridad de rol mientras la contraseña sea temporal
+	private static Collection<GrantedAuthority> autoridades(Jwt jwt, JwtGrantedAuthoritiesConverter roles) {
+		return Boolean.TRUE.equals(jwt.getClaimAsBoolean(TokenService.CLAIM_CAMBIO_PENDIENTE))
+				? List.of()
+				: roles.convert(jwt);
+	}
+
+	private static boolean cambioPendiente(Authentication autenticacion) {
+		return autenticacion instanceof JwtAuthenticationToken token
+				&& Boolean.TRUE.equals(token.getToken().getClaimAsBoolean(TokenService.CLAIM_CAMBIO_PENDIENTE));
 	}
 
 	private static SecretKey claveSecreta(JwtProperties jwtProperties) {

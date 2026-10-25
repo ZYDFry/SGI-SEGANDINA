@@ -48,6 +48,10 @@ public class Usuario {
 	@Column(name = "estado_activo", nullable = false)
 	private Boolean estadoActivo = Boolean.TRUE;
 
+	/** {@code true} si la contraseña la asignó el Administrador y el usuario debe cambiarla antes de seguir. */
+	@Column(name = "debe_cambiar_contrasena", nullable = false)
+	private Boolean debeCambiarContrasena = Boolean.FALSE;
+
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "id_rol", nullable = false)
 	private Rol rol;
@@ -111,6 +115,14 @@ public class Usuario {
 
 	public void setEstadoActivo(Boolean estadoActivo) {
 		this.estadoActivo = estadoActivo;
+	}
+
+	public Boolean getDebeCambiarContrasena() {
+		return debeCambiarContrasena;
+	}
+
+	public void setDebeCambiarContrasena(Boolean debeCambiarContrasena) {
+		this.debeCambiarContrasena = debeCambiarContrasena;
 	}
 
 	public Rol getRol() {

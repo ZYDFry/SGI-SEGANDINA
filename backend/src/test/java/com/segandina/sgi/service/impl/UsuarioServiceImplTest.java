@@ -112,12 +112,14 @@ class UsuarioServiceImplTest {
 		assertNull(creado.apellidoMaterno());
 		assertEquals(Integer.valueOf(ID_ZONA), creado.idZona());
 		assertTrue(creado.estadoActivo());
+		assertTrue(guardado.getValue().getDebeCambiarContrasena());
 
 		ArgumentCaptor<Map<String, Object>> detalle = ArgumentCaptor.forClass(Map.class);
 		verify(auditoriaService).registrar(eq(AccionAuditoria.CREAR_USUARIO), detalle.capture(), isNull(), eq(admin));
 		Map<String, Object> despues = (Map<String, Object>) detalle.getValue().get("despues");
 		assertEquals("33333333", despues.get("dni"));
 		assertFalse(despues.containsKey("contrasena"));
+		assertEquals(true, detalle.getValue().get("debeCambiarContrasena"));
 	}
 
 	@Test
@@ -172,6 +174,8 @@ class UsuarioServiceImplTest {
 		assertEquals("Supervisor", despues.get("rol"));
 		assertNull(despues.get("idZona"));
 		assertEquals(true, detalle.getValue().get("contrasenaCambiada"));
+		assertEquals(true, detalle.getValue().get("debeCambiarContrasena"));
+		assertTrue(vigilante.getDebeCambiarContrasena());
 		assertFalse(detalle.getValue().toString().contains(vigilante.getContrasena()));
 	}
 
@@ -184,6 +188,7 @@ class UsuarioServiceImplTest {
 
 		assertSame(zonaInactiva, vigilante.getZona());
 		assertEquals("Pedro", editado.nombres());
+		assertFalse(vigilante.getDebeCambiarContrasena());
 	}
 
 	@Test
@@ -247,7 +252,19 @@ class UsuarioServiceImplTest {
 
 		assertTrue(passwordEncoder.matches("OtraClave456", vigilante.getContrasena()));
 		verify(auditoriaService).registrar(AccionAuditoria.CAMBIAR_CONTRASENA,
-				Map.of("idUsuario", ID_VIGILANTE, "origen", "propio"), null, vigilante);
+				Map.of("idUsuario", ID_VIGILANTE, "origen", "propio", "cambioObligatorio", false), null, vigilante);
+	}
+
+	@Test
+	void cambiarContrasenaTemporalQuitaElCambioPendienteYLoAudita() {
+		vigilante.setDebeCambiarContrasena(true);
+
+		usuarioService.cambiarContrasenaPropia(ID_VIGILANTE,
+				new CambioContrasenaRequest(CLAVE_VIGILANTE, "OtraClave456"));
+
+		assertFalse(vigilante.getDebeCambiarContrasena());
+		verify(auditoriaService).registrar(AccionAuditoria.CAMBIAR_CONTRASENA,
+				Map.of("idUsuario", ID_VIGILANTE, "origen", "propio", "cambioObligatorio", true), null, vigilante);
 	}
 
 	@Test
@@ -266,6 +283,37 @@ class UsuarioServiceImplTest {
 	void cambiarContrasenaPropiaIgualALaActualSeRechaza() {
 		assertThrows(ReglaNegocioException.class, () -> usuarioService.cambiarContrasenaPropia(ID_VIGILANTE,
 				new CambioContrasenaRequest(CLAVE_VIGILANTE, CLAVE_VIGILANTE)));
+	}
+
+	@Test
+	void restablecerContrasenaGuardaHashTemporalYAuditaSinContrasena() {
+		usuarioService.restablecerContrasena(ID_VIGILANTE, "Restablecida123", ID_ADMIN);
+
+		assertNotEquals("Restablecida123", vigilante.getContrasena());
+		assertTrue(passwordEncoder.matches("Restablecida123", vigilante.getContrasena()));
+		assertTrue(vigilante.getDebeCambiarContrasena());
+		verify(auditoriaService).registrar(AccionAuditoria.RESTABLECER_CONTRASENA,
+				Map.of("idUsuario", ID_VIGILANTE, "debeCambiarContrasena", true), null, admin);
+	}
+
+	@Test
+	void administradorNoPuedeRestablecerSuPropiaContrasena() {
+		String hashAnterior = admin.getContrasena();
+
+		assertThrows(ReglaNegocioException.class,
+				() -> usuarioService.restablecerContrasena(ID_ADMIN, "Restablecida123", ID_ADMIN));
+
+		assertEquals(hashAnterior, admin.getContrasena());
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void restablecerContrasenaDeUsuarioInexistenteDevuelveNoEncontrado() {
+		when(usuarioDao.findById(99L)).thenReturn(Optional.empty());
+
+		assertThrows(RecursoNoEncontradoException.class,
+				() -> usuarioService.restablecerContrasena(99L, "Restablecida123", ID_ADMIN));
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
 	}
 
 	private static Rol rol(short id, String nombre) {

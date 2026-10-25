@@ -43,7 +43,8 @@ public interface UsuarioService {
 	UsuarioResponse obtener(Long idUsuario);
 
 	/**
-	 * Crea un usuario activo y audita {@code CREAR_USUARIO} con sus datos (sin la contraseña).
+	 * Crea un usuario activo y audita {@code CREAR_USUARIO} con sus datos (sin la contraseña). La contraseña
+	 * inicial es temporal: el usuario queda con {@code debeCambiarContrasena = true}.
 	 *
 	 * @param request datos del formulario
 	 * @param idActor id del Administrador que hace el alta (del token)
@@ -56,7 +57,8 @@ public interface UsuarioService {
 
 	/**
 	 * Reemplaza los datos de un usuario (incluida la reasignación de zona y, si se envía, la contraseña) y audita
-	 * {@code MODIFICAR_USUARIO} con los valores antes y después. Si no cambia nada, no audita.
+	 * {@code MODIFICAR_USUARIO} con los valores antes y después. Si no cambia nada, no audita. Una contraseña
+	 * enviada aquí es temporal: deja {@code debeCambiarContrasena = true}.
 	 *
 	 * @param idUsuario usuario a editar
 	 * @param request   datos nuevos
@@ -84,7 +86,9 @@ public interface UsuarioService {
 	UsuarioResponse cambiarEstado(Long idUsuario, boolean activo, Long idActor);
 
 	/**
-	 * El usuario autenticado cambia su propia contraseña. Audita {@code CAMBIAR_CONTRASENA}.
+	 * El usuario autenticado cambia su propia contraseña y queda sin cambio pendiente
+	 * ({@code debeCambiarContrasena = false}). Audita {@code CAMBIAR_CONTRASENA} indicando en
+	 * {@code cambioObligatorio} si la contraseña anterior era temporal.
 	 *
 	 * @param idUsuario id del dueño del token
 	 * @param request   contraseña actual y nueva
@@ -94,5 +98,20 @@ public interface UsuarioService {
 	 *         es igual a la actual
 	 */
 	void cambiarContrasenaPropia(Long idUsuario, CambioContrasenaRequest request);
+
+	/**
+	 * El Administrador asigna una contraseña nueva a otro usuario (por ejemplo, si la olvidó). Se guarda como hash
+	 * BCrypt, es temporal ({@code debeCambiarContrasena = true}) y se audita {@code RESTABLECER_CONTRASENA} con el
+	 * id del usuario afectado y esa marca. No cambia el estado del usuario: uno inactivo sigue sin poder iniciar
+	 * sesión.
+	 *
+	 * @param idUsuario       usuario cuya contraseña se restablece
+	 * @param contrasenaNueva contraseña nueva en texto plano (ya validada: 8 a 72 caracteres)
+	 * @param idActor         id del Administrador que la restablece (del token)
+	 * @throws com.segandina.sgi.exception.RecursoNoEncontradoException si el usuario no existe
+	 * @throws com.segandina.sgi.exception.ReglaNegocioException si el Administrador intenta restablecer la suya;
+	 *         para eso está {@link #cambiarContrasenaPropia}
+	 */
+	void restablecerContrasena(Long idUsuario, String contrasenaNueva, Long idActor);
 
 }

@@ -1,6 +1,8 @@
 package com.segandina.sgi.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Clock;
@@ -46,6 +48,18 @@ class JwtTokenServiceImplTest {
 		assertEquals("87654321", jwt.getClaimAsString(TokenService.CLAIM_DNI));
 		assertEquals(ahora.plus(Duration.ofHours(8)), jwt.getExpiresAt());
 		assertEquals(jwt.getExpiresAt(), emitido.expiraEn());
+		assertNull(jwt.getClaim(TokenService.CLAIM_CAMBIO_PENDIENTE));
+	}
+
+	@Test
+	void tokenDeUsuarioConContrasenaTemporalLlevaElClaimDeCambioPendiente() {
+		JwtTokenServiceImpl servicio = new JwtTokenServiceImpl(securityConfig.jwtEncoder(propiedades), propiedades);
+		Usuario usuario = administrador();
+		usuario.setDebeCambiarContrasena(true);
+
+		Jwt jwt = securityConfig.jwtDecoder(propiedades).decode(servicio.generarToken(usuario).token());
+
+		assertTrue(jwt.getClaimAsBoolean(TokenService.CLAIM_CAMBIO_PENDIENTE));
 	}
 
 	@Test
