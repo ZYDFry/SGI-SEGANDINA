@@ -43,16 +43,18 @@ public class JwtTokenServiceImpl implements TokenService {
 	public TokenEmitido generarToken(Usuario usuario) {
 		Instant ahora = reloj.instant();
 		Instant expiraEn = ahora.plus(jwtProperties.expiracion());
-		JwtClaimsSet claims = JwtClaimsSet.builder()
+		JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
 				.issuer(EMISOR)
 				.subject(String.valueOf(usuario.getIdUsuario()))
 				.issuedAt(ahora)
 				.expiresAt(expiraEn)
 				.claim(CLAIM_ROL, usuario.getRol().getNombreRol())
-				.claim(CLAIM_DNI, usuario.getDni())
-				.build();
+				.claim(CLAIM_DNI, usuario.getDni());
+		if (Boolean.TRUE.equals(usuario.getDebeCambiarContrasena())) {
+			claims.claim(CLAIM_CAMBIO_PENDIENTE, true);
+		}
 		JwsHeader cabecera = JwsHeader.with(MacAlgorithm.HS256).build();
-		String token = jwtEncoder.encode(JwtEncoderParameters.from(cabecera, claims)).getTokenValue();
+		String token = jwtEncoder.encode(JwtEncoderParameters.from(cabecera, claims.build())).getTokenValue();
 		return new TokenEmitido(token, expiraEn);
 	}
 

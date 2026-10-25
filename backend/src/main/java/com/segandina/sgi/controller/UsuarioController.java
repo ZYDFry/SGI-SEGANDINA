@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.segandina.sgi.dto.request.CambioContrasenaRequest;
 import com.segandina.sgi.dto.request.CambioEstadoRequest;
+import com.segandina.sgi.dto.request.RestablecerContrasenaRequest;
 import com.segandina.sgi.dto.request.UsuarioActualizarRequest;
 import com.segandina.sgi.dto.request.UsuarioCrearRequest;
 import com.segandina.sgi.dto.request.UsuarioFiltro;
@@ -125,6 +126,22 @@ public class UsuarioController {
 	public void cambiarContrasenaPropia(@Valid @RequestBody CambioContrasenaRequest request,
 			@AuthenticationPrincipal Jwt jwt) {
 		usuarioService.cambiarContrasenaPropia(Long.valueOf(jwt.getSubject()), request);
+	}
+
+	/**
+	 * El Administrador restablece la contraseña de otro usuario sin conocer la actual.
+	 *
+	 * @param id      id del usuario afectado
+	 * @param request contraseña nueva
+	 * @param jwt     token del Administrador
+	 * @return 204 si se restableció; 400 si la contraseña no es válida o el {@code id} es el del propio
+	 *         Administrador; 404 si el usuario no existe
+	 */
+	@PatchMapping("/{id}/contrasena")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void restablecerContrasena(@PathVariable Long id, @Valid @RequestBody RestablecerContrasenaRequest request,
+			@AuthenticationPrincipal Jwt jwt) {
+		usuarioService.restablecerContrasena(id, request.contrasenaNueva(), Long.valueOf(jwt.getSubject()));
 	}
 
 }

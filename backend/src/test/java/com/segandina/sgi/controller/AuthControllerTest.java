@@ -57,7 +57,7 @@ class AuthControllerTest {
 	@Test
 	void loginCorrectoResponde200ConTokenYSinContrasena() throws Exception {
 		UsuarioResumenResponse resumen = new UsuarioResumenResponse(1L, "12345678", "Ana", "Torres", null,
-				"Administrador", null);
+				"Administrador", null, true);
 		when(authService.login(any())).thenReturn(
 				LoginResponse.bearer("token-jwt", Instant.parse("2026-10-24T20:00:00Z"), resumen));
 
@@ -67,6 +67,7 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.token").value("token-jwt"))
 				.andExpect(jsonPath("$.tipo").value("Bearer"))
 				.andExpect(jsonPath("$.usuario.rol").value("Administrador"))
+				.andExpect(jsonPath("$.usuario.debeCambiarContrasena").value(true))
 				.andExpect(jsonPath("$.usuario.contrasena").doesNotExist());
 	}
 
@@ -108,7 +109,7 @@ class AuthControllerTest {
 	@Test
 	void tokenValidoPermiteConsultarUsuarioActual() throws Exception {
 		when(authService.usuarioActual(5L)).thenReturn(
-				new UsuarioResumenResponse(5L, "12345678", "Luis", "Rojas", null, "Vigilante", 2));
+				new UsuarioResumenResponse(5L, "12345678", "Luis", "Rojas", null, "Vigilante", 2, false));
 
 		mockMvc.perform(get("/api/auth/yo").header("Authorization", "Bearer " + token("Vigilante")))
 				.andExpect(status().isOk())
@@ -123,14 +124,29 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.status").value(403));
 	}
 
-	// Token real firmado con la misma clave que valida la aplicación
+	@Test
+	void tokenConCambioPendientePuedeConsultarUsuarioActual() throws Exception {
+		when(authService.usuarioActual(5L)).thenReturn(
+				new UsuarioResumenResponse(5L, "12345678", "Luis", "Rojas", null, "Vigilante", 2, true));
+
+		mockMvc.perform(get("/api/auth/yo").header("Authorization", "Bearer " + token("Vigilante", true)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.debeCambiarContrasena").value(true));
+	}
+
 	private String token(String nombreRol) {
+		return token(nombreRol, false);
+	}
+
+	// Token real firmado con la misma clave que valida la aplicación
+	private String token(String nombreRol, boolean cambioPendiente) {
 		Rol rol = new Rol();
 		rol.setNombreRol(nombreRol);
 		Usuario usuario = new Usuario();
 		usuario.setIdUsuario(5L);
 		usuario.setDni("12345678");
 		usuario.setRol(rol);
+		usuario.setDebeCambiarContrasena(cambioPendiente);
 		return new JwtTokenServiceImpl(jwtEncoder, jwtProperties).generarToken(usuario).token();
 	}
 

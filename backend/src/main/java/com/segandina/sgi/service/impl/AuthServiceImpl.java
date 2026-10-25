@@ -1,5 +1,6 @@
 package com.segandina.sgi.service.impl;
 
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,7 +61,11 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		TokenService.TokenEmitido token = tokenService.generarToken(usuario);
-		auditoriaService.registrar(AccionAuditoria.LOGIN_OK, null, null, usuario);
+		// Si la contraseña es temporal, el token emitido solo permite cambiarla
+		Map<String, Object> detalle = Boolean.TRUE.equals(usuario.getDebeCambiarContrasena())
+				? Map.of("cambioPendiente", true)
+				: null;
+		auditoriaService.registrar(AccionAuditoria.LOGIN_OK, detalle, null, usuario);
 		return LoginResponse.bearer(token.token(), token.expiraEn(), UsuarioResumenResponse.desde(usuario));
 	}
 

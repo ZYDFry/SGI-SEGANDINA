@@ -66,6 +66,10 @@ backend/src/main/java/com/segandina/sgi/
 
 - Contraseñas con BCrypt (`contrasena` guarda el hash, 255 caracteres).
 - JWT con `id_usuario` y `rol`. Expiración propuesta: 8 horas (un turno). Secreto en variable de entorno `JWT_SECRET`.
+- Contraseñas temporales: si `usuario.debe_cambiar_contrasena = true`, el token lleva el claim `cambioPendiente`
+  y `SecurityConfig` no le da la autoridad de su rol, así que solo puede usar `PATCH /usuarios/me/contrasena` y
+  `GET /auth/yo` (el resto → 403 "Debe cambiar su contraseña antes de continuar"). Por eso la regla final es
+  `anyRequest().hasAnyRole(...)` y no `authenticated()`.
 - Autorización por rol en cada endpoint (`@PreAuthorize` o reglas en `SecurityConfig`).
 - El `id_usuario` de una incidencia o de un log de auditoría siempre sale del token, nunca del body.
 - Mensaje de error de login genérico (no revelar si el DNI existe).
@@ -113,7 +117,8 @@ Prefijo `/api`. Todo requiere JWT salvo el login.
 |---|---|---|
 | `POST /auth/login` | público | RF-01 |
 | `GET /catalogos/zonas`, `/tipos-evento`, `/niveles-gravedad`, `/roles` | autenticado | RF-02/03 |
-| `GET /usuarios`, `POST /usuarios`, `PUT /usuarios/{id}`, `PATCH /usuarios/{id}/estado` | Administrador | RF-02 |
+| `GET /usuarios`, `POST /usuarios`, `PUT /usuarios/{id}`, `PATCH /usuarios/{id}/estado`, `PATCH /usuarios/{id}/contrasena` | Administrador | RF-02 |
+| `PATCH /usuarios/me/contrasena`, `GET /auth/yo` | autenticado (también con cambio de contraseña pendiente) | RF-01/02 |
 | `POST /incidencias` | Vigilante, Administrador | RF-03 |
 | `GET /incidencias?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento&page&size` | Administrador, Supervisor | RF-04 |
 | `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |

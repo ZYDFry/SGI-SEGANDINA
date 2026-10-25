@@ -596,3 +596,90 @@ Prueba manual:
 7. Token vencido: en DevTools → Application → Local Storage, cambiar `expiraEn` de `sgi.sesion` a una fecha pasada y
    recargar, o alterar el `token` y registrar una incidencia → `/login` con el aviso "Tu sesión venció".
 8. DevTools en modo móvil (360 px): botones táctiles, botón "Registrar incidencia" fijo abajo, sin scroll horizontal.
+
+---
+
+## Contraseñas temporales: restablecimiento y cambio obligatorio (RF-01, RF-02, RF-08)
+
+Toda contraseña que asigna el Administrador (al crear un usuario, al editarlo con contraseña o al restablecerla con
+`PATCH /api/usuarios/{id}/contrasena`) es temporal. El usuario queda con `debe_cambiar_contrasena = true` y, al
+iniciar sesión, recibe un token que solo le permite cambiarla. Cada paso queda en `auditoria` sin guardar
+contraseñas ni hashes.
+
+### Base de datos
+
+Columna nueva en `usuario` (ya incluida en `docs/modelo_datos.sql`). En una BD existente se agrega con:
+```sql
+ALTER TABLE usuario ADD COLUMN debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT FALSE;
+```
+Los usuarios existentes quedan en `FALSE`. El perfil `local` valida el esquema al arrancar
+(`ddl-auto=validate`), así que la aplicación no inicia hasta que la columna exista.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `RestablecerContrasenaRequest` (nueva) | `dto.request` | Cuerpo `{ contrasenaNueva }`: obligatoria, de 8 a 72 caracteres (72 es el límite de BCrypt). Su `toString()` oculta la contraseña. | — |
+| `Usuario` (modificado) | `model` | Campo `debeCambiarContrasena` (`debe_cambiar_contrasena`, por defecto `false`). | `getDebeCambiarContrasena()`, `setDebeCambiarContrasena(Boolean)`. |
+| `UsuarioController` (modificado) | `controller` | Nueva ruta, solo Administrador (la cubre la regla `/api/usuarios/**`). | `restablecerContrasena(id, RestablecerContrasenaRequest, Jwt)` → 204 (`PATCH /{id}/contrasena`). |
+| `UsuarioService` / `UsuarioServiceImpl` (modificados) | `service` / `service.impl` | Marca y desmarca la contraseña temporal. | `restablecerContrasena(idUsuario, contrasenaNueva, idActor)`: el actor debe estar activo (401), el usuario debe existir (404) y no ser el propio actor (400); guarda el hash, marca `debeCambiarContrasena = true` y audita `RESTABLECER_CONTRASENA {idUsuario, debeCambiarContrasena: true}`. `crear` y `actualizar` (con contraseña) también marcan `true` y lo agregan al detalle. `cambiarContrasenaPropia` deja `false` y audita `cambioObligatorio`. |
+| `TokenService` / `JwtTokenServiceImpl` (modificados) | `service` / `service.impl` | Constante `CLAIM_CAMBIO_PENDIENTE = "cambioPendiente"`. | `generarToken(Usuario)`: agrega `cambioPendiente: true` solo si el usuario tiene contraseña temporal. |
+| `SecurityConfig` (modificado) | `config` | Con `cambioPendiente`, el converter no asigna `ROLE_<rol>`. `GET /api/auth/yo` y `PATCH /api/usuarios/me/contrasena` piden solo token; la regla final pasa a `anyRequest().hasAnyRole(Administrador, Supervisor, Vigilante)`. El 403 dice "Debe cambiar su contraseña antes de continuar" si el token tiene el claim. | — |
+| `AuthServiceImpl` (modificado) | `service.impl` | `LOGIN_OK` lleva `{cambioPendiente: true}` cuando la contraseña es temporal. | `login(LoginRequest)` (sin cambios de firma). |
+| `UsuarioResumenResponse` (modificado) | `dto.response` | Nuevo campo `debeCambiarContrasena`, presente en el login y en `GET /api/auth/yo`. | `desde(Usuario)`. |
+| `AccionAuditoria` (modificado) | `model` | Acción nueva `RESTABLECER_CONTRASENA`. `accion_realizada` es `VARCHAR(60)` sin restricción de valores: no requiere cambios en la BD. | — |
+
+### Flujo completo
+
+1. El Administrador llama a `PATCH /api/usuarios/7/contrasena` con `{ contrasenaNueva }`. `SecurityConfig` exige
+   rol Administrador y `@Valid` valida la longitud (400). Luego `UsuarioServiceImpl.restablecerContrasena`, en una
+   transacción:
+   1. comprueba que el actor siga activo (401) y que el usuario 7 exista (404) y no sea el propio Administrador (400);
+   2. guarda el hash y `debe_cambiar_contrasena = true`;
+   3. inserta `RESTABLECER_CONTRASENA {idUsuario: 7, debeCambiarContrasena: true}` con `id_usuario` = Administrador.
+
+   Responde 204.
+2. El usuario 7 llama a `POST /api/auth/login`: `AuthServiceImpl` valida credenciales y `JwtTokenServiceImpl` emite
+   el token con `cambioPendiente: true`. La respuesta trae `usuario.debeCambiarContrasena: true` y se audita
+   `LOGIN_OK {cambioPendiente: true}`.
+3. Con ese token, cualquier ruta salvo `/api/auth/yo` y `/api/usuarios/me/contrasena` responde 403: el token no
+   tiene autoridad de rol.
+4. `PATCH /api/usuarios/me/contrasena` con la temporal como `contrasenaActual`: `cambiarContrasenaPropia` guarda la
+   nueva, deja `debe_cambiar_contrasena = false` y audita `CAMBIAR_CONTRASENA {idUsuario, origen: "propio",
+   cambioObligatorio: true}`. Responde 204.
+5. El token anterior sigue con el claim hasta vencer: el cliente inicia sesión de nuevo con la contraseña nueva y
+   obtiene un token normal.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw -q verify
+```
+Pasan 183 tests. Tests de esta funcionalidad:
+- `UsuarioServiceImplTest`:
+  - el restablecimiento guarda el hash temporal y audita sin contraseña;
+  - el Administrador no puede restablecer la suya; un usuario inexistente da 404;
+  - crear y editar con contraseña marcan el cambio obligatorio; editar sin contraseña no lo marca;
+  - el cambio propio quita la marca y audita `cambioObligatorio` en `true` o `false`.
+- `JwtTokenServiceImplTest`: el claim aparece solo con contraseña temporal.
+- `AuthServiceImplTest`: el login indica la contraseña temporal y la audita.
+- `AuthControllerTest`: `debeCambiarContrasena` aparece en el JSON del login; `/api/auth/yo` funciona con un token
+  pendiente.
+- `UsuarioControllerTest`:
+  - restablecer como Administrador → 204; contraseña corta → 400; Supervisor o Vigilante → 403; sin token → 401;
+  - con token pendiente, `me/contrasena` → 204 y usuarios, catálogos, dashboard e incidencias → 403 con el mensaje
+    nuevo;
+  - el 403 por rol conserva su mensaje habitual.
+
+Prueba manual (después de agregar la columna, con la app en perfil `local`):
+1. En el environment local de Postman (no versionado) definir la variable `contrasenaNueva`.
+2. Como Administrador, ejecutar "Usuarios Restablecer Contrasena" (`PATCH /api/usuarios/2/contrasena`) → 204.
+3. Login del usuario 2 con esa contraseña → 200 con `usuario.debeCambiarContrasena: true`.
+4. Con ese token, `GET /api/catalogos/zonas` → 403 "Debe cambiar su contraseña antes de continuar".
+5. Con ese token, "Usuarios Mi Contrasena" (actual = la temporal) → 204.
+6. Login de nuevo → `debeCambiarContrasena: false`, y las rutas de su rol vuelven a responder.
+7. Restablecer usando el id del propio Administrador → 400; con token de Supervisor → 403.
+8. `SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria ORDER BY id_auditoria DESC LIMIT 6;` muestra
+   `RESTABLECER_CONTRASENA`, `LOGIN_OK {"cambioPendiente": true}` y
+   `CAMBIAR_CONTRASENA {..., "cambioObligatorio": true}`.

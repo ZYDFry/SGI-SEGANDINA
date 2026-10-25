@@ -48,6 +48,7 @@ CREATE TABLE usuario (
     apellido_materno VARCHAR(50),                    -- opcional: hay personas con un solo apellido
     contrasena       VARCHAR(255) NOT NULL,          -- hash BCrypt
     estado_activo    BOOLEAN NOT NULL DEFAULT TRUE,
+    debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT FALSE,  -- contraseña temporal asignada por el Administrador
     id_rol           SMALLINT NOT NULL,
     id_zona          INTEGER,
     CONSTRAINT chk_usuario_dni CHECK (dni ~ '^[0-9]{8}$'),

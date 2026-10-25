@@ -1,7 +1,9 @@
 package com.segandina.sgi.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -12,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -67,8 +70,23 @@ class AuthServiceImplTest {
 		assertEquals(expira, respuesta.expiraEn());
 		assertEquals(7L, respuesta.usuario().idUsuario());
 		assertEquals("Vigilante", respuesta.usuario().rol());
+		assertFalse(respuesta.usuario().debeCambiarContrasena());
 		verify(auditoriaService).registrar(AccionAuditoria.LOGIN_OK, null, null, usuario);
 		verify(auditoriaService, never()).registrarLoginFallido(anyString(), any(), anyString());
+	}
+
+	@Test
+	void loginConContrasenaTemporalLoIndicaYLoAudita() {
+		Usuario usuario = usuario(true);
+		usuario.setDebeCambiarContrasena(true);
+		when(usuarioDao.findByDni(DNI)).thenReturn(Optional.of(usuario));
+		when(tokenService.generarToken(usuario))
+				.thenReturn(new TokenService.TokenEmitido("token-jwt", Instant.parse("2026-10-24T20:00:00Z")));
+
+		LoginResponse respuesta = authService.login(new LoginRequest(DNI, CLAVE));
+
+		assertTrue(respuesta.usuario().debeCambiarContrasena());
+		verify(auditoriaService).registrar(AccionAuditoria.LOGIN_OK, Map.of("cambioPendiente", true), null, usuario);
 	}
 
 	@Test

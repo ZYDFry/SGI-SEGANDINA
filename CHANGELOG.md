@@ -12,6 +12,45 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-24] RF-01 / RF-02 / RF-08 — Restablecimiento de contraseña y contraseñas temporales
+- Qué se hizo:
+  - `PATCH /api/usuarios/{id}/contrasena` (solo Administrador) con `{ contrasenaNueva }` de 8 a 72 caracteres:
+    - guarda la contraseña con BCrypt y responde 204; no pide la actual;
+    - el Administrador no puede restablecer la suya por esta ruta (400; debe usar `PATCH /api/usuarios/me/contrasena`);
+    - usuario inexistente → 404; un usuario inactivo se puede restablecer y sigue inactivo.
+  - Contraseñas temporales: crear un usuario, editarlo enviando `contrasena` o restablecerla deja
+    `debe_cambiar_contrasena = true`.
+    - El login lo informa en `usuario.debeCambiarContrasena` y emite un token con el claim `cambioPendiente`.
+    - Ese token solo permite `PATCH /api/usuarios/me/contrasena` y `GET /api/auth/yo`; el resto responde 403 con
+      "Debe cambiar su contraseña antes de continuar".
+    - Al cambiarla, la marca vuelve a `false` y hay que iniciar sesión de nuevo.
+  - Auditoría, sin contraseñas ni hashes:
+    - acción nueva `RESTABLECER_CONTRASENA {idUsuario, debeCambiarContrasena: true}`;
+    - `CREAR_USUARIO` y `MODIFICAR_USUARIO` con contraseña agregan `debeCambiarContrasena: true`;
+    - `LOGIN_OK {cambioPendiente: true}` cuando aplica;
+    - `CAMBIAR_CONTRASENA` agrega `cambioObligatorio`.
+- Base de datos: columna nueva `usuario.debe_cambiar_contrasena` (agregada a `docs/modelo_datos.sql`). En Supabase
+  hay que ejecutar:
+  `ALTER TABLE usuario ADD COLUMN debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT FALSE;`
+  Sin ella, la app no arranca en el perfil `local` (`ddl-auto=validate`). `auditoria` no necesita cambios.
+- Archivos clave:
+  - Backend: `dto/request/RestablecerContrasenaRequest.java` (nuevo), `model/Usuario.java`, `model/AccionAuditoria.java`,
+    `controller/UsuarioController.java`, `service/UsuarioService.java`, `service/impl/UsuarioServiceImpl.java`,
+    `service/TokenService.java`, `service/impl/JwtTokenServiceImpl.java`, `service/impl/AuthServiceImpl.java`,
+    `config/SecurityConfig.java`, `dto/response/UsuarioResumenResponse.java`.
+  - Tests: `UsuarioServiceImplTest`, `UsuarioControllerTest`, `AuthServiceImplTest`, `AuthControllerTest`,
+    `JwtTokenServiceImplTest`.
+  - Postman: "Usuarios Restablecer Contrasena", que usa la variable `{{contrasenaNueva}}` del environment local.
+  - Docs: RF-01, RF-02 y RF-08 en `docs/requerimientos_funcionales.md`; seguridad y endpoints en
+    `docs/stack_arquitectura.md`; sección nueva en `docs/referencia_clases.md`.
+- Cómo probarlo: `cd backend && ./mvnw -q verify` → pasan 183 tests. Prueba manual en `docs/referencia_clases.md`,
+  sección "Contraseñas temporales: restablecimiento y cambio obligatorio".
+- Pendientes o problemas conocidos:
+  - Frontend: falta la pantalla de cambio obligatorio (redirigir ahí si `debeCambiarContrasena` es `true` y volver a
+    iniciar sesión después) y la acción de restablecer en la gestión de personal. Hasta entonces, un usuario con
+    contraseña temporal solo ve errores 403 en el frontend.
+  - Un token emitido antes del restablecimiento sigue siendo válido hasta que vence (8 h).
+
 ## [2026-10-24] Fase 7 / RF-01, RF-03 — Frontend base: login, rutas por rol y formulario de incidencias
 - Qué se hizo:
   - Proyecto Next.js 16.4 (App Router, TypeScript, Tailwind 4, Axios) en `/frontend`. URL de la API en

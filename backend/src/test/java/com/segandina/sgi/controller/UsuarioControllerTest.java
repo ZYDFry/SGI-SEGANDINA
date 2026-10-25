@@ -154,20 +154,85 @@ class UsuarioControllerTest {
 	}
 
 	@Test
+	void administradorRestableceLaContrasenaDeOtro() throws Exception {
+		mockMvc.perform(patch(USUARIOS + "/7/contrasena").header("Authorization", bearer("Administrador", 1L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"contrasenaNueva\":\"Restablecida1\"}"))
+				.andExpect(status().isNoContent());
+
+		verify(usuarioService).restablecerContrasena(7L, "Restablecida1", 1L);
+	}
+
+	@Test
+	void restablecerConContrasenaCortaResponde400() throws Exception {
+		mockMvc.perform(patch(USUARIOS + "/7/contrasena").header("Authorization", bearer("Administrador", 1L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"contrasenaNueva\":\"1234567\"}"))
+				.andExpect(status().isBadRequest());
+		verifyNoInteractions(usuarioService);
+	}
+
+	@Test
+	void supervisorYVigilanteNoPuedenRestablecerContrasenas() throws Exception {
+		for (String rol : new String[] { "Supervisor", "Vigilante" }) {
+			mockMvc.perform(patch(USUARIOS + "/7/contrasena").header("Authorization", bearer(rol, 2L))
+					.contentType(MediaType.APPLICATION_JSON).content("{\"contrasenaNueva\":\"Restablecida1\"}"))
+					.andExpect(status().isForbidden());
+		}
+		verifyNoInteractions(usuarioService);
+	}
+
+	@Test
+	void restablecerSinTokenResponde401() throws Exception {
+		mockMvc.perform(patch(USUARIOS + "/7/contrasena").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"contrasenaNueva\":\"Restablecida1\"}"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void vigilanteNoPuedeCambiarElEstadoDeOtros() throws Exception {
 		mockMvc.perform(patch(USUARIOS + "/50/estado").header("Authorization", bearer("Vigilante", 7L))
 				.contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}"))
 				.andExpect(status().isForbidden());
 	}
 
-	// Token real firmado con la misma clave que valida la aplicación
+	@Test
+	void tokenConCambioPendienteSoloPermiteCambiarLaContrasenaPropia() throws Exception {
+		String token = bearer("Administrador", 1L, true);
+
+		mockMvc.perform(patch(USUARIOS + "/me/contrasena").header("Authorization", token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"contrasenaActual\":\"ClaveVieja1\",\"contrasenaNueva\":\"ClaveNueva1\"}"))
+				.andExpect(status().isNoContent());
+		for (String ruta : new String[] { USUARIOS, "/api/catalogos/zonas", "/api/dashboard/kpis" }) {
+			mockMvc.perform(get(ruta).header("Authorization", token))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.mensaje").value("Debe cambiar su contraseña antes de continuar"));
+		}
+		mockMvc.perform(post("/api/incidencias").header("Authorization", token)
+				.contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isForbidden());
+		verify(usuarioService).cambiarContrasenaPropia(any(), any());
+	}
+
+	@Test
+	void rolInsuficienteMantieneElMensajeDeSiempre() throws Exception {
+		mockMvc.perform(get(USUARIOS).header("Authorization", bearer("Vigilante", 7L)))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.mensaje").value("No tiene permisos para esta operación"));
+	}
+
 	private String bearer(String nombreRol, long idUsuario) {
+		return bearer(nombreRol, idUsuario, false);
+	}
+
+	// Token real firmado con la misma clave que valida la aplicación
+	private String bearer(String nombreRol, long idUsuario, boolean cambioPendiente) {
 		Rol rol = new Rol();
 		rol.setNombreRol(nombreRol);
 		Usuario usuario = new Usuario();
 		usuario.setIdUsuario(idUsuario);
 		usuario.setDni("12345678");
 		usuario.setRol(rol);
+		usuario.setDebeCambiarContrasena(cambioPendiente);
 		return "Bearer " + new JwtTokenServiceImpl(jwtEncoder, jwtProperties).generarToken(usuario).token();
 	}
 

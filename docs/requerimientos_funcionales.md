@@ -27,14 +27,22 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 - **Reglas:**
   - El usuario debe existir y tener `estado_activo = true`.
   - La contraseña se compara contra el hash BCrypt.
-  - Si es correcto, el backend devuelve un JWT (con `id_usuario` y `rol`) y los datos básicos del usuario (sin contraseña).
-  - Cada intento se registra en `auditoria`: `LOGIN_OK`, o `LOGIN_FALLIDO` con `dni_intentado` (y `id_usuario` nulo si el DNI no existe).
+  - Si es correcto, el backend devuelve un JWT (con `id_usuario` y `rol`) y los datos básicos del usuario (sin contraseña),
+    incluido `debeCambiarContrasena`.
+  - **Contraseña temporal:** si el usuario tiene `debe_cambiar_contrasena = true` (ver RF-02), el login responde 200
+    con `usuario.debeCambiarContrasena: true` y un token con el claim `cambioPendiente: true`. Ese token solo sirve
+    para `PATCH /api/usuarios/me/contrasena` y `GET /api/auth/yo`; cualquier otra ruta responde 403 con el mensaje
+    "Debe cambiar su contraseña antes de continuar". Después del cambio hay que iniciar sesión de nuevo para obtener
+    un token normal.
+  - Cada intento se registra en `auditoria`: `LOGIN_OK` (con `detalle_cambio = {"cambioPendiente": true}` si la
+    contraseña es temporal), o `LOGIN_FALLIDO` con `dni_intentado` (y `id_usuario` nulo si el DNI no existe).
   - Mensaje de error genérico: "DNI o contraseña incorrectos".
 - **Criterios de aceptación:**
   - DNI con formato inválido se rechaza antes de consultar la BD.
   - Usuario inactivo no puede entrar.
   - Un endpoint protegido sin token responde 401; con rol insuficiente responde 403.
   - Tras el login, el Vigilante va al formulario de incidencias y Administrador/Supervisor al dashboard.
+  - Con contraseña temporal, el usuario no puede usar ninguna otra función hasta cambiarla.
 
 ## RF-02 Gestión de usuarios (Prioridad: Media)
 
@@ -43,13 +51,18 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 - **Reglas:**
   - `dni` único y de 8 dígitos numéricos.
   - La contraseña (8 a 72 caracteres) se guarda siempre como BCrypt; nunca se devuelve.
+  - Toda contraseña que asigna el Administrador es **temporal**: al crear el usuario, al editarlo enviando
+    `contrasena` y al restablecerla, queda `debe_cambiar_contrasena = true` y el usuario debe cambiarla en su
+    siguiente inicio de sesión (ver RF-01). La marca vuelve a `false` cuando el usuario la cambia con
+    `PATCH /api/usuarios/me/contrasena`. El Administrador inicial creado por el seed no tiene la marca.
   - Administrador y Supervisor pueden no tener zona; para Vigilante la zona es obligatoria. Una zona nueva o
     distinta de la actual debe estar activa; la zona actual se conserva aunque se haya desactivado después.
   - No existe borrado físico: "eliminar" es desactivar (`estado_activo = false`) para conservar el historial.
   - Reasignar zona = editar `id_zona`.
   - El Administrador no puede desactivarse a sí mismo ni quitarse el rol Administrador (evita quedarse sin acceso).
   - Se audita: `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`, con valores antes y después en
-    `detalle_cambio` (sin la contraseña; si cambió, solo `"contrasenaCambiada": true`). Una edición sin cambios o
+    `detalle_cambio` (sin la contraseña; si se asignó una, solo `"contrasenaCambiada": true` y
+    `"debeCambiarContrasena": true`; el alta siempre lleva `"debeCambiarContrasena": true`). Una edición sin cambios o
     un cambio al mismo estado no se audita.
 - **Contrato** (Administrador; sin `DELETE`):
 
@@ -60,13 +73,25 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   | `POST /api/usuarios` | `{ dni, nombres, apellidoPaterno, apellidoMaterno?, contrasena, idRol, idZona? }` | 201; 400 datos inválidos, rol inexistente o zona inválida; 409 DNI duplicado |
   | `PUT /api/usuarios/{id}` | igual al alta, con `contrasena` opcional (`null` la conserva) | 200; 400; 404; 409 |
   | `PATCH /api/usuarios/{id}/estado` | `{ activo }` | 200; 400 si el Administrador se desactiva a sí mismo; 404 |
+  | `PATCH /api/usuarios/{id}/contrasena` | `{ contrasenaNueva }` | 204; 400 contraseña inválida o `id` propio; 404 |
   | `GET /api/catalogos/roles` | — | 200 `[{ idRol, nombreRol }]` (cualquier usuario autenticado) |
 
   Cada usuario se devuelve como `{ idUsuario, dni, nombres, apellidoPaterno, apellidoMaterno, idRol, rol, idZona,
   nombreZona, estadoActivo }`. Sin token → 401; Supervisor o Vigilante → 403.
 - **Cambio de contraseña propia:** `PATCH /api/usuarios/me/contrasena` con `{ contrasenaActual, contrasenaNueva }`,
   para cualquier usuario autenticado. La actual debe coincidir y la nueva debe tener de 8 a 72 caracteres y ser
-  distinta de la actual (si no → 400). Responde 204 y audita `CAMBIAR_CONTRASENA`.
+  distinta de la actual (si no → 400). Responde 204, quita la marca de contraseña temporal y audita
+  `CAMBIAR_CONTRASENA` con `{idUsuario, origen: "propio", cambioObligatorio}` (`true` si la anterior era temporal).
+- **Restablecimiento de contraseña por el Administrador:** `PATCH /api/usuarios/{id}/contrasena` con
+  `{ contrasenaNueva }`, solo Administrador (Supervisor o Vigilante → 403; sin token → 401). Sirve cuando un
+  usuario olvidó su contraseña: no se pide la actual.
+  - La nueva debe tener de 8 a 72 caracteres (si no → 400) y se guarda como BCrypt.
+  - El Administrador no puede restablecer la suya por esta ruta (→ 400); debe usar `PATCH /api/usuarios/me/contrasena`.
+  - Usuario inexistente → 404. Se puede restablecer a un usuario inactivo; su estado no cambia.
+  - La contraseña restablecida es temporal: el usuario queda con `debe_cambiar_contrasena = true`.
+  - Responde 204 y audita `RESTABLECER_CONTRASENA` con
+    `detalle_cambio = {"idUsuario": <id del afectado>, "debeCambiarContrasena": true}`; el autor es el
+    Administrador. Nunca se guarda la contraseña ni el hash.
 - **Criterios de aceptación:** crear, listar (con rol, zona y estado), editar y activar/desactivar; DNI duplicado devuelve error claro; un Supervisor o Vigilante recibe 403.
 
 ## RF-03 Registro de incidencias (Prioridad: Alta)
@@ -163,10 +188,19 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Reglas:**
   - La tabla `auditoria` es solo inserción: ni el código ni los tests hacen UPDATE o DELETE.
   - Acciones: `LOGIN_OK`, `LOGIN_FALLIDO`, `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`,
-    `CAMBIAR_CONTRASENA`, `REGISTRAR_INCIDENCIA`, `EXPORTAR_REPORTE`, `CREAR_ZONA`, `MODIFICAR_ZONA`,
-    `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`, `CAMBIAR_ESTADO_TIPO_EVENTO`,
-    `MODIFICAR_NIVEL_GRAVEDAD`.
-  - `detalle_cambio` (JSONB) guarda los valores antes y después cuando aplica.
+    `CAMBIAR_CONTRASENA`, `RESTABLECER_CONTRASENA`, `REGISTRAR_INCIDENCIA`, `EXPORTAR_REPORTE`, `CREAR_ZONA`,
+    `MODIFICAR_ZONA`, `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`,
+    `CAMBIAR_ESTADO_TIPO_EVENTO`, `MODIFICAR_NIVEL_GRAVEDAD`.
+  - `accion_realizada` es texto libre (`VARCHAR(60)`, sin restricción de valores en la BD); los valores válidos
+    los define el enum `AccionAuditoria` del backend.
+  - `detalle_cambio` (JSONB) guarda los valores antes y después cuando aplica. Ninguna acción guarda contraseñas
+    ni hashes. Detalles relacionados con contraseñas:
+    - `RESTABLECER_CONTRASENA`: `{idUsuario, debeCambiarContrasena: true}` del afectado, con el Administrador como
+      autor (`id_usuario`).
+    - `CREAR_USUARIO` y `MODIFICAR_USUARIO` con contraseña: además de antes/después, `debeCambiarContrasena: true`.
+    - `LOGIN_OK` con contraseña temporal: `{cambioPendiente: true}` (si no, sin detalle).
+    - `CAMBIAR_CONTRASENA`: `{idUsuario, origen: "propio", cambioObligatorio}`; `cambioObligatorio: true` indica que
+      el usuario reemplazó una contraseña temporal.
   - El log se escribe en la misma transacción que la acción (excepto `LOGIN_FALLIDO`).
   - Consulta solo para Administrador, con filtros por fecha y acción (pantalla "Historial de Incidencias y Auditoría").
 - **Criterios de aceptación:** cada acción listada deja un registro; intentar modificar o borrar un log falla en la BD.
