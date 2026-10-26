@@ -12,6 +12,22 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-25] Fase 8 / RF-01 — Login sin credenciales prellenadas
+- Qué se hizo:
+  - Al recargar o entrar a `/login`, el navegador rellenaba el DNI y la contraseña (gestor de contraseñas y
+    restauración de formularios). En equipos o celulares compartidos eso deja las credenciales a la vista.
+  - El formulario usa `autoComplete="off"`, igual que el campo DNI. La contraseña usa `autoComplete="new-password"`,
+    porque Chrome y Edge ignoran `"off"` en campos de contraseña.
+- Archivos clave: `frontend/src/app/login/FormularioLogin.tsx`, `docs/referencia_clases.md`.
+- Cómo probarlo:
+  - `cd frontend && npm run lint && npm run build` → sin errores.
+  - Escribir DNI y contraseña sin enviar y pulsar F5 → campos vacíos. Iniciar y cerrar sesión → campos vacíos.
+    Con una contraseña ya guardada en Chrome, `/login` carga vacío. El login correcto y el de credenciales
+    incorrectas siguen funcionando.
+- Pendientes o problemas conocidos:
+  - Si la contraseña ya está guardada en el navegador, este puede ofrecerla en una lista al tocar el campo, pero no
+    la rellena solo. Para quitarla del todo hay que borrarla en la configuración del navegador.
+
 ## [2026-10-25] Fase 8 / RF-01 — Fix: login bloqueado en "Ingresando…" tras cerrar sesión
 - Qué se hizo:
   - Causa: Next.js (con `cacheComponents`) conserva el estado de las pantallas visitadas y el navegador puede
