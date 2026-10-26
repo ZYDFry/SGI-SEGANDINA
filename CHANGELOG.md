@@ -12,6 +12,34 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-25] Fase 8 / RF-01 — Frontend: cambio obligatorio de contraseña temporal
+- Qué se hizo:
+  - Si el login devuelve `usuario.debeCambiarContrasena: true`, la sesión se guarda marcada y el usuario va a
+    `/cambiar-contrasena`. Mientras esté marcada, `RutaProtegida` devuelve cualquier ruta privada a esa pantalla y
+    el encabezado con el menú no se muestra.
+  - Pantalla nueva con contraseña actual o temporal, nueva y confirmación. Validación en el cliente: obligatorias,
+    nueva de 8 a 16 caracteres, distinta de la actual e igual a la confirmación. Errores del backend con mensaje
+    claro ("La contraseña actual o temporal no es correcta.", "La nueva contraseña debe ser distinta de la actual").
+  - Al recibir 204 se cierra la sesión y se va a `/login` con el aviso "Contraseña actualizada, inicia sesión con
+    la nueva."
+  - Un 403 con "Debe cambiar su contraseña antes de continuar" en cualquier llamada marca la sesión y redirige a
+    la pantalla de cambio.
+- Archivos clave: `frontend/src/app/cambiar-contrasena/page.tsx`,
+  `frontend/src/app/cambiar-contrasena/FormularioCambioContrasena.tsx`, `frontend/src/lib/sesion.ts`,
+  `frontend/src/lib/roles.ts`, `frontend/src/lib/api.ts`, `frontend/src/lib/servicios.ts`,
+  `frontend/src/lib/tipos.ts`, `frontend/src/components/RutaProtegida.tsx`,
+  `frontend/src/components/Encabezado.tsx`, `frontend/src/app/login/FormularioLogin.tsx`,
+  `frontend/src/app/page.tsx`, `docs/referencia_clases.md`.
+- Cómo probarlo:
+  - `cd frontend && npm run lint && npm run build` → sin errores.
+  - Restablecer como Administrador la contraseña de un usuario (`PATCH /api/usuarios/{id}/contrasena`), entrar
+    con la temporal → `/cambiar-contrasena`; abrir `/dashboard` → vuelve a la pantalla de cambio; probar actual
+    incorrecta, nueva igual, de 7 o 17 caracteres y confirmación distinta; cambio válido → `/login` con el aviso;
+    entrar con la nueva → inicio normal del rol.
+- Pendientes o problemas conocidos:
+  - El máximo de 16 caracteres solo lo aplica el frontend; la API acepta hasta 72.
+  - El frontend aún no tiene una pantalla para el cambio voluntario de contraseña (sin contraseña temporal).
+
 ## [2026-10-24] RF-01 / RF-02 / RF-08 — Restablecimiento de contraseña y contraseñas temporales
 - Qué se hizo:
   - `PATCH /api/usuarios/{id}/contrasena` (solo Administrador) con `{ contrasenaNueva }` de 8 a 72 caracteres:

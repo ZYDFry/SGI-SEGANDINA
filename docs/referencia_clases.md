@@ -683,3 +683,57 @@ Prueba manual (después de agregar la columna, con la app en perfil `local`):
 8. `SELECT accion_realizada, detalle_cambio, id_usuario FROM auditoria ORDER BY id_auditoria DESC LIMIT 6;` muestra
    `RESTABLECER_CONTRASENA`, `LOGIN_OK {"cambioPendiente": true}` y
    `CAMBIAR_CONTRASENA {..., "cambioObligatorio": true}`.
+
+---
+
+## Frontend — cambio obligatorio de contraseña temporal (RF-01)
+
+Cuando el login devuelve `usuario.debeCambiarContrasena: true`, la sesión se guarda marcada y el usuario solo puede
+estar en `/cambiar-contrasena`: las rutas privadas y el menú no se muestran. Allí ingresa la contraseña actual (o
+temporal), la nueva y su confirmación. Al guardarla, la sesión se cierra y debe entrar de nuevo con la contraseña
+nueva, porque el token anterior sigue limitado hasta vencer.
+
+### Módulos y componentes nuevos y modificados
+
+| Archivo (`frontend/src/`) | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `app/cambiar-contrasena/page.tsx` (nuevo) | `/cambiar-contrasena`, fuera del grupo `(privado)`: sin `Encabezado` ni menú, mismo marco que `/login`. | — |
+| `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (nuevo) | Formulario de cambio. Sin sesión → `rutaLogin(motivo)`; sesión no marcada → `rutaInicio(rol)`. Valida en el cliente: campos obligatorios, nueva de 8 a 16 caracteres, distinta de la actual e igual a la confirmación. Con 204 llama a `borrarSesion("contrasena-cambiada")`; con 400 muestra el mensaje del backend ("La contraseña actual o temporal no es correcta.", "La nueva contraseña debe ser distinta de la actual") y sus `detalles`. Botón "Cerrar sesión" como única salida. | — |
+| `lib/tipos.ts` (modificado) | `Usuario.debeCambiarContrasena: boolean`. | — |
+| `lib/sesion.ts` (modificado) | Motivo de cierre nuevo `"contrasena-cambiada"`. | `marcarCambioPendiente()`: reescribe la sesión guardada con `debeCambiarContrasena = true` y avisa a los suscriptores (no hace nada sin sesión o si ya está marcada). |
+| `lib/roles.ts` (modificado) | Constante `RUTA_CAMBIO_CONTRASENA = "/cambiar-contrasena"`. | `destinoInicial(usuario)` → `/cambiar-contrasena` si está marcado, si no `rutaInicio(rol)`; `rutaLogin(motivo)` → `/login`, `/login?motivo=expirada` o `/login?motivo=contrasena-actualizada`. |
+| `lib/api.ts` (modificado) | El interceptor de respuesta, ante un 403 con el mensaje "Debe cambiar su contraseña antes de continuar", llama a `marcarCambioPendiente()`. | — |
+| `lib/servicios.ts` (modificado) | — | `cambiarContrasenaPropia(contrasenaActual, contrasenaNueva)` → `Promise<void>` (`PATCH /api/usuarios/me/contrasena`). |
+| `components/RutaProtegida.tsx` (modificado) | Con sesión marcada no muestra la página y redirige a `/cambiar-contrasena`. Sin sesión usa `rutaLogin(consumirMotivoCierre())`. | Props sin cambios. |
+| `components/Encabezado.tsx` (modificado) | No se muestra con sesión marcada. | — |
+| `app/login/FormularioLogin.tsx` (modificado) | Redirige con `destinoInicial(usuario)`. Con `?motivo=contrasena-actualizada` muestra "Contraseña actualizada, inicia sesión con la nueva." | — |
+| `app/page.tsx` (modificado) | `/` redirige con `destinoInicial(usuario)`. | — |
+
+### Flujo: primer ingreso con contraseña temporal
+
+1. `/login` → `iniciarSesion` → `POST /api/auth/login`; la respuesta trae `usuario.debeCambiarContrasena: true` y
+   `guardarSesion` la guarda así en `localStorage`.
+2. El efecto del login llama a `destinoInicial` → `/cambiar-contrasena`. Si el usuario escribe otra ruta,
+   `RutaProtegida` lo devuelve allí. Si alguna petición recibe el 403 de contraseña pendiente (por ejemplo, una
+   sesión guardada antes de restablecerla), el interceptor marca la sesión y ocurre lo mismo.
+3. `FormularioCambioContrasena` valida y llama a `cambiarContrasenaPropia` → `PATCH /api/usuarios/me/contrasena`
+   con `{ contrasenaActual, contrasenaNueva }`. El backend comprueba la actual con BCrypt, guarda la nueva, limpia
+   `debe_cambiar_contrasena` y audita `CAMBIAR_CONTRASENA`.
+4. Con 204, `borrarSesion("contrasena-cambiada")`; el efecto de la pantalla lleva a
+   `/login?motivo=contrasena-actualizada` con el aviso verde. El nuevo login entrega un token normal.
+
+### Cómo probar
+
+```
+cd frontend && npm run lint && npm run build
+```
+Prueba manual (backend con `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` y frontend con `npm run dev`):
+1. Como Administrador, restablecer la contraseña de un usuario:
+   `PATCH /api/usuarios/{id}/contrasena` con `{ "contrasenaNueva": "Temporal123" }`.
+2. Iniciar sesión con ese usuario y la temporal → `/cambiar-contrasena`, sin encabezado ni menú.
+3. Escribir `/dashboard` o `/incidencias/nueva` en la barra → vuelve a `/cambiar-contrasena`.
+4. Errores: campos vacíos; nueva de 7 o de 17 caracteres → "entre 8 y 16 caracteres"; nueva igual a la actual;
+   confirmación distinta; contraseña actual equivocada → "La contraseña actual o temporal no es correcta."
+5. Cambio válido → `/login` con "Contraseña actualizada, inicia sesión con la nueva." La temporal ya no sirve; la
+   nueva lleva al inicio del rol.
+6. "Cerrar sesión" desde la pantalla de cambio → `/login` sin aviso; al entrar con la temporal vuelve a pedir el cambio.
