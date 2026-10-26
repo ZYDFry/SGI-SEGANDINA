@@ -16,7 +16,7 @@ export interface Sesion {
 }
 
 /** Por qué se cerró la última sesión; el login lo usa para mostrar un aviso. */
-export type MotivoCierre = "manual" | "expirada";
+export type MotivoCierre = "manual" | "expirada" | "contrasena-cambiada";
 
 const oyentes = new Set<() => void>();
 let ultimoMotivo: MotivoCierre | null = null;
@@ -81,6 +81,16 @@ export function borrarSesion(motivo: MotivoCierre = "manual") {
   }
   ultimoMotivo = motivo;
   notificar();
+}
+
+/**
+ * Marca la sesión actual como pendiente de cambio de contraseña. Se usa cuando la API responde que el token
+ * solo permite cambiarla; las rutas protegidas reaccionan llevando a la pantalla de cambio.
+ */
+export function marcarCambioPendiente() {
+  const sesion = leerSesion();
+  if (!sesion || sesion.usuario.debeCambiarContrasena) return;
+  guardarSesion({ ...sesion, usuario: { ...sesion.usuario, debeCambiarContrasena: true } });
 }
 
 /** Devuelve el motivo del último cierre y lo olvida (se muestra una sola vez). */

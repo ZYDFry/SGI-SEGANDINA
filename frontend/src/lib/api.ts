@@ -1,8 +1,11 @@
 // Cliente HTTP de la API. La URL base viene de NEXT_PUBLIC_API_URL (ver .env.example).
 
 import axios, { AxiosError } from "axios";
-import { borrarSesion, leerSesion } from "./sesion";
+import { borrarSesion, leerSesion, marcarCambioPendiente } from "./sesion";
 import type { ErrorRespuesta } from "./tipos";
+
+/** Mensaje del 403 que da la API cuando el token solo permite cambiar la contraseña temporal. */
+const MENSAJE_CAMBIO_PENDIENTE = "Debe cambiar su contraseña antes de continuar";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -21,11 +24,14 @@ api.interceptors.request.use((config) => {
 
 // Un 401 con token significa token vencido o usuario dado de baja: se cierra la sesión y
 // RutaProtegida lleva al login con el aviso. El 401 del login (credenciales malas) no trae token.
+// Un 403 por contraseña temporal marca la sesión y RutaProtegida lleva a la pantalla de cambio.
 api.interceptors.response.use(
   (respuesta) => respuesta,
-  (error: AxiosError) => {
+  (error: AxiosError<ErrorRespuesta>) => {
     if (error.response?.status === 401 && error.config?.headers?.Authorization) {
       borrarSesion("expirada");
+    } else if (error.response?.status === 403 && error.response.data?.mensaje === MENSAJE_CAMBIO_PENDIENTE) {
+      marcarCambioPendiente();
     }
     return Promise.reject(error);
   },

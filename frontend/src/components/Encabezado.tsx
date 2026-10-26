@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { useSesion } from "@/context/SesionContext";
 import { menuDe } from "@/lib/roles";
 
-/** Barra superior: usuario, menú según su rol y botón para cerrar sesión. */
+/** Barra superior: usuario, menú según su rol y botón para cerrar sesión. No aparece con contraseña temporal. */
 export default function Encabezado() {
   const { sesion, cerrarSesion } = useSesion();
   const ruta = usePathname();
-  if (!sesion) return null;
+  if (!sesion || sesion.usuario.debeCambiarContrasena) return null;
 
   const { usuario } = sesion;
   const opciones = menuDe(usuario.rol);

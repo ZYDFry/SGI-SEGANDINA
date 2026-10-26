@@ -10,6 +10,8 @@ export interface Usuario {
   apellidoMaterno: string | null;
   rol: Rol;
   idZona: number | null;
+  /** true si tiene una contraseña temporal: solo puede cambiarla hasta volver a iniciar sesión. */
+  debeCambiarContrasena: boolean;
 }
 
 export interface LoginResponse {

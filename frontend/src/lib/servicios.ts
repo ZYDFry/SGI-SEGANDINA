@@ -12,6 +12,14 @@ import type {
   Zona,
 } from "./tipos";
 
+/**
+ * Cambia la contraseña del usuario autenticado (la actual puede ser la temporal). La API responde 204;
+ * el token en uso sigue marcado, por eso quien llama debe cerrar la sesión y volver al login.
+ */
+export async function cambiarContrasenaPropia(contrasenaActual: string, contrasenaNueva: string): Promise<void> {
+  await api.patch("/api/usuarios/me/contrasena", { contrasenaActual, contrasenaNueva });
+}
+
 /** Inicia sesión y guarda el token; devuelve el usuario autenticado. */
 export async function iniciarSesion(dni: string, contrasena: string): Promise<Usuario> {
   const { data } = await api.post<LoginResponse>("/api/auth/login", { dni, contrasena });

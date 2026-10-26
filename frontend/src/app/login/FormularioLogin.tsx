@@ -6,16 +6,21 @@ import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
-import { rutaInicio } from "@/lib/roles";
+import { destinoInicial } from "@/lib/roles";
 import { iniciarSesion } from "@/lib/servicios";
 
 const DNI_VALIDO = /^\d{8}$/;
 
-/** Login por DNI y contraseña (RF-01). Tras entrar, redirige según el rol. */
+/**
+ * Login por DNI y contraseña (RF-01). Tras entrar, redirige según el rol, o a cambiar la contraseña si la
+ * que se usó es temporal.
+ */
 export default function FormularioLogin() {
   const { cargando, sesion } = useSesion();
   const router = useRouter();
-  const sesionVencida = useSearchParams().get("motivo") === "expirada";
+  const motivo = useSearchParams().get("motivo");
+  const sesionVencida = motivo === "expirada";
+  const contrasenaActualizada = motivo === "contrasena-actualizada";
 
   const [dni, setDni] = useState("");
   const [contrasena, setContrasena] = useState("");
@@ -24,7 +29,7 @@ export default function FormularioLogin() {
 
   // Con sesión activa (recién iniciada o de antes) no tiene sentido quedarse en el login.
   useEffect(() => {
-    if (!cargando && sesion) router.replace(rutaInicio(sesion.usuario.rol));
+    if (!cargando && sesion) router.replace(destinoInicial(sesion.usuario));
   }, [cargando, sesion, router]);
 
   async function enviar(evento: FormEvent<HTMLFormElement>) {
@@ -53,6 +58,9 @@ export default function FormularioLogin() {
     <form onSubmit={enviar} noValidate className="space-y-4 rounded-2xl bg-white p-6 shadow-sm">
       {sesionVencida && !error && (
         <Alerta tipo="aviso">Tu sesión venció. Vuelve a iniciar sesión.</Alerta>
+      )}
+      {contrasenaActualizada && !error && (
+        <Alerta tipo="exito">Contraseña actualizada, inicia sesión con la nueva.</Alerta>
       )}
       {error && <Alerta tipo="error">{error}</Alerta>}
 
