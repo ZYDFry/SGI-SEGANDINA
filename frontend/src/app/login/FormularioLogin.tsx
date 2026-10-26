@@ -75,7 +75,8 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
   }
 
   return (
-    <form onSubmit={enviar} noValidate className="space-y-4 rounded-2xl bg-white p-6 shadow-sm">
+    // Equipos compartidos entre vigilantes: el navegador no debe rellenar ni restaurar las credenciales.
+    <form onSubmit={enviar} noValidate autoComplete="off" className="space-y-4 rounded-2xl bg-white p-6 shadow-sm">
       {sesionVencida && !error && (
         <Alerta tipo="aviso">Tu sesión venció. Vuelve a iniciar sesión.</Alerta>
       )}
@@ -92,7 +93,7 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
           id="dni"
           name="dni"
           inputMode="numeric"
-          autoComplete="username"
+          autoComplete="off"
           maxLength={8}
           value={dni}
           onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
@@ -109,7 +110,8 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
           id="contrasena"
           name="contrasena"
           type="password"
-          autoComplete="current-password"
+          // Chrome y Edge ignoran "off" en contraseñas; "new-password" sí evita que la rellenen solos.
+          autoComplete="new-password"
           value={contrasena}
           onChange={(e) => setContrasena(e.target.value)}
           className="w-full rounded-lg border border-slate-300 px-3 py-3 text-lg focus:border-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900/20"
