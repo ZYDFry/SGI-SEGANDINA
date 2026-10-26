@@ -12,6 +12,27 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-10-25] Fase 8 / RF-01 — Fix: login bloqueado en "Ingresando…" tras cerrar sesión
+- Qué se hizo:
+  - Causa: Next.js (con `cacheComponents`) conserva el estado de las pantallas visitadas y el navegador puede
+    restaurarlas desde el bfcache. El estado de carga del login solo se apagaba ante un error, así que tras un
+    login exitoso y un cierre de sesión `/login` reaparecía con el botón deshabilitado en "Ingresando…".
+  - El estado de carga se apaga siempre en un bloque `finally` (login y cambio de contraseña).
+  - Los campos del login se montan de nuevo al iniciar o cerrar sesión y al volver con Atrás desde el bfcache:
+    contraseña, errores y carga quedan limpios. El DNI también se limpia.
+  - "Cerrar sesión" redirige con `router.replace("/login")` y llama a `router.refresh()` para no dejar pantallas
+    privadas en la caché del router.
+  - Se conservan los avisos "Tu sesión venció" y "Contraseña actualizada, inicia sesión con la nueva.".
+- Archivos clave: `frontend/src/app/login/FormularioLogin.tsx`, `frontend/src/context/SesionContext.tsx`,
+  `frontend/src/app/cambiar-contrasena/FormularioCambioContrasena.tsx`, `docs/referencia_clases.md`.
+- Cómo probarlo:
+  - `cd frontend && npm run lint && npm run build` → sin errores.
+  - Iniciar sesión, cerrar sesión → `/login` con el botón en "Ingresar" y los campos vacíos, sin recargar con F5;
+    volver a entrar funciona. Tras cerrar sesión, Atrás no muestra la pantalla privada. Credenciales incorrectas
+    → mensaje de error y botón habilitado. Cambio obligatorio de contraseña → aviso de contraseña actualizada.
+- Pendientes o problemas conocidos:
+  - El frontend no tiene framework de pruebas automatizadas; este caso se verifica de forma manual.
+
 ## [2026-10-25] Fase 8 / RF-01 — Frontend: cambio obligatorio de contraseña temporal
 - Qué se hizo:
   - Si el login devuelve `usuario.debeCambiarContrasena: true`, la sesión se guarda marcada y el usuario va a
