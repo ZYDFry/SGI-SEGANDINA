@@ -81,6 +81,7 @@ export default function FormularioCambioContrasena() {
       if (status === 401) return;
       setError(mensaje === "La contraseña actual no es correcta" ? "La contraseña actual o temporal no es correcta." : mensaje);
       setDetalles(detalles);
+    } finally {
       setEnviando(false);
     }
   }

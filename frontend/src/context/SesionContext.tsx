@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { borrarSesion, leerSesionCruda, parsearSesion, suscribirSesion, type Sesion } from "@/lib/sesion";
 
 interface ValorSesion {
@@ -17,6 +18,7 @@ const snapshotServidor = () => undefined;
 
 /** Expone la sesión a toda la app y la cierra automáticamente cuando el token vence. */
 export function SesionProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const cruda = useSyncExternalStore(suscribirSesion, leerSesionCruda, snapshotServidor);
   const sesion = useMemo(() => (cruda === undefined ? null : parsearSesion(cruda)), [cruda]);
 
@@ -29,8 +31,17 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }, [sesion]);
 
   const valor = useMemo<ValorSesion>(
-    () => ({ cargando: cruda === undefined, sesion, cerrarSesion: () => borrarSesion("manual") }),
-    [cruda, sesion],
+    () => ({
+      cargando: cruda === undefined,
+      sesion,
+      // replace evita volver con Atrás a la pantalla privada; refresh descarta las páginas guardadas en caché.
+      cerrarSesion: () => {
+        borrarSesion("manual");
+        router.replace("/login");
+        router.refresh();
+      },
+    }),
+    [cruda, sesion, router],
   );
 
   return <SesionContext value={valor}>{children}</SesionContext>;

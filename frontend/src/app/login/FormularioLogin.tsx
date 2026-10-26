@@ -14,10 +14,34 @@ const DNI_VALIDO = /^\d{8}$/;
 /**
  * Login por DNI y contraseña (RF-01). Tras entrar, redirige según el rol, o a cambiar la contraseña si la
  * que se usó es temporal.
+ *
+ * Next guarda las pantallas visitadas con su estado (y el navegador puede restaurarlas desde el bfcache al
+ * pulsar Atrás), así que los campos se montan de nuevo cada vez que cambia la sesión o la página se restaura:
+ * el formulario nunca reaparece con la contraseña escrita, errores viejos ni el botón en "Ingresando…".
  */
 export default function FormularioLogin() {
   const { cargando, sesion } = useSesion();
   const router = useRouter();
+  const [restauraciones, setRestauraciones] = useState(0);
+
+  // Con sesión activa (recién iniciada o de antes) no tiene sentido quedarse en el login.
+  useEffect(() => {
+    if (!cargando && sesion) router.replace(destinoInicial(sesion.usuario));
+  }, [cargando, sesion, router]);
+
+  // Página restaurada desde el bfcache (botón Atrás): se descarta el estado que tenía.
+  useEffect(() => {
+    function alMostrar(evento: PageTransitionEvent) {
+      if (evento.persisted) setRestauraciones((n) => n + 1);
+    }
+    window.addEventListener("pageshow", alMostrar);
+    return () => window.removeEventListener("pageshow", alMostrar);
+  }, []);
+
+  return <CamposLogin key={`${sesion?.token ?? "sin-sesion"}-${restauraciones}`} conSesion={!!sesion} />;
+}
+
+function CamposLogin({ conSesion }: { conSesion: boolean }) {
   const motivo = useSearchParams().get("motivo");
   const sesionVencida = motivo === "expirada";
   const contrasenaActualizada = motivo === "contrasena-actualizada";
@@ -26,11 +50,6 @@ export default function FormularioLogin() {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-
-  // Con sesión activa (recién iniciada o de antes) no tiene sentido quedarse en el login.
-  useEffect(() => {
-    if (!cargando && sesion) router.replace(destinoInicial(sesion.usuario));
-  }, [cargando, sesion, router]);
 
   async function enviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -46,10 +65,11 @@ export default function FormularioLogin() {
     setEnviando(true);
     try {
       await iniciarSesion(dni, contrasena);
-      // La redirección la hace el efecto al detectar la sesión nueva.
+      // La redirección la hace FormularioLogin al detectar la sesión nueva.
     } catch (e) {
       const { status, mensaje } = errorDeApi(e);
       setError(status === 401 ? "DNI o contraseña incorrectos." : mensaje);
+    } finally {
       setEnviando(false);
     }
   }
@@ -96,8 +116,9 @@ export default function FormularioLogin() {
         />
       </div>
 
-      <Boton type="submit" disabled={enviando} className="w-full text-lg">
-        {enviando ? "Ingresando…" : "Ingresar"}
+      {/* Con sesión ya iniciada se espera la redirección: el botón no vuelve a "Ingresar" */}
+      <Boton type="submit" disabled={enviando || conSesion} className="w-full text-lg">
+        {enviando || conSesion ? "Ingresando…" : "Ingresar"}
       </Boton>
     </form>
   );
