@@ -4,19 +4,23 @@ url: "{{baseUrl}}/api/auth/login"
 method: POST
 body:
   type: json
-  content: "{\r
-
-    \  \"dni\": \"{{dni}}\",\r
-
-    \  \"contrasena\": \"{{contrasena}}\"\r
-
-    }"
+  content: |-
+    {
+      "dni": "{{dni}}",
+      "contrasena": "{{contrasena}}"
+    }
 auth:
   type: noauth
 scripts:
   - type: afterResponse
-    code: "const data = pm.response.json();\r
-
-      pm.environment.set(\"token\", data.token);"
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('La respuesta trae el token', () => pm.expect(data.token).to.be.a('string').and.not.empty);
+      pm.test('La respuesta no trae la contraseña', () => pm.expect(data.usuario).to.not.have.property('contrasena'));
+      if (data.token) {
+        pm.environment.set("token", data.token);
+      }
+      pm.test('El token quedó guardado en el environment', () => pm.expect(pm.environment.get('token')).to.eql(data.token));
     language: text/javascript
 order: 1000

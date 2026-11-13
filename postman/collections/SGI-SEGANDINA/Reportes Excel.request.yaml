@@ -18,4 +18,11 @@ queryParams:
     value: ""
     disabled: false
     description: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      pm.test('Content-Type del archivo', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+      pm.test('Se descarga como adjunto', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment'));
+    language: text/javascript
 order: 12000

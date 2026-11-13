@@ -4,4 +4,9 @@ method: POST
 body:
   type: json
   content: '{"nombreTipoEvento": "Incendio"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 201', () => pm.response.to.have.status(201));
+    language: text/javascript
 order: 8100

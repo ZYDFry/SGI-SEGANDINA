@@ -3,5 +3,10 @@ url: "{{baseUrl}}/api/usuarios"
 method: POST
 body:
   type: json
-  content: '{"dni": "73678598", "nombres": "Jose", "apellidoPaterno": "Acosta", "apellidoMaterno": "Portocarrero", "contrasena": "amazonas", "idRol": 2, "idZona": null}'
+  content: '{"dni": "{{dniNuevo}}", "nombres": "Jose", "apellidoPaterno": "Acosta", "apellidoMaterno": "Portocarrero", "contrasena": "{{contrasenaInicial}}", "idRol": 2, "idZona": null}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 201', () => pm.response.to.have.status(201));
+    language: text/javascript
 order: 6200

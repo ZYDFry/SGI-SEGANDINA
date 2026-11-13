@@ -6,4 +6,9 @@ queryParams:
   idZona: ""
   idNivelGravedad: ""
   idTipoEvento: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+    language: text/javascript
 order: 11200

@@ -14,4 +14,9 @@ body:
     \  \"descripcion\": \"Persona sospechosa en la puerta\"\r
 
     }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 201', () => pm.response.to.have.status(201));
+    language: text/javascript
 order: 5000
