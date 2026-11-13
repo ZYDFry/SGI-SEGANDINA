@@ -12,6 +12,54 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Selector de zona con búsqueda en el registro de incidencias
+- Qué se hizo:
+  - `SelectorBuscable`: desplegable con buscador para elegir la zona en `/incidencias/nueva`, en lugar de un botón
+    por zona (no escalaba al agregar zonas). En el celular se abre como hoja inferior con la lista desplazable; busca
+    por nombre, distrito y provincia sin distinguir tildes; la zona asignada al vigilante aparece primero como "Tu
+    zona". Se maneja también con teclado (↑/↓, Enter, Escape).
+  - El tipo de evento sigue con botones mientras haya hasta 8 tipos; con más, usa el mismo desplegable. La gravedad
+    no cambia.
+  - Las validaciones no cambian: "Elige una zona" debajo del botón, borde rojo y foco en él al intentar registrar.
+  - Plan de pruebas: caso nuevo CP-89 y selectores de Playwright actualizados.
+- Archivos clave: `frontend/src/components/SelectorBuscable.tsx`,
+  `frontend/src/app/(privado)/incidencias/nueva/FormularioIncidencia.tsx`, `docs/plan_pruebas_integrales.md`,
+  `docs/referencia_clases.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build`; luego `npm run dev`, abrir `/incidencias/nueva` en la
+  vista de 360 px y seguir CP-89.
+- Pendientes o problemas conocidos: falta probarlo en el navegador (CP-89 en estado `Pendiente`).
+
+## [2026-11-13] Fase 8 — Dashboard, historial y auditoría en el frontend
+- Qué se hizo:
+  - Chart.js 4.6.1 y react-chartjs-2 5.3.1 instalados.
+  - Selector de periodo común (`SelectorPeriodo`): Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado con
+    dos calendarios validados como el backend (ambas fechas, desde ≤ hasta, máximo 366 días), con el aviso bajo cada
+    fecha.
+  - `/dashboard`: KPI (hoy, periodo, vigilantes desplegados y uno por nivel de gravedad con su color), barras por
+    zona, anillo por tipo, serie por tiempo (Día/Semana/Mes, línea o barras) y despliegue por zona con las zonas sin
+    vigilantes en rojo. Cada bloque tiene su carga, su error y "Reintentar"; refresco automático cada 60 s.
+  - `/historial`: filtros por periodo, zona, gravedad y tipo, tabla paginada con detalle por fila y exportación a
+    Excel y PDF con los filtros vigentes y el nombre de `Content-Disposition`.
+  - `/historial/auditoria` (solo Administrador): filtros por periodo, acción y DNI (completo o primeros dígitos) y
+    detalle de cada registro en texto legible.
+  - Menú lateral por rol (panel deslizable en tablet y móvil); el Vigilante conserva su pantalla sin menú. Las rutas
+    verifican el rol también al escribirlas en la barra.
+  - Colores de gravedad en `lib/gravedad.ts`, compartidos con el formulario de incidencias.
+  - Plan de pruebas: CP-13, CP-38, CP-45, CP-51, CP-63 y CP-82 listos para ejecutar con su evidencia esperada; casos
+    nuevos CP-87 (rango personalizado) y CP-88 (DNI de auditoría); R-05 resuelto y R-14 nuevo.
+- Archivos clave: `frontend/src/components/SelectorPeriodo.tsx`, `FiltrosIncidencia.tsx`, `EstadoDatos.tsx`,
+  `MenuLateral.tsx`, `MarcoPrivado.tsx`, `components/graficos/*`; `frontend/src/lib/servicios.ts`, `useConsulta.ts`,
+  `useRefresco.ts`, `fechas.ts`, `gravedad.ts`, `validaciones.ts`; `frontend/src/app/(privado)/dashboard/PanelDashboard.tsx`,
+  `historial/HistorialIncidencias.tsx`, `historial/auditoria/ConsultaAuditoria.tsx`, `DetalleAuditoria.tsx`;
+  `docs/referencia_clases.md`, `docs/plan_pruebas_integrales.md`, `docs/ui_pantallas.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build` (sin errores); luego `npm run dev` con el backend en
+  perfil `local` y los casos CP-13, CP-38, CP-45, CP-51, CP-63, CP-82, CP-87 y CP-88. Las reglas de
+  `validarRangoFechas` y `validarDniBusqueda` se comprobaron con Node (un rango de 366 días se acepta y uno de 367 no).
+- Pendientes o problemas conocidos:
+  - Falta probar estas pantallas en el navegador con datos reales (casos en estado `Pendiente`).
+  - Los filtros solo ofrecen zonas, tipos y niveles activos (R-14).
+  - Siguen pendientes las pantallas de personal y de catálogos.
+
 ## [2026-11-13] Fase 8 — Validaciones de formularios en el frontend
 - Qué se hizo:
   - `frontend/src/lib/validaciones.ts`: reglas y mensajes de todos los formularios con los límites de los DTO del

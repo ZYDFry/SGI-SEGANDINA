@@ -825,7 +825,8 @@ al que corresponden. Hoy se aplica al login, al cambio de contraseña y al regis
 | `components/SelectorRapido.tsx` (modificado) | El grupo muestra su aviso debajo, contorno rojo, `aria-invalid` y `aria-describedby` en el `radiogroup`; avisa cuando el foco sale del grupo. | Props nuevas opcionales: `campo`, `error`, `onSalir`, `refPrimero` (ref del primer botón, para enfocarlo). |
 | `app/login/FormularioLogin.tsx` (modificado) | DNI que solo admite dígitos: bloquea al teclear lo que no sea dígito o pase del octavo (`onBeforeInput`) y limpia lo pegado con `limpiarDni` (`onChange`); `inputMode="numeric"` y `pattern="[0-9]*"` para el teclado numérico. Contraseña obligatoria. El 401 sigue en la alerta general. | — |
 | `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (modificado) | Nueva de 8 a 72 caracteres (antes 16), distinta de la actual, y confirmación igual. "La contraseña actual no es correcta" y "debe ser distinta de la actual" del backend se muestran bajo su campo. | — |
-| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Avisos bajo zona, tipo, gravedad, descripción (con contador `n/2000`) y fecha. Los 400 de catálogo inactivo, descripción corta de "Otro" y fecha futura se muestran bajo su campo. Tras registrar, el formulario queda sin avisos. | — |
+| `components/SelectorBuscable.tsx` (nuevo) | Desplegable con búsqueda para listas que crecen. Un botón grande (`id` = campo) muestra la opción elegida y su detalle; al tocarlo abre una hoja inferior en el celular o un desplegable desde `sm`, con buscador (por etiqueta y detalle, sin tildes ni mayúsculas) y lista desplazable. Teclado: ↑/↓, Enter, Escape; cierra al tocar fuera y devuelve el foco al botón. Aviso debajo con `MensajeCampo` y `aria-describedby`. | Props `titulo`, `campo`, `opciones` (`{ valor, etiqueta, detalle? }`), `valor`, `onCambio`, `placeholder`, `error?`, `onSalir?` (al cerrar el panel o salir del botón), `refPrimero?`, `destacado?` (opción mostrada primero con la marca "Tu zona"). |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | La zona se elige con `SelectorBuscable` (detalle: distrito y provincia; la zona asignada al vigilante aparece primero y preseleccionada). El tipo de evento usa botones con hasta 8 tipos y `SelectorBuscable` si hay más (`MAX_TIPOS_EN_BOTONES`). Avisos bajo zona, tipo, gravedad, descripción (con contador `n/2000`) y fecha. Los 400 de catálogo inactivo, descripción corta de "Otro" y fecha futura se muestran bajo su campo. Tras registrar, el formulario queda sin avisos. | — |
 
 ### Reglas por formulario
 
@@ -836,7 +837,7 @@ al que corresponden. Hoy se aplica al login, al cambio de contraseña y al regis
 | Cambio de contraseña | `actual` | Obligatoria | "Este campo es obligatorio" · del backend: "La contraseña actual o temporal no es correcta" | `CambioContrasenaRequest.contrasenaActual`: `@NotBlank`; `UsuarioServiceImpl.cambiarContrasenaPropia` |
 | Cambio de contraseña | `nueva` | Obligatoria; de 8 a 72 caracteres; distinta de la actual | "La contraseña debe tener entre 8 y 72 caracteres" · "La nueva contraseña debe ser distinta de la actual" | `contrasenaNueva`: `@NotBlank`, `@Size(min = 8, max = 72)`; regla del servicio |
 | Cambio de contraseña | `confirmacion` | Obligatoria; igual a la nueva | "Las contraseñas no coinciden" | Solo frontend |
-| Registro de incidencias | `idZona`, `idTipo`, `idGravedad` | Selección obligatoria | "Elige una zona" · "Elige un tipo de evento" · "Elige un nivel de gravedad" | `IncidenciaRequest`: `@NotNull`; catálogo activo en `IncidenciaServiceImpl.registrar` |
+| Registro de incidencias | `idZona` (desplegable con búsqueda), `idTipo`, `idGravedad` | Selección obligatoria | "Elige una zona" · "Elige un tipo de evento" · "Elige un nivel de gravedad" | `IncidenciaRequest`: `@NotNull`; catálogo activo en `IncidenciaServiceImpl.registrar` |
 | Registro de incidencias | `descripcion` | Obligatoria; máximo 2000 (el campo no admite más); mínimo 20 si el tipo es "Otro", sobre el texto recortado; contador `n/2000` | "Este campo es obligatorio" · 'Para el tipo "Otro" la descripción debe tener al menos 20 caracteres' · "No debe superar los 2000 caracteres" | `@NotBlank`, `@Size(max = 2000)`; mínimo de "Otro" en el servicio |
 | Registro de incidencias | `fecha` | Opcional (por defecto la hora actual); si se edita, obligatoria y no futura, con 2 minutos de tolerancia | "Este campo es obligatorio" · "La fecha y hora no puede ser futura" | `fechaHora` opcional; `TOLERANCIA_RELOJ` de 2 min en el servicio |
 | Personal (pantalla pendiente) | nombres, apellidos | Letras (con tildes, ü y ñ), espacios, apóstrofo y guion; nombres hasta 80, apellidos hasta 50; apellido materno opcional (`validarNombre`) | "Solo se permiten letras, espacios, apóstrofo y guion" · "No debe superar los N caracteres" | `UsuarioCrearRequest`: solo `@Size`; no rechaza números |
@@ -876,3 +877,90 @@ npm run dev
 
 Los casos completos son CP-70 a CP-79 y CP-84 a CP-86 del plan de pruebas integrales, con los selectores para
 automatizarlos con Playwright.
+
+## Frontend — dashboard, historial y auditoría (RF-04 a RF-08)
+
+Pantallas gerenciales del frontend: el dashboard con KPI y gráficos de Chart.js que se refrescan cada 60 segundos, el
+historial de incidencias con filtros, paginación y exportación a Excel o PDF, y la consulta de auditoría para el
+Administrador. Todas usan el mismo selector de periodo y un menú lateral que muestra solo las pantallas del rol.
+
+### Rutas y acceso
+
+| Ruta | Pantalla | Roles (`RutaProtegida`) | Endpoints que usa |
+|---|---|---|---|
+| `/dashboard` | Dashboard gerencial | Administrador, Supervisor (`ROLES_GERENCIA`) | `GET /api/dashboard/kpis`, `/incidencias-por-zona`, `/incidencias-por-tipo`, `/incidencias-por-tiempo`, `/despliegue` |
+| `/historial` | Historial de incidencias | Administrador, Supervisor | `GET /api/incidencias`, `GET /api/reportes/excel` y `/pdf`, `GET /api/catalogos/*` |
+| `/historial/auditoria` | Pestaña de auditoría | Administrador (`ROLES_ADMIN`) | `GET /api/auditoria`, `GET /api/auditoria/acciones` |
+
+Menú por rol (`lib/roles.ts`, `MENU`): el Administrador ve Dashboard, Historial, Auditoría y Registrar incidencia; el
+Supervisor, Dashboard e Historial; el Vigilante solo tiene el formulario y no ve menú lateral. Si alguien escribe una
+ruta que su rol no tiene, `RutaProtegida` lo lleva a su pantalla de inicio. La autorización real la hace la API.
+
+### Módulos nuevos y modificados (`frontend/src/lib/`)
+
+| Archivo | Responsabilidad | Funciones principales |
+|---|---|---|
+| `tipos.ts` (modificado) | Tipos de los DTO de consulta. | `Periodo`, `Agrupacion`, `FiltroPeriodo`, `FiltroIncidencias`, `FiltroAuditoria`, `Pagina<T>`, `Kpis`, `ConteoGravedad`, `Conteo`, `SerieTiempo`, `PuntoSerie`, `DespliegueZona`, `IncidenciaHistorial`, `Registrador`, `AccionAuditoria`, `RegistroAuditoria`. |
+| `servicios.ts` (modificado) | Llamadas a la API con los filtros comunes. | `parametrosIncidencias(filtro)` → query params (envía `desde`/`hasta` solo con `PERSONALIZADO` y omite los filtros vacíos). `buscarIncidencias(filtro, page, size)` → `Pagina<IncidenciaHistorial>`. `obtenerKpis`, `obtenerPorZona`, `obtenerPorTipo(filtro)`. `obtenerSerieTiempo(filtro, agrupacion o null)` (sin agrupación la elige el backend). `obtenerDespliegue()`. `exportarReporte("excel" o "pdf", filtro)` → nombre del archivo descargado. `nombreDeContentDisposition(cabecera)`. `buscarAuditoria(filtro, page, size)`, `listarAccionesAuditoria()`. |
+| `validaciones.ts` (modificado) | Reglas del periodo personalizado y del DNI de búsqueda, iguales a las del backend. | `validarRangoFechas({desde, hasta})` → avisos: "Elige una fecha" en la que falte, "La fecha desde no puede ser posterior a hasta" en `desde`, "El rango no puede superar 366 días" en `hasta` (`RANGO_MAX_DIAS`, como `RangoFechas.MAX_DIAS`). `validarDniBusqueda(q)` → `null` o "El DNI debe tener solo dígitos, hasta 8" (como `AuditoriaFiltro.q`). |
+| `fechas.ts` (nuevo) | Fechas en hora de Lima. | `hoyLima()` → AAAA-MM-DD. `diasEntre(desde, hasta)` (cuenta ambos extremos). `formatearFechaHora(iso)`, `formatearDia(dia)`, `formatearHora(fecha)`. `etiquetaTramo(punto, agrupacion)` → "05/11", "05/11–11/11" o "nov. 2026". |
+| `gravedad.ts` (nuevo) | Colores de gravedad compartidos por el formulario, el dashboard y el historial (1 verde, 2 amarillo, 3 naranja, 4 rojo). | `coloresGravedad(orden)` → `{ normal, marcada, insignia, hex }`. |
+| `useConsulta.ts` (nuevo) | Estado de una consulta para un gráfico o una tabla. Recarga cuando cambia la función (memoizada con sus filtros) y descarta respuestas viejas. | `useConsulta(cargar)` → `{ datos, error, cargando, actualizando, actualizadoEn, recargar }`. `recargar()` no borra los datos visibles. |
+| `useRefresco.ts` (nuevo) | Refresco periódico, pausado con la pestaña oculta. | `useRefresco(refrescar, intervaloMs = REFRESCO_MS)` (60 000 ms). |
+| `roles.ts` (modificado) | Opciones nuevas del menú. | `ROLES_ADMIN`; `MENU` con `/historial` y `/historial/auditoria`. |
+
+### Componentes (`frontend/src/components/`)
+
+| Componente | Responsabilidad | Props principales |
+|---|---|---|
+| `SelectorPeriodo` | Botones Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado (`role="radiogroup"`). Con Personalizado muestra los calendarios `desde` y `hasta` (máximo hoy), con el aviso debajo de cada uno, y "Aplicar". | `valor: FiltroPeriodo`, `onCambio(periodo)` (solo con un periodo válido). Exporta `PERIODOS` y `PERIODO_INICIAL` (30 días). |
+| `FiltrosIncidencia` | Periodo, zona, gravedad y tipo de evento (catálogos activos) y "Quitar filtros". | `valor: FiltroIncidencias`, `onCambio(filtro)`. Exporta `FILTRO_INICIAL`. |
+| `EstadoDatos` | Cargando, error con "Reintentar" (y los detalles de un 400), mensaje sin datos o el contenido. | `cargando`, `error`, `vacio`, `mensajeVacio?`, `onReintentar`. |
+| `Tarjeta`, `TarjetaKpi` | Contenedor con título y acciones; indicador grande con borde de color y modo alerta (rojo). | `titulo`, `acciones?` · `etiqueta`, `valor`, `detalle?`, `color?`, `alerta?`, `cargando?`. |
+| `Paginacion` | Total, página actual, Anterior/Siguiente y filas por página (10, 20, 50). | `pagina`, `totalPaginas`, `totalElementos`, `tamano`, `onPagina`, `onTamano`. |
+| `MenuLateral`, `MarcoPrivado`, `Encabezado` (modificado) | Menú lateral fijo en escritorio y panel deslizable en tablet y móvil (botón "☰ Menú"; se cierra con Escape, al tocar fuera o al elegir). El marco solo lo muestra si el rol tiene más de una pantalla. | `MenuLateral`: `opciones`, `abierto`, `onCerrar`. `Encabezado`: `onAbrirMenu?`. |
+| `graficos/GraficoBarras`, `GraficoAnillo`, `GraficoSerie` | Barras horizontales por zona, anillo por tipo (con porcentaje en el tooltip) y serie en línea o barras (tooltip con el tramo completo). Cada uno trae una tabla oculta con los datos para lectores de pantalla. | `titulo`, `datos: Conteo[]` · `serie: SerieTiempo`, `tipo: "linea"` o `"barras"`. `graficos/registro.ts` registra en Chart.js solo los elementos usados y define los colores corporativos. |
+
+### Páginas (`frontend/src/app/(privado)/`)
+
+| Archivo | Qué muestra |
+|---|---|
+| `dashboard/PanelDashboard.tsx` | Periodo con el rango aplicado; KPI de hoy, del periodo, vigilantes desplegados (rojo si hay zonas sin vigilantes) y por gravedad; barras por zona; anillo por tipo; serie con Día/Semana/Mes y Línea/Barras (al cambiar de periodo vuelve a la agrupación por defecto del backend); tabla de despliegue. Cada bloque tiene su propio estado de carga y error. "Actualizar" y refresco cada 60 s sin borrar lo visible. |
+| `historial/HistorialIncidencias.tsx`, `PestanasHistorial.tsx` | Filtros, botones de exportación ("Generando…", confirmación con el nombre del archivo o el error del backend), tabla Fecha, Zona, Tipo, Gravedad (insignia de color) y Usuario, con "Ver detalle" (descripción, N.° y fecha de registro) y paginación. Las pestañas Incidencias/Auditoría solo aparecen para el Administrador. |
+| `historial/auditoria/ConsultaAuditoria.tsx`, `DetalleAuditoria.tsx` | Periodo, acción (de `/api/auditoria/acciones`), DNI (solo dígitos, completo o primeros dígitos) y tabla Fecha y hora, Acción (el login fallido en rojo), Usuario ("No identificado" y DNI intentado cuando no existe) y Detalle. `DetalleAuditoria` traduce claves y códigos (`DNI_NO_REGISTRADO` → "DNI no registrado", `ULTIMOS_30_DIAS` → "Últimos 30 días", booleanos Sí/No) y muestra `antes`/`despues` como "valor anterior → valor nuevo". |
+
+### Flujo: exportar el historial a Excel
+
+1. En `/historial` el usuario elige "Mes actual" y una zona: `FiltrosIncidencia` llama a `onCambio` y la tabla se
+   recarga con `buscarIncidencias` desde la página 0.
+2. "Exportar Excel" llama a `exportarReporte("excel", filtro)`, que hace
+   `GET /api/reportes/excel?periodo=MES_ACTUAL&idZona=…` con `responseType: "blob"` y el token en `Authorization`.
+3. `ReporteController` → `ReporteService.exportar` consulta las incidencias con los mismos filtros, genera el archivo
+   con Apache POI y audita `EXPORTAR_REPORTE`; responde con
+   `Content-Disposition: attachment; filename="incidencias_AAAA-MM-DD.xlsx"` (cabecera expuesta por `CorsConfig`).
+4. `nombreDeContentDisposition` toma el nombre, se crea un enlace temporal con `URL.createObjectURL` y el navegador
+   descarga el archivo. Si la API responde 400 (por ejemplo, más de 10 000 incidencias), el cuerpo JSON llega como
+   Blob; `exportarReporte` lo convierte para que `errorDeApi` muestre el mensaje.
+
+### Cómo probar
+
+```
+cd frontend
+npm run lint
+npm run build
+npm run dev
+```
+
+Con el backend en el perfil `local`:
+
+1. Como Supervisor, `/dashboard`: recorrer los seis periodos, Día/Semana/Mes y Línea/Barras; los totales coinciden con
+   las respuestas de `/api/dashboard/*` en la pestaña Network. Un rango personalizado invertido o de 367 días muestra
+   el aviso bajo la fecha y no hace peticiones.
+2. `/historial`: filtrar, ver detalle, paginar, "Exportar Excel" y "Exportar PDF" (se descargan
+   `incidencias_AAAA-MM-DD.xlsx` y `.pdf`).
+3. Escribir `/historial/auditoria` como Supervisor: vuelve a `/dashboard`. Como Administrador: filtrar por "Inicio de
+   sesión fallido" y un DNI parcial; el detalle se lee sin JSON.
+4. Como Vigilante: no hay menú lateral y `/dashboard` o `/historial` lo devuelven al formulario.
+5. Con el backend detenido, cada gráfico y tabla muestra su error con "Reintentar".
+
+Los casos completos son CP-13, CP-38, CP-45, CP-51, CP-63, CP-82, CP-87 y CP-88 del plan de pruebas integrales.

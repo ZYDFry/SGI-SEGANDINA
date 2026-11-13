@@ -18,10 +18,11 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 | `/login` | Login | público | RF-01 |
 | `/incidencias/nueva` | Formulario de registro (Mobile-First) | Vigilante, Administrador | RF-03 |
 | `/dashboard` | Dashboard gerencial (Desktop) | Administrador, Supervisor | RF-05, RF-07 |
-| `/historial` | Historial de incidencias y auditoría | Administrador, Supervisor (auditoría solo Administrador) | RF-04, RF-06, RF-08 |
+| `/historial` | Historial de incidencias con filtros y exportación | Administrador, Supervisor | RF-04, RF-06 |
+| `/historial/auditoria` | Pestaña de auditoría del historial | Administrador | RF-08 |
 | `/personal` | Gestión de personal | Administrador | RF-02 |
 
-Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. El menú muestra solo las opciones permitidas para el rol, y las rutas verifican el rol también.
+Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. El menú lateral muestra solo las opciones permitidas para el rol (Administrador: dashboard, historial, auditoría y registro; Supervisor: dashboard e historial; el Vigilante, con una sola pantalla, no tiene menú lateral), y las rutas verifican el rol también al escribirlas en la barra.
 
 ## Pantallas
 
@@ -37,16 +38,19 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 - Confirmación visible al guardar y formulario listo para otro registro.
 
 ### 3. Dashboard gerencial (Desktop)
-- Sidebar de navegación.
-- Tarjetas KPI arriba: incidencias de hoy y vigilantes desplegados por zona.
-- Gráfico de barras (incidencias por zona) y gráfico de anillo/pastel (por tipo de evento).
-- Estados de carga y error en cada gráfico.
+- Sidebar de navegación (en tablet y móvil se abre con el botón "☰ Menú").
+- Selector de periodo común: Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado (dos calendarios).
+- Tarjetas KPI arriba: incidencias de hoy, del periodo, vigilantes desplegados y una por nivel de gravedad con su color.
+- Gráfico de barras (incidencias por zona), anillo (por tipo de evento) y serie por tiempo (línea o barras, por día,
+  semana o mes); tabla de despliegue por zona con las zonas sin vigilantes en rojo.
+- Estados de carga y error en cada gráfico; refresco automático cada 60 s.
 
 ### 4. Historial de incidencias y auditoría
 - Tabla con columnas: Fecha, Zona, Tipo, Gravedad, Usuario.
-- Filtros arriba: rango de fechas, zona, gravedad.
+- Filtros arriba: periodo, zona, gravedad y tipo de evento; descripción en el detalle de cada fila; paginación.
 - Botones "Exportar Excel" y "Exportar PDF" que usan los filtros vigentes.
-- Pestaña o sección de auditoría (solo Administrador).
+- Pestaña "Auditoría" (`/historial/auditoria`, solo Administrador) con filtros por periodo, acción y DNI y el detalle
+  de cada registro en texto legible.
 
 ### 5. Gestión de personal (panel Administrador)
 - Tabla: nombre, DNI, Rol, Zona asignada, Estado.
