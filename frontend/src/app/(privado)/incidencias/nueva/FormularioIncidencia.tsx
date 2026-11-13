@@ -5,9 +5,11 @@ import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import Cargando from "@/components/Cargando";
 import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
+import SelectorBuscable from "@/components/SelectorBuscable";
 import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido";
 import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
+import { coloresGravedad } from "@/lib/gravedad";
 import { cargarCatalogos, registrarIncidencia, type Catalogos } from "@/lib/servicios";
 import type { IncidenciaResponse, NivelGravedad } from "@/lib/tipos";
 import { useValidacion } from "@/lib/useValidacion";
@@ -39,13 +41,8 @@ const REGLAS_SERVIDOR: ReglaServidor<CampoIncidencia>[] = [
   { contiene: "no puede ser futura", campo: "fecha" },
 ];
 
-// Colores por orden de gravedad: 1 Baja verde, 2 Media amarillo, 3 Alta naranja, 4 Crítica rojo.
-const COLORES_GRAVEDAD: Record<number, { normal: string; marcada: string }> = {
-  1: { normal: "border-green-300 bg-green-50 text-green-800", marcada: "border-green-600 bg-green-600 text-white" },
-  2: { normal: "border-yellow-300 bg-yellow-50 text-yellow-800", marcada: "border-yellow-400 bg-yellow-400 text-yellow-950" },
-  3: { normal: "border-orange-300 bg-orange-50 text-orange-800", marcada: "border-orange-500 bg-orange-500 text-white" },
-  4: { normal: "border-red-300 bg-red-50 text-red-700", marcada: "border-red-600 bg-red-600 text-white" },
-};
+/** Con más tipos de evento que esto, el tipo se elige con el desplegable con búsqueda en vez de botones. */
+const MAX_TIPOS_EN_BOTONES = 8;
 
 const FORMATO_FECHA = new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" });
 
@@ -69,7 +66,7 @@ function opcionesGravedad(niveles: NivelGravedad[]): OpcionSelector[] {
   return niveles.map((nivel) => ({
     valor: nivel.idNivelGravedad,
     etiqueta: nivel.nombreNivel,
-    clases: COLORES_GRAVEDAD[nivel.orden] ?? COLORES_GRAVEDAD[4],
+    clases: coloresGravedad(nivel.orden),
   }));
 }
 
@@ -198,27 +195,47 @@ export default function FormularioIncidencia() {
         </Alerta>
       )}
 
-      <SelectorRapido
+      <SelectorBuscable
         titulo="Zona"
         campo="idZona"
-        opciones={catalogos.zonas.map((z) => ({ valor: z.idZona, etiqueta: z.nombreZona }))}
+        placeholder="Elige una zona"
+        opciones={catalogos.zonas.map((z) => ({
+          valor: z.idZona,
+          etiqueta: z.nombreZona,
+          detalle: `${z.distrito}, ${z.provincia}`,
+        }))}
         valor={idZona}
         onCambio={elegir("idZona", setIdZona)}
+        destacado={idZonaAsignada}
         error={validacion.error("idZona")}
         onSalir={() => validacion.alSalir("idZona")}
         refPrimero={validacion.registrar("idZona")}
       />
 
-      <SelectorRapido
-        titulo="Tipo de evento"
-        campo="idTipo"
-        opciones={catalogos.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento }))}
-        valor={idTipo}
-        onCambio={elegir("idTipo", setIdTipo)}
-        error={validacion.error("idTipo")}
-        onSalir={() => validacion.alSalir("idTipo")}
-        refPrimero={validacion.registrar("idTipo")}
-      />
+      {catalogos.tipos.length > MAX_TIPOS_EN_BOTONES ? (
+        <SelectorBuscable
+          titulo="Tipo de evento"
+          campo="idTipo"
+          placeholder="Elige un tipo de evento"
+          opciones={catalogos.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento }))}
+          valor={idTipo}
+          onCambio={elegir("idTipo", setIdTipo)}
+          error={validacion.error("idTipo")}
+          onSalir={() => validacion.alSalir("idTipo")}
+          refPrimero={validacion.registrar("idTipo")}
+        />
+      ) : (
+        <SelectorRapido
+          titulo="Tipo de evento"
+          campo="idTipo"
+          opciones={catalogos.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento }))}
+          valor={idTipo}
+          onCambio={elegir("idTipo", setIdTipo)}
+          error={validacion.error("idTipo")}
+          onSalir={() => validacion.alSalir("idTipo")}
+          refPrimero={validacion.registrar("idTipo")}
+        />
+      )}
 
       <SelectorRapido
         titulo="Nivel de gravedad"
