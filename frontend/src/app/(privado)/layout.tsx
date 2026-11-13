@@ -1,11 +1,6 @@
-import Encabezado from "@/components/Encabezado";
+import MarcoPrivado from "@/components/MarcoPrivado";
 
-/** Marco de las pantallas con sesión: encabezado con menú por rol y contenido. */
+/** Marco de las pantallas con sesión: encabezado, menú lateral por rol y contenido. */
 export default function LayoutPrivado({ children }: LayoutProps<"/">) {
-  return (
-    <>
-      <Encabezado />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">{children}</main>
-    </>
-  );
+  return <MarcoPrivado>{children}</MarcoPrivado>;
 }
