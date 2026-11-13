@@ -187,3 +187,65 @@ export interface RegistroAuditoria {
   dniIntentado: string | null;
   detalle: Record<string, unknown> | null;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Gestión de personal y catálogos (RF-02 y RF-09), solo Administrador
+
+/** Rol del selector del formulario de usuarios (`GET /api/catalogos/roles`). */
+export interface RolCatalogo {
+  idRol: number;
+  nombreRol: Rol;
+}
+
+/** Usuario de la gestión de personal (`UsuarioResponse`); nunca trae la contraseña. */
+export interface UsuarioGestion {
+  idUsuario: number;
+  dni: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  idRol: number;
+  rol: Rol;
+  idZona: number | null;
+  nombreZona: string | null;
+  estadoActivo: boolean;
+}
+
+/** Cuerpo de `POST /api/usuarios` y `PUT /api/usuarios/{id}`; `contrasena: null` en la edición la conserva. */
+export interface UsuarioRequest {
+  dni: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  contrasena: string | null;
+  idRol: number;
+  idZona: number | null;
+}
+
+/** Filtros del listado de personal. `null` o vacío = sin filtro. */
+export interface FiltroUsuarios {
+  q: string;
+  idRol: number | null;
+  idZona: number | null;
+  activo: boolean | null;
+}
+
+/** Cuerpo de `POST /api/zonas` y `PUT /api/zonas/{id}`. */
+export interface ZonaRequest {
+  nombreZona: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  referencia: string | null;
+  descripcion: string | null;
+}
+
+/** Filtros del listado de zonas: `nombre` contiene; departamento, provincia y distrito exactos; `q` en referencia o descripción. */
+export interface FiltroZonas {
+  nombre: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  activo: boolean | null;
+  q: string;
+}

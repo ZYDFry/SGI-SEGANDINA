@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
+import { bloquearNoDigitos } from "@/components/CampoTexto";
 import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
 import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
@@ -12,9 +13,7 @@ import { iniciarSesion } from "@/lib/servicios";
 import { useValidacion } from "@/lib/useValidacion";
 import {
   erroresDelServidor,
-  LARGO_DNI,
   limpiarDni,
-  sonDigitos,
   validarLogin,
   type CamposLogin as CamposLoginForm,
 } from "@/lib/validaciones";
@@ -154,16 +153,3 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
   );
 }
 
-/**
- * Impide teclear en el DNI un carácter que no sea dígito o que pase del octavo, sin que salte el cursor. Lo que
- * llega de golpe (pegado, autocorrector) no se bloquea entero: `limpiarDni` en `onChange` conserva sus dígitos.
- */
-function bloquearNoDigitos(evento: FormEvent<HTMLInputElement>) {
-  const datos = (evento.nativeEvent as InputEvent).data;
-  if (!datos || datos.length !== 1) return;
-  const input = evento.currentTarget;
-  const seleccionados = (input.selectionEnd ?? 0) - (input.selectionStart ?? 0);
-  if (!sonDigitos(datos) || input.value.length - seleccionados >= LARGO_DNI) {
-    evento.preventDefault();
-  }
-}

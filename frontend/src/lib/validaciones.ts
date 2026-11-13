@@ -1,6 +1,7 @@
 /**
  * Reglas y mensajes de validación de los formularios. Los límites son los de los DTO del backend
- * (`LoginRequest`, `CambioContrasenaRequest`, `IncidenciaRequest`, `UsuarioCrearRequest`, `AuditoriaFiltro`), de
+ * (`LoginRequest`, `CambioContrasenaRequest`, `IncidenciaRequest`, `UsuarioCrearRequest`, `UsuarioActualizarRequest`,
+ * `RestablecerContrasenaRequest`, `ZonaRequest`, `TipoEventoRequest`, `NivelGravedadRequest`, `AuditoriaFiltro`), de
  * las reglas de sus servicios y del rango de fechas (`RangoFechas`); si cambian allá, se cambian aquí. Solo funciones puras: el estado de los avisos vive en
  * `useValidacion`.
  */
@@ -19,6 +20,20 @@ export const TOLERANCIA_FECHA_MS = 2 * 60 * 1000;
 export const TIPO_OTRO = "Otro";
 /** Máximo de días de un rango personalizado (`RangoFechas.MAX_DIAS`). */
 export const RANGO_MAX_DIAS = 366;
+/** Límites de `ZonaRequest`. */
+export const ZONA_NOMBRE_MAX = 80;
+export const DEPARTAMENTO_MAX = 50;
+export const PROVINCIA_MAX = 50;
+export const DISTRITO_MAX = 80;
+export const REFERENCIA_MAX = 150;
+/** Límite de `TipoEventoRequest`. */
+export const TIPO_EVENTO_MAX = 30;
+/** Límites de `NivelGravedadRequest` (`orden` es un `Short` de 1 en adelante). */
+export const NIVEL_NOMBRE_MAX = 20;
+export const ORDEN_MIN = 1;
+export const ORDEN_MAX = 32767;
+/** Nombre del rol que exige zona asignada (regla de `UsuarioService`). */
+export const ROL_VIGILANTE = "Vigilante";
 
 export const MENSAJES = {
   obligatorio: "Este campo es obligatorio",
@@ -38,6 +53,9 @@ export const MENSAJES = {
   desdePosterior: "La fecha desde no puede ser posterior a hasta",
   rangoExcesivo: `El rango no puede superar ${RANGO_MAX_DIAS} días`,
   dniBusqueda: `El DNI debe tener solo dígitos, hasta ${LARGO_DNI}`,
+  rol: "Elige un rol",
+  zonaVigilante: `El ${ROL_VIGILANTE} debe tener una zona asignada`,
+  ordenInvalido: `El orden debe ser un número entero entre ${ORDEN_MIN} y ${ORDEN_MAX}`,
 } as const;
 
 /** Mensaje de error por campo; un campo sin clave es válido. */
@@ -216,6 +234,115 @@ export function validarRangoFechas({ desde, hasta }: CamposRango): Errores<Campo
 /** DNI del filtro de auditoría (`q`): opcional, solo dígitos y como máximo 8 (búsqueda por los primeros dígitos). */
 export function validarDniBusqueda(q: string): string | null {
   return DNI_BUSQUEDA.test(q.trim()) ? null : MENSAJES.dniBusqueda;
+}
+
+/**
+ * Texto libre con largo máximo (zonas, tipos de evento, niveles), evaluado recortado como lo guarda el backend.
+ *
+ * @param valor    texto escrito
+ * @param max      largo máximo del DTO
+ * @param opcional si el campo puede quedar vacío
+ */
+export function validarTexto(valor: string, max: number, opcional = false): string | null {
+  const texto = valor.trim();
+  if (!texto) return opcional ? null : MENSAJES.obligatorio;
+  return texto.length > max ? MENSAJES.maximo(max) : null;
+}
+
+/** Orden de un nivel de gravedad: entero de 1 a 32767 (escrito en un `<input type="number">`). */
+export function validarOrden(valor: string): string | null {
+  const texto = valor.trim();
+  if (!texto) return MENSAJES.obligatorio;
+  if (!SOLO_DIGITOS.test(texto)) return MENSAJES.ordenInvalido;
+  const numero = Number(texto);
+  return numero >= ORDEN_MIN && numero <= ORDEN_MAX ? null : MENSAJES.ordenInvalido;
+}
+
+export interface CamposUsuario {
+  dni: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  /** Solo al crear; en la edición la contraseña se cambia con "Restablecer contraseña". */
+  contrasena: string;
+  confirmacion: string;
+  idRol: number | null;
+  idZona: number | null;
+}
+
+export type CampoUsuario = keyof CamposUsuario;
+
+/**
+ * Formulario de personal, con los límites de `UsuarioCrearRequest` / `UsuarioActualizarRequest`.
+ *
+ * @param campos      valores del formulario
+ * @param esVigilante si el rol elegido es Vigilante (la zona pasa a ser obligatoria)
+ * @param conContrasena `true` al crear: se validan la contraseña temporal y su confirmación
+ */
+export function validarUsuario(
+  campos: CamposUsuario,
+  esVigilante: boolean,
+  conContrasena: boolean,
+): Errores<CampoUsuario> {
+  return sinNulos({
+    dni: validarDni(campos.dni),
+    nombres: validarNombre(campos.nombres, NOMBRES_MAX),
+    apellidoPaterno: validarNombre(campos.apellidoPaterno, APELLIDO_MAX),
+    apellidoMaterno: validarNombre(campos.apellidoMaterno, APELLIDO_MAX, true),
+    contrasena: conContrasena ? validarContrasenaNueva(campos.contrasena) : null,
+    confirmacion: conContrasena ? validarConfirmacion(campos.confirmacion, campos.contrasena) : null,
+    idRol: validarSeleccion(campos.idRol, MENSAJES.rol),
+    idZona: esVigilante ? validarSeleccion(campos.idZona, MENSAJES.zonaVigilante) : null,
+  });
+}
+
+export interface CamposRestablecer {
+  nueva: string;
+  confirmacion: string;
+}
+
+/** Contraseña temporal que asigna el Administrador (`RestablecerContrasenaRequest`): 8 a 72 y confirmada. */
+export function validarRestablecer({ nueva, confirmacion }: CamposRestablecer): Errores<keyof CamposRestablecer> {
+  return sinNulos({ nueva: validarContrasenaNueva(nueva), confirmacion: validarConfirmacion(confirmacion, nueva) });
+}
+
+export interface CamposZona {
+  nombreZona: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  referencia: string;
+  descripcion: string;
+}
+
+/** Formulario de zona con los límites de `ZonaRequest`; referencia y descripción son opcionales. */
+export function validarZona(campos: CamposZona): Errores<keyof CamposZona> {
+  return sinNulos({
+    nombreZona: validarTexto(campos.nombreZona, ZONA_NOMBRE_MAX),
+    departamento: validarTexto(campos.departamento, DEPARTAMENTO_MAX),
+    provincia: validarTexto(campos.provincia, PROVINCIA_MAX),
+    distrito: validarTexto(campos.distrito, DISTRITO_MAX),
+    referencia: validarTexto(campos.referencia, REFERENCIA_MAX, true),
+    descripcion: validarTexto(campos.descripcion, DESCRIPCION_MAX, true),
+  });
+}
+
+export interface CamposTipoEvento {
+  nombreTipoEvento: string;
+}
+
+export function validarTipoEvento({ nombreTipoEvento }: CamposTipoEvento): Errores<keyof CamposTipoEvento> {
+  return sinNulos({ nombreTipoEvento: validarTexto(nombreTipoEvento, TIPO_EVENTO_MAX) });
+}
+
+export interface CamposNivel {
+  nombreNivel: string;
+  /** Texto del input numérico. */
+  orden: string;
+}
+
+export function validarNivel({ nombreNivel, orden }: CamposNivel): Errores<keyof CamposNivel> {
+  return sinNulos({ nombreNivel: validarTexto(nombreNivel, NIVEL_NOMBRE_MAX), orden: validarOrden(orden) });
 }
 
 // ---------------------------------------------------------------------------------------------------------------

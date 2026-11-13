@@ -10,12 +10,15 @@ import type {
   Conteo,
   DespliegueZona,
   FiltroAuditoria,
+  FiltroUsuarios,
+  FiltroZonas,
   FiltroIncidencias,
   FiltroPeriodo,
   IncidenciaHistorial,
   IncidenciaRequest,
   Kpis,
   Pagina,
+  RolCatalogo,
   RegistroAuditoria,
   SerieTiempo,
   IncidenciaResponse,
@@ -23,7 +26,10 @@ import type {
   NivelGravedad,
   TipoEvento,
   Usuario,
+  UsuarioGestion,
+  UsuarioRequest,
   Zona,
+  ZonaRequest,
 } from "./tipos";
 
 /**
@@ -200,5 +206,127 @@ export async function buscarAuditoria(
 
 export async function listarAccionesAuditoria(): Promise<AccionAuditoria[]> {
   const { data } = await api.get<AccionAuditoria[]>("/api/auditoria/acciones");
+  return data;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Gestión de personal (RF-02)
+
+export async function listarRoles(): Promise<RolCatalogo[]> {
+  const { data } = await api.get<RolCatalogo[]>("/api/catalogos/roles");
+  return data;
+}
+
+/** Zonas activas (las únicas que se pueden asignar a un usuario o elegir en un formulario). */
+export async function listarZonasActivas(): Promise<Zona[]> {
+  const { data } = await api.get<Zona[]>("/api/catalogos/zonas");
+  return data;
+}
+
+export async function buscarUsuarios(filtro: FiltroUsuarios, page: number, size: number): Promise<Pagina<UsuarioGestion>> {
+  const params: Parametros = { page, size };
+  if (filtro.q.trim()) params.q = filtro.q.trim();
+  if (filtro.idRol !== null) params.idRol = filtro.idRol;
+  if (filtro.idZona !== null) params.idZona = filtro.idZona;
+  if (filtro.activo !== null) params.activo = String(filtro.activo);
+  const { data } = await api.get<Pagina<UsuarioGestion>>("/api/usuarios", { params });
+  return data;
+}
+
+/** Crea un usuario; su contraseña queda como temporal (deberá cambiarla en su primer ingreso). 409 si el DNI existe. */
+export async function crearUsuario(usuario: UsuarioRequest): Promise<UsuarioGestion> {
+  const { data } = await api.post<UsuarioGestion>("/api/usuarios", usuario);
+  return data;
+}
+
+/** Reemplaza los datos, el rol y la zona (reasignar = cambiar `idZona`). Con `contrasena: null` la conserva. */
+export async function actualizarUsuario(idUsuario: number, usuario: UsuarioRequest): Promise<UsuarioGestion> {
+  const { data } = await api.put<UsuarioGestion>(`/api/usuarios/${idUsuario}`, usuario);
+  return data;
+}
+
+/** Activa o da de baja (baja lógica). El backend rechaza con 400 que el Administrador se desactive a sí mismo. */
+export async function cambiarEstadoUsuario(idUsuario: number, activo: boolean): Promise<UsuarioGestion> {
+  const { data } = await api.patch<UsuarioGestion>(`/api/usuarios/${idUsuario}/estado`, { activo });
+  return data;
+}
+
+/**
+ * El Administrador asigna una contraseña temporal a otro usuario (204). No sirve para la propia cuenta (400):
+ * para eso está `cambiarContrasenaPropia`.
+ */
+export async function restablecerContrasena(idUsuario: number, contrasenaNueva: string): Promise<void> {
+  await api.patch(`/api/usuarios/${idUsuario}/contrasena`, { contrasenaNueva });
+}
+
+/** Vigilantes activos asignados a una zona (usa `totalElementos` de una página de tamaño 1). */
+export async function contarVigilantesActivos(idZona: number, idRolVigilante: number): Promise<number> {
+  const pagina = await buscarUsuarios({ q: "", idRol: idRolVigilante, idZona, activo: true }, 0, 1);
+  return pagina.totalElementos;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Catálogos (RF-09)
+
+/** Máximo de zonas que acepta el listado en una página; se usa para armar las opciones de los filtros. */
+export const ZONAS_POR_PAGINA_MAX = 100;
+
+export async function buscarZonas(filtro: FiltroZonas, page: number, size: number): Promise<Pagina<Zona>> {
+  const params: Parametros = { page, size };
+  for (const clave of ["nombre", "departamento", "provincia", "distrito", "q"] as const) {
+    const valor = filtro[clave].trim();
+    if (valor) params[clave] = valor;
+  }
+  if (filtro.activo !== null) params.activo = String(filtro.activo);
+  const { data } = await api.get<Pagina<Zona>>("/api/zonas", { params });
+  return data;
+}
+
+export async function crearZona(zona: ZonaRequest): Promise<Zona> {
+  const { data } = await api.post<Zona>("/api/zonas", zona);
+  return data;
+}
+
+export async function actualizarZona(idZona: number, zona: ZonaRequest): Promise<Zona> {
+  const { data } = await api.put<Zona>(`/api/zonas/${idZona}`, zona);
+  return data;
+}
+
+export async function cambiarEstadoZona(idZona: number, activo: boolean): Promise<Zona> {
+  const { data } = await api.patch<Zona>(`/api/zonas/${idZona}/estado`, { activo });
+  return data;
+}
+
+/** Todos los tipos de evento, activos o no, por nombre. */
+export async function listarTiposEvento(): Promise<TipoEvento[]> {
+  const { data } = await api.get<TipoEvento[]>("/api/tipos-evento");
+  return data;
+}
+
+export async function crearTipoEvento(nombreTipoEvento: string): Promise<TipoEvento> {
+  const { data } = await api.post<TipoEvento>("/api/tipos-evento", { nombreTipoEvento });
+  return data;
+}
+
+/** Renombra un tipo; el backend rechaza renombrar "Otro" (400) y los nombres repetidos (409). */
+export async function actualizarTipoEvento(idTipoEvento: number, nombreTipoEvento: string): Promise<TipoEvento> {
+  const { data } = await api.put<TipoEvento>(`/api/tipos-evento/${idTipoEvento}`, { nombreTipoEvento });
+  return data;
+}
+
+export async function cambiarEstadoTipoEvento(idTipoEvento: number, activo: boolean): Promise<TipoEvento> {
+  const { data } = await api.patch<TipoEvento>(`/api/tipos-evento/${idTipoEvento}/estado`, { activo });
+  return data;
+}
+
+/** Todos los niveles de gravedad, de menos a más grave. */
+export async function listarNiveles(): Promise<NivelGravedad[]> {
+  const { data } = await api.get<NivelGravedad[]>("/api/niveles-gravedad");
+  return data;
+}
+
+/** Cambia nombre y orden; si otro nivel tenía ese orden, el backend los intercambia. */
+export async function actualizarNivel(idNivelGravedad: number, nombreNivel: string, orden: number): Promise<NivelGravedad> {
+  const { data } = await api.put<NivelGravedad>(`/api/niveles-gravedad/${idNivelGravedad}`, { nombreNivel, orden });
   return data;
 }
