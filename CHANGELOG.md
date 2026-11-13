@@ -12,6 +12,28 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — README inicial e instrucciones del proyecto actualizadas
+- Qué se hizo:
+  - `README.md` nuevo en la raíz: descripción, tecnologías con versiones, estructura de carpetas (`backend`,
+    `frontend`, `docs`, `postman`), requisitos, ejecución en local a partir de `backend/.env.example` y
+    `frontend/.env.example` (sin credenciales), rutas por rol, estado por fases y cómo correr los tests del backend.
+  - Instrucciones del proyecto (`CLAUDE.md`):
+    - Stack con las versiones reales de `backend/pom.xml` y `frontend/package.json`.
+    - Tabla de fases con su estado y el desglose de la Fase 8.
+    - Decisiones resueltas: reasignación de zona solo por el Administrador, `fecha_hora` opcional y no futura,
+      Administrador inicial por el perfil `seed` y JWT en `localStorage`.
+    - Validaciones de formularios centralizadas en `frontend/src/lib/validaciones.ts`, alineadas con los DTO.
+    - Sección de pruebas y evidencias (casos `CP-xx` en `docs/plan_pruebas_integrales.md`, colección Postman con
+      variables, evidencias en `docs/evidencias/pruebas/`).
+- Archivos clave: `README.md`, `CLAUDE.md`.
+- Cómo probarlo: leer el README de principio a fin y comprobar que las rutas, variables y comandos que cita existen
+  (`backend/.env.example`, `frontend/.env.example`, `./mvnw test`, `npm run dev`).
+- Pendientes o problemas conocidos:
+  - El README se completará con el despliegue (Fase 9) y con la ejecución de las pruebas extremo a extremo y de la
+    colección Postman cuando existan.
+  - Aún no existen `docs/plan_pruebas_integrales.md`, `docs/evidencias/pruebas/` ni
+    `frontend/src/lib/validaciones.ts`; se crean en las siguientes partes de la Fase 8.
+
 ## [2026-10-25] Fase 8 / RF-01 — Login sin credenciales prellenadas
 - Qué se hizo:
   - Al recargar o entrar a `/login`, el navegador rellenaba el DNI y la contraseña (gestor de contraseñas y
