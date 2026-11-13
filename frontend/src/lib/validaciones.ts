@@ -1,10 +1,11 @@
 /**
  * Reglas y mensajes de validación de los formularios. Los límites son los de los DTO del backend
- * (`LoginRequest`, `CambioContrasenaRequest`, `IncidenciaRequest`, `UsuarioCrearRequest`) y de las reglas de sus
- * servicios; si cambian allá, se cambian aquí. Solo funciones puras: el estado de los avisos vive en
+ * (`LoginRequest`, `CambioContrasenaRequest`, `IncidenciaRequest`, `UsuarioCrearRequest`, `AuditoriaFiltro`), de
+ * las reglas de sus servicios y del rango de fechas (`RangoFechas`); si cambian allá, se cambian aquí. Solo funciones puras: el estado de los avisos vive en
  * `useValidacion`.
  */
 import type { ErrorApi } from "@/lib/api";
+import { diasEntre } from "@/lib/fechas";
 
 export const LARGO_DNI = 8;
 export const CONTRASENA_MIN = 8;
@@ -16,6 +17,8 @@ export const DESCRIPCION_MIN_OTRO = 20;
 /** Desfase de reloj que acepta el backend para la fecha de una incidencia (2 minutos). */
 export const TOLERANCIA_FECHA_MS = 2 * 60 * 1000;
 export const TIPO_OTRO = "Otro";
+/** Máximo de días de un rango personalizado (`RangoFechas.MAX_DIAS`). */
+export const RANGO_MAX_DIAS = 366;
 
 export const MENSAJES = {
   obligatorio: "Este campo es obligatorio",
@@ -31,6 +34,10 @@ export const MENSAJES = {
   zona: "Elige una zona",
   tipoEvento: "Elige un tipo de evento",
   nivelGravedad: "Elige un nivel de gravedad",
+  fechaRangoObligatoria: "Elige una fecha",
+  desdePosterior: "La fecha desde no puede ser posterior a hasta",
+  rangoExcesivo: `El rango no puede superar ${RANGO_MAX_DIAS} días`,
+  dniBusqueda: `El DNI debe tener solo dígitos, hasta ${LARGO_DNI}`,
 } as const;
 
 /** Mensaje de error por campo; un campo sin clave es válido. */
@@ -38,6 +45,8 @@ export type Errores<C extends string> = Partial<Record<C, string>>;
 
 const SOLO_DIGITOS = /^\d+$/;
 const DNI_VALIDO = new RegExp(`^\\d{${LARGO_DNI}}$`);
+const DNI_BUSQUEDA = new RegExp(`^\\d{0,${LARGO_DNI}}$`);
+const DIA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 // Letras (con tildes, ü y ñ), espacios, apóstrofo y guion.
 const NOMBRE_VALIDO = /^[A-Za-zÁÉÍÓÚáéíóúÜüÑñ' -]+$/;
 
@@ -174,6 +183,39 @@ export function validarIncidencia(campos: CamposIncidencia, ahora?: number): Err
     descripcion: validarDescripcion(campos.descripcion, campos.esOtro),
     fecha: campos.fecha === null ? null : validarFechaNoFutura(campos.fecha, ahora),
   });
+}
+
+export interface CamposRango {
+  /** AAAA-MM-DD (valor de `<input type="date">`); vacío si no se eligió. */
+  desde: string;
+  hasta: string;
+}
+
+export type CampoRango = keyof CamposRango;
+
+/**
+ * Rango del periodo personalizado, con las mismas reglas que `RangoFechas` del backend: ambas fechas obligatorias,
+ * `desde` no posterior a `hasta` (aviso en `desde`) y como máximo 366 días contando ambos extremos (aviso en `hasta`).
+ */
+export function validarRangoFechas({ desde, hasta }: CamposRango): Errores<CampoRango> {
+  const errores: Errores<CampoRango> = {};
+  if (!desde) errores.desde = MENSAJES.fechaRangoObligatoria;
+  else if (!DIA_ISO.test(desde)) errores.desde = MENSAJES.fechaInvalida;
+  if (!hasta) errores.hasta = MENSAJES.fechaRangoObligatoria;
+  else if (!DIA_ISO.test(hasta)) errores.hasta = MENSAJES.fechaInvalida;
+  if (errores.desde || errores.hasta) return errores;
+
+  if (desde > hasta) {
+    errores.desde = MENSAJES.desdePosterior;
+  } else {
+    if (diasEntre(desde, hasta) > RANGO_MAX_DIAS) errores.hasta = MENSAJES.rangoExcesivo;
+  }
+  return errores;
+}
+
+/** DNI del filtro de auditoría (`q`): opcional, solo dígitos y como máximo 8 (búsqueda por los primeros dígitos). */
+export function validarDniBusqueda(q: string): string | null {
+  return DNI_BUSQUEDA.test(q.trim()) ? null : MENSAJES.dniBusqueda;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

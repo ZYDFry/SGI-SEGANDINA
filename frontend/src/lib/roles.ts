@@ -9,6 +9,7 @@ export const RUTA_CAMBIO_CONTRASENA = "/cambiar-contrasena";
 
 export const ROLES_REGISTRO: Rol[] = ["Vigilante", "Administrador"];
 export const ROLES_GERENCIA: Rol[] = ["Administrador", "Supervisor"];
+export const ROLES_ADMIN: Rol[] = ["Administrador"];
 
 export interface OpcionMenu {
   href: string;
@@ -18,6 +19,8 @@ export interface OpcionMenu {
 
 export const MENU: OpcionMenu[] = [
   { href: "/dashboard", etiqueta: "Dashboard", roles: ROLES_GERENCIA },
+  { href: "/historial", etiqueta: "Historial", roles: ROLES_GERENCIA },
+  { href: "/historial/auditoria", etiqueta: "Auditoría", roles: ROLES_ADMIN },
   { href: "/incidencias/nueva", etiqueta: "Registrar incidencia", roles: ROLES_REGISTRO },
 ];
 
