@@ -698,7 +698,7 @@ nueva, porque el token anterior sigue limitado hasta vencer.
 | Archivo (`frontend/src/`) | Responsabilidad | Funciones / props principales |
 |---|---|---|
 | `app/cambiar-contrasena/page.tsx` (nuevo) | `/cambiar-contrasena`, fuera del grupo `(privado)`: sin `Encabezado` ni menú, mismo marco que `/login`. | — |
-| `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (nuevo) | Formulario de cambio. Sin sesión → `rutaLogin(motivo)`; sesión no marcada → `rutaInicio(rol)`. Valida en el cliente: campos obligatorios, nueva de 8 a 16 caracteres, distinta de la actual e igual a la confirmación. Con 204 llama a `borrarSesion("contrasena-cambiada")`; con 400 muestra el mensaje del backend ("La contraseña actual o temporal no es correcta.", "La nueva contraseña debe ser distinta de la actual") y sus `detalles`. Botón "Cerrar sesión" como única salida. | — |
+| `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (nuevo) | Formulario de cambio. Sin sesión → `rutaLogin(motivo)`; sesión no marcada → `rutaInicio(rol)`. Valida en el cliente: campos obligatorios, nueva de 8 a 72 caracteres, distinta de la actual e igual a la confirmación (reglas de `lib/validaciones.ts`). Con 204 llama a `borrarSesion("contrasena-cambiada")`; con 400 muestra el mensaje del backend ("La contraseña actual o temporal no es correcta.", "La nueva contraseña debe ser distinta de la actual") y sus `detalles`. Botón "Cerrar sesión" como única salida. | — |
 | `lib/tipos.ts` (modificado) | `Usuario.debeCambiarContrasena: boolean`. | — |
 | `lib/sesion.ts` (modificado) | Motivo de cierre nuevo `"contrasena-cambiada"`. | `marcarCambioPendiente()`: reescribe la sesión guardada con `debeCambiarContrasena = true` y avisa a los suscriptores (no hace nada sin sesión o si ya está marcada). |
 | `lib/roles.ts` (modificado) | Constante `RUTA_CAMBIO_CONTRASENA = "/cambiar-contrasena"`. | `destinoInicial(usuario)` → `/cambiar-contrasena` si está marcado, si no `rutaInicio(rol)`; `rutaLogin(motivo)` → `/login`, `/login?motivo=expirada` o `/login?motivo=contrasena-actualizada`. |
@@ -807,3 +807,72 @@ Administrador, `periodo`, `accionAuditoria` y `qAuditoria`):
 4. Con token de Supervisor → 403; con `size=101` o `accion=BORRAR` → 400 con el campo en `detalles`.
 5. En la BD, `SELECT count(*) FROM auditoria;` antes y después de consultar: no cambia (salvo por los logins que
    hagas).
+
+## Frontend — validaciones de formularios (RF-01, RF-03)
+
+Los formularios validan cada campo antes de enviar, con los mismos límites que los DTO del backend. El aviso aparece
+en rojo debajo del campo al salir de él, se actualiza mientras se escribe hasta que el dato es válido, y al pulsar
+guardar se marcan todos los errores y el foco va al primero. Los errores 400 del backend se muestran debajo del campo
+al que corresponden. Hoy se aplica al login, al cambio de contraseña y al registro de incidencias.
+
+### Módulos y componentes nuevos y modificados
+
+| Archivo (`frontend/src/`) | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/validaciones.ts` (nuevo) | Reglas y mensajes de todos los formularios, como funciones puras (sin React). Constantes `LARGO_DNI` (8), `CONTRASENA_MIN`/`CONTRASENA_MAX` (8/72), `NOMBRES_MAX` (80), `APELLIDO_MAX` (50), `DESCRIPCION_MAX` (2000), `DESCRIPCION_MIN_OTRO` (20), `TOLERANCIA_FECHA_MS` (2 min) y `MENSAJES`. | `limpiarDni(texto)` → solo dígitos, máximo 8. `sonDigitos(texto)`. `esTipoOtro(nombre)`. Validadores de un campo → mensaje o `null`: `obligatorio`, `validarDni`, `validarContrasenaLogin`, `validarContrasenaNueva(nueva, actual?)`, `validarConfirmacion(confirmacion, nueva)`, `validarNombre(valor, max, opcional?)`, `validarSeleccion(valor, mensaje)`, `validarDescripcion(texto, esOtro)`, `validarFechaNoFutura(valorLocal, ahora?)`. Por formulario → `Errores` (campo → mensaje): `validarLogin`, `validarCambioContrasena`, `validarIncidencia`. `erroresDelServidor(error, mapa, reglas?)` → `{ campos, general }`: reparte los `detalles` `"campo: mensaje"` de un 400 según `mapa` (nombre en el backend → campo del formulario) y ubica las reglas de negocio conocidas por su mensaje; lo demás queda en `general`. |
+| `lib/useValidacion.ts` (nuevo) | Hook con el estado de los avisos de un formulario: campos tocados, intento de envío y errores del backend. | `useValidacion(errores, orden)` → `error(campo)` (aviso visible o `undefined`), `alSalir(campo)`, `alCambiar(campo)` (borra el aviso del backend del campo), `registrar(campo)` (ref para el foco), `propsCampo(campo)` → `{ id, ref, onBlur, aria-invalid, aria-describedby }`, `intentarEnviar()` → `true` si se puede enviar (si no, enfoca el primer error), `ponerErroresServidor(errores)`, `reiniciar()`, `hayErroresVisibles`. `idError(campo)` → `"error-<campo>"`. |
+| `components/MensajeCampo.tsx` (nuevo) | Aviso en rojo debajo de un campo, con `id="error-<campo>"` y `role="alert"`; sin mensaje no muestra nada. | Props `campo`, `mensaje?`. `bordeCampo(invalido)` → clases de borde rojo o normal. |
+| `components/SelectorRapido.tsx` (modificado) | El grupo muestra su aviso debajo, contorno rojo, `aria-invalid` y `aria-describedby` en el `radiogroup`; avisa cuando el foco sale del grupo. | Props nuevas opcionales: `campo`, `error`, `onSalir`, `refPrimero` (ref del primer botón, para enfocarlo). |
+| `app/login/FormularioLogin.tsx` (modificado) | DNI que solo admite dígitos: bloquea al teclear lo que no sea dígito o pase del octavo (`onBeforeInput`) y limpia lo pegado con `limpiarDni` (`onChange`); `inputMode="numeric"` y `pattern="[0-9]*"` para el teclado numérico. Contraseña obligatoria. El 401 sigue en la alerta general. | — |
+| `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (modificado) | Nueva de 8 a 72 caracteres (antes 16), distinta de la actual, y confirmación igual. "La contraseña actual no es correcta" y "debe ser distinta de la actual" del backend se muestran bajo su campo. | — |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Avisos bajo zona, tipo, gravedad, descripción (con contador `n/2000`) y fecha. Los 400 de catálogo inactivo, descripción corta de "Otro" y fecha futura se muestran bajo su campo. Tras registrar, el formulario queda sin avisos. | — |
+
+### Reglas por formulario
+
+| Formulario | Campo (`id`) | Regla | Mensaje | Equivalente en el backend |
+|---|---|---|---|---|
+| Login | `dni` | Obligatorio; solo dígitos (no se pueden escribir ni pegar otros caracteres); exactamente 8 | "Este campo es obligatorio" · "El DNI debe tener 8 dígitos numéricos" | `LoginRequest.dni`: `@NotBlank`, `@Pattern(^[0-9]{8}$)` |
+| Login | `contrasena` | Obligatoria (sin límite de largo) | "Este campo es obligatorio" | `LoginRequest.contrasena`: `@NotBlank` |
+| Cambio de contraseña | `actual` | Obligatoria | "Este campo es obligatorio" · del backend: "La contraseña actual o temporal no es correcta" | `CambioContrasenaRequest.contrasenaActual`: `@NotBlank`; `UsuarioServiceImpl.cambiarContrasenaPropia` |
+| Cambio de contraseña | `nueva` | Obligatoria; de 8 a 72 caracteres; distinta de la actual | "La contraseña debe tener entre 8 y 72 caracteres" · "La nueva contraseña debe ser distinta de la actual" | `contrasenaNueva`: `@NotBlank`, `@Size(min = 8, max = 72)`; regla del servicio |
+| Cambio de contraseña | `confirmacion` | Obligatoria; igual a la nueva | "Las contraseñas no coinciden" | Solo frontend |
+| Registro de incidencias | `idZona`, `idTipo`, `idGravedad` | Selección obligatoria | "Elige una zona" · "Elige un tipo de evento" · "Elige un nivel de gravedad" | `IncidenciaRequest`: `@NotNull`; catálogo activo en `IncidenciaServiceImpl.registrar` |
+| Registro de incidencias | `descripcion` | Obligatoria; máximo 2000 (el campo no admite más); mínimo 20 si el tipo es "Otro", sobre el texto recortado; contador `n/2000` | "Este campo es obligatorio" · 'Para el tipo "Otro" la descripción debe tener al menos 20 caracteres' · "No debe superar los 2000 caracteres" | `@NotBlank`, `@Size(max = 2000)`; mínimo de "Otro" en el servicio |
+| Registro de incidencias | `fecha` | Opcional (por defecto la hora actual); si se edita, obligatoria y no futura, con 2 minutos de tolerancia | "Este campo es obligatorio" · "La fecha y hora no puede ser futura" | `fechaHora` opcional; `TOLERANCIA_RELOJ` de 2 min en el servicio |
+| Personal (pantalla pendiente) | nombres, apellidos | Letras (con tildes, ü y ñ), espacios, apóstrofo y guion; nombres hasta 80, apellidos hasta 50; apellido materno opcional (`validarNombre`) | "Solo se permiten letras, espacios, apóstrofo y guion" · "No debe superar los N caracteres" | `UsuarioCrearRequest`: solo `@Size`; no rechaza números |
+
+Antes de enviar se recortan los espacios del DNI y de la descripción. Las contraseñas no se recortan: un espacio es
+parte de la contraseña y el backend tampoco las recorta.
+
+### Flujo: registro de incidencia con un error del backend
+
+1. El usuario pulsa "Registrar incidencia". `useValidacion.intentarEnviar()` marca todos los campos; si
+   `validarIncidencia` devuelve errores, enfoca el primero y no se envía nada.
+2. Sin errores, `registrarIncidencia` hace `POST /api/incidencias` con la descripción recortada.
+3. Si el backend responde 400 `{ mensaje: "Datos de entrada inválidos", detalles: ["descripcion: no debe superar los
+   2000 caracteres"] }`, `errorDeApi` lo traduce y `erroresDelServidor` lo reparte con el mapa
+   `{ descripcion: "descripcion", idTipoEvento: "idTipo", … }`: queda "No debe superar los 2000 caracteres" bajo la
+   descripción. Una regla de negocio sin `detalles` ("La fecha y hora de la incidencia no puede ser futura") se ubica
+   por su texto bajo la fecha.
+4. `ponerErroresServidor` muestra esos avisos y enfoca el campo; al editarlo, el aviso del backend se borra.
+
+### Cómo probar
+
+```
+cd frontend
+npm run lint
+npm run build
+npm run dev
+```
+
+1. `/login`: escribir `1234567a` (quedan los 7 dígitos), salir del campo ("El DNI debe tener 8 dígitos numéricos" y
+   botón desactivado), escribir el octavo (el aviso se va), pegar `12a34b5678` (queda `12345678`). Pulsar "Ingresar"
+   con todo vacío: aviso en los dos campos, foco en el DNI y ninguna petición en Network.
+2. `/cambiar-contrasena` (usuario con contraseña temporal): nueva de 7 o 73 caracteres, confirmación distinta, nueva
+   igual a la actual, y una actual incorrecta (aviso del backend bajo el campo).
+3. `/incidencias/nueva` (Vigilante): registrar vacío, tipo "Otro" con 19 y 20 caracteres, fecha 10 minutos en el
+   futuro, y una descripción con espacios al inicio y al final (en Network, `descripcion` llega recortada).
+4. En DevTools, el campo con aviso tiene `aria-invalid="true"` y `aria-describedby="error-<campo>"`.
+
+Los casos completos son CP-70 a CP-79 y CP-84 a CP-86 del plan de pruebas integrales, con los selectores para
+automatizarlos con Playwright.

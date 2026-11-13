@@ -12,6 +12,38 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Validaciones de formularios en el frontend
+- Qué se hizo:
+  - `frontend/src/lib/validaciones.ts`: reglas y mensajes de todos los formularios con los límites de los DTO del
+    backend (DNI de 8 dígitos, contraseña de 8 a 72, nombres y apellidos con letras, espacios, apóstrofo y guion,
+    descripción obligatoria de hasta 2000 y mínimo 20 para "Otro", fecha no futura con 2 minutos de tolerancia) y
+    `erroresDelServidor`, que coloca los errores 400 del backend debajo de su campo.
+  - `frontend/src/lib/useValidacion.ts`: aviso al salir del campo, actualización mientras se escribe, ningún aviso
+    en campos sin tocar, al guardar se marcan todos y el foco va al primero, botón desactivado mientras haya avisos,
+    `aria-invalid` y `aria-describedby`.
+  - Login: el DNI no deja escribir ni pegar letras, espacios ni símbolos y no pasa del octavo dígito (teclado
+    numérico en móvil). Cambio de contraseña: la nueva admite de 8 a 72 caracteres (antes 16). Registro de
+    incidencias: avisos bajo zona, tipo, gravedad, descripción (con contador) y fecha.
+  - Se recortan los espacios del DNI y de la descripción antes de enviar; las contraseñas no se recortan.
+  - Plan de pruebas: CP-70 a CP-73 y CP-75 a CP-79 listos para ejecutar en los formularios existentes, casos nuevos
+    CP-84 (comportamiento de los avisos), CP-85 (error del backend bajo el campo) y CP-86 (contador y recorte), y
+    selectores para Playwright. Riesgo R-03 resuelto y R-13 nuevo.
+- Archivos clave: `frontend/src/lib/validaciones.ts`, `frontend/src/lib/useValidacion.ts`,
+  `frontend/src/components/MensajeCampo.tsx`, `frontend/src/components/SelectorRapido.tsx`,
+  `frontend/src/app/login/FormularioLogin.tsx`, `frontend/src/app/cambiar-contrasena/FormularioCambioContrasena.tsx`,
+  `frontend/src/app/(privado)/incidencias/nueva/FormularioIncidencia.tsx`, `docs/referencia_clases.md`,
+  `docs/plan_pruebas_integrales.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build`; luego `npm run dev` y los casos CP-70 a CP-79 y
+  CP-84 a CP-86 de `docs/plan_pruebas_integrales.md`. Se verificaron en Chrome (vista de 360 × 740) con la API
+  simulada: 55 comprobaciones de los tres formularios sin fallos.
+- Pendientes o problemas conocidos:
+  - El backend no rechaza números en nombres y apellidos (R-10); el frontend sí lo hará en el formulario de personal.
+  - El límite de 72 de la contraseña es en caracteres; BCrypt admite 72 bytes (R-13).
+  - Los avisos del backend se reconocen por su texto para las reglas de negocio sin `detalles` (fecha futura,
+    "Otro", contraseña actual incorrecta); si cambia el mensaje en el backend, se muestra en la alerta general.
+  - CP-85 y CP-86 falta ejecutarlos contra el backend real; las evidencias y Playwright quedan para el paso de
+    evidencias.
+
 ## [2026-11-13] Fase 8 — Plan de pruebas integrales y scripts de prueba en Postman
 - Qué se hizo:
   - `docs/plan_pruebas_integrales.md` nuevo: objetivo, alcance (RF-01 a RF-09, RNF-01 a RNF-05) y fuera de alcance,

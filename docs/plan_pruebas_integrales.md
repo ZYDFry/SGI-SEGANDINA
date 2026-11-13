@@ -106,7 +106,7 @@ Cómo correrla:
 | Integración del backend | Controllers con seguridad real (MockMvc: rutas, roles, formato de error, CORS) y consultas DAO contra H2 en modo PostgreSQL. | `./mvnw test`. |
 | Integración API contra Supabase | El backend completo contra la base real: consultas nativas (`AT TIME ZONE`, `to_char`), JSONB de auditoría, vista de despliegue. Prioriza lo que solo se probó en H2: historial, dashboard, reportes y consulta de auditoría. | Postman (peticiones de la colección y variantes descritas en cada caso) + SQL Editor para verificar filas. |
 | Seguridad | 401 sin token o con token inválido, 403 por rol, contraseñas temporales y cambio obligatorio, restablecimiento, contraseña nunca expuesta, auditoría inmutable en tres capas: triggers `trg_auditoria_no_modificar` y `trg_auditoria_no_truncar`, `GRANT` de `app_sgi` sin UPDATE/DELETE sobre `auditoria` y RLS activo en todas las tablas. | Postman, SQL Editor de Supabase, cliente SQL conectado como `app_sgi`, API REST pública de Supabase. |
-| Validación de formularios | Avisos debajo de cada campo antes de enviar, con los mismos límites y mensajes que los DTO del backend. | Manual en el navegador y luego Playwright, sobre `frontend/src/lib/validaciones.ts` (pendiente de crear). |
+| Validación de formularios | Avisos debajo de cada campo antes de enviar, con los mismos límites que los DTO del backend y errores 400 del backend mostrados bajo su campo. | Manual en el navegador y luego Playwright, sobre `frontend/src/lib/validaciones.ts` (sección 5.11). |
 | Extremo a extremo (E2E) | Recorridos completos desde el navegador: login por rol, cambio obligatorio, registro móvil, historial, dashboard, exportación, personal y catálogos. | Manual con capturas mientras Playwright no esté configurado; después, Playwright en `frontend/`. |
 | Rendimiento (RNF-04) | Tiempo de respuesta al registrar una incidencia y al descargar un reporte, menor a 3 s con red móvil. | Pestaña Network de DevTools con "Fast 4G" (tiempo total de la petición) y tiempo de respuesta de Postman. Se toman 5 mediciones y se informa la mayor. |
 | Usabilidad (RNF-03) | Formulario del vigilante usable con una mano a 360 px; pantallas de gerencia en escritorio y utilizables en tablet. | Revisión manual con la vista móvil de DevTools y en un celular real. |
@@ -168,7 +168,7 @@ precondición y se ejecutan contra Supabase.
 | CP-11 | RF-01 | SEG | Usuario `10000005` con contraseña temporal (`debe_cambiar_contrasena = true`). | 1. `POST /api/auth/login`. 2. `GET /api/auth/yo`. 3. `GET /api/catalogos/zonas`. 4. Revisar la fila `LOGIN_OK`. | `dni` = 10000005, contraseña temporal. | 1: 200 con `usuario.debeCambiarContrasena: true`. 2: 200. 3: 403 "Debe cambiar su contraseña antes de continuar". 4: `detalle_cambio` `{"cambioPendiente": true}`. | | | CP-11_token_cambio_pendiente.png |
 | CP-12 | RF-01 | SEG | Token de CP-11. | 1. `PATCH /api/usuarios/me/contrasena`. 2. Revisar la fila `CAMBIAR_CONTRASENA`. 3. Iniciar sesión con la nueva. 4. `GET /api/catalogos/zonas`. | `contrasenaActual` = temporal, `contrasenaNueva` = `<contraseña válida de 10 caracteres>`. | 1: 204. 2: `{idUsuario, origen: "propio", cambioObligatorio: true}`, sin contraseña ni hash. 3: 200 con `debeCambiarContrasena: false`. 4: 200. | | | CP-12_cambio_obligatorio.png |
 | CP-13 | RF-01 | E2E | Frontend en `npm run dev`; usuarios de los tres roles. | 1. Entrar como Vigilante. 2. Escribir `/dashboard` en la barra. 3. Cerrar sesión y entrar como Supervisor y luego como Administrador. 4. Revisar el menú de cada rol. | DNIs 10000001, 10000002, 10000003. | Vigilante va a `/incidencias/nueva` y al abrir `/dashboard` vuelve a su inicio. Supervisor y Administrador van a `/dashboard`. El menú muestra solo las opciones del rol. | | | CP-13_redireccion_por_rol.png |
-| CP-14 | RF-01 | E2E | Usuario con contraseña temporal. | 1. Iniciar sesión. 2. Abrir `/dashboard` o `/incidencias/nueva`. 3. Enviar actual incorrecta. 4. Enviar un cambio válido. 5. Entrar con la nueva. | Contraseña temporal y nueva válida. | 1: va a `/cambiar-contrasena` sin menú. 2: vuelve a `/cambiar-contrasena`. 3: "La contraseña actual o temporal no es correcta.". 4: `/login` con "Contraseña actualizada, inicia sesión con la nueva.". 5: inicio normal del rol. | | | CP-14_cambio_obligatorio_frontend.png |
+| CP-14 | RF-01 | E2E | Usuario con contraseña temporal. | 1. Iniciar sesión. 2. Abrir `/dashboard` o `/incidencias/nueva`. 3. Enviar actual incorrecta. 4. Enviar un cambio válido. 5. Entrar con la nueva. | Contraseña temporal y nueva válida. | 1: va a `/cambiar-contrasena` sin menú. 2: vuelve a `/cambiar-contrasena`. 3: "La contraseña actual o temporal no es correcta" debajo del campo de la contraseña actual. 4: `/login` con "Contraseña actualizada, inicia sesión con la nueva.". 5: inicio normal del rol. | | | CP-14_cambio_obligatorio_frontend.png |
 | CP-15 | RF-01 | E2E | Sesión iniciada. | 1. "Cerrar sesión". 2. Pulsar Atrás. 3. Iniciar sesión, borrar o vencer el token (`expiraEn`) y navegar. 4. Recargar `/login` con datos escritos sin enviar. | Cualquier usuario de prueba. | 1: `/login` con campos vacíos y botón "Ingresar" habilitado. 2: no se muestra la pantalla privada. 3: `/login` con "Tu sesión venció". 4: campos vacíos. | | | CP-15_cierre_y_vencimiento_sesion.png |
 
 ### 5.3 RF-02 Gestión de usuarios
@@ -267,22 +267,65 @@ precondición y se ejecutan contra Supabase.
 
 ### 5.11 Validaciones de formularios (frontend)
 
-Todas quedan **planificadas** hasta que exista `frontend/src/lib/validaciones.ts`; aplican a los formularios
-indicados en cada caso. El aviso aparece debajo del campo y el formulario no se envía mientras haya errores. Los
-mensajes son los de los DTO del backend.
+Las reglas viven en `frontend/src/lib/validaciones.ts` y se aplican hoy en el login (`/login`), el cambio de
+contraseña (`/cambiar-contrasena`) y el registro de incidencias (`/incidencias/nueva`). Los casos de esos tres
+formularios están **listos para ejecutar** (estado `Pendiente`); las partes del formulario de personal y de zonas
+siguen planificadas hasta que existan esas pantallas.
+
+Comportamiento común que verifican los casos:
+
+- El aviso aparece en rojo debajo del campo al salir de él y, una vez visible, se actualiza mientras se escribe hasta
+  que el dato es válido. Un campo que aún no se tocó no muestra aviso.
+- Al pulsar el botón de guardar se muestran todos los avisos, el foco va al primer campo con error y no se envía
+  ninguna petición. El botón queda desactivado mientras haya avisos visibles.
+- El campo inválido tiene borde rojo, `aria-invalid="true"` y `aria-describedby="error-<campo>"`.
+- DNI y descripción se envían sin espacios al inicio ni al final; las contraseñas se envían tal cual.
+- Un 400 del backend se muestra debajo del campo que corresponde (detalle `"campo: mensaje"` o regla de negocio
+  conocida); lo que no corresponde a un campo va en la alerta de arriba.
+
+Mismos límites que los DTO del backend; los mensajes son frases completas en español (el backend responde, por
+ejemplo, `dni: debe tener 8 dígitos` y el frontend muestra "El DNI debe tener 8 dígitos numéricos").
 
 | ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|
-| CP-70 | RF-01, RF-02 | VAL | **Planificado.** Login y formulario de personal. | 1. Escribir letras en el DNI. 2. Enviar. | `1234567a` | El campo no conserva letras o muestra "debe tener 8 dígitos"; no se envía. | | | CP-70_dni_con_letras.png |
-| CP-71 | RF-01, RF-02 | VAL | **Planificado.** Login y formulario de personal. | 1. Pegar un texto con letras en el DNI. | `12a34b5678` pegado | Quedan solo dígitos (como máximo 8) o se muestra "debe tener 8 dígitos"; no se envía un DNI con letras. | | | CP-71_dni_pegado_con_letras.png |
-| CP-72 | RF-01, RF-02 | VAL | **Planificado.** Login y formulario de personal. | 1. Escribir 7 dígitos. 2. Enviar. | `1000000` | "debe tener 8 dígitos" debajo del campo; no se envía. | | | CP-72_dni_7_digitos.png |
-| CP-73 | RF-01, RF-02 | VAL | **Planificado.** Login y formulario de personal. | 1. Escribir o pegar 9 dígitos. | `100000001` | El campo admite como máximo 8 dígitos o muestra "debe tener 8 dígitos"; no se envían 9. | | | CP-73_dni_9_digitos.png |
-| CP-74 | RF-02 | VAL | **Planificado.** Formulario de personal. | 1. Escribir números en nombres y apellidos. 2. Enviar. | `Luis2`, `Rojas3` | Aviso debajo de cada campo; no se envía. (Ver riesgo R-10: el backend hoy no rechaza números en nombres.) | | | CP-74_nombres_con_numeros.png |
-| CP-75 | RF-01, RF-02 | VAL | **Planificado.** Cambio de contraseña y formulario de personal. | 1. Contraseña de 7 caracteres. 2. De 73. 3. De 8 y de 72. | Cadenas de 7, 8, 72 y 73 caracteres | 1 y 2: "debe tener entre 8 y 72 caracteres". 3: sin aviso. (Ver riesgo R-03: hoy el cambio de contraseña limita a 16.) | | | CP-75_contrasena_longitud.png |
-| CP-76 | RF-01, RF-02 | VAL | **Planificado.** Cambio de contraseña y restablecimiento. | 1. Escribir una confirmación distinta de la nueva. 2. Enviar. | Nueva y confirmación distintas | Aviso debajo de la confirmación; no se envía. | | | CP-76_confirmacion_distinta.png |
-| CP-77 | RF-01, RF-02, RF-03, RF-09 | VAL | **Planificado.** Login, registro de incidencias, personal y zonas. | 1. Enviar cada formulario con los campos obligatorios vacíos. | Campos vacíos | "es obligatorio" / "es obligatoria" debajo de cada campo vacío; no se envía ninguna petición (verificar en Network). | | | CP-77_obligatorios_vacios.png |
-| CP-78 | RF-03 | VAL | **Planificado.** Registro de incidencias. | 1. Elegir "Otro". 2. Escribir 19 caracteres. 3. Escribir 20. | Texto de 19 y 20 caracteres | 2: aviso de mínimo 20 caracteres y no se envía. 3: sin aviso; se puede registrar. | | | CP-78_descripcion_otro_corta.png |
-| CP-79 | RF-03 | VAL | **Planificado.** Registro de incidencias. | 1. Elegir una fecha y hora 10 minutos en el futuro. 2. Enviar. | Ahora + 10 min | Aviso de fecha futura debajo del campo; no se envía. | | | CP-79_fecha_futura.png |
+| CP-70 | RF-01, RF-02 | VAL | `/login`. (Formulario de personal: planificado.) | 1. Escribir en el DNI con el teclado. 2. Salir del campo. | `1234567a b-` | El campo queda en `1234567`: no se escriben letras, espacios ni símbolos. Al salir: "El DNI debe tener 8 dígitos numéricos". | | Pendiente | CP-70_dni_con_letras.png |
+| CP-71 | RF-01, RF-02 | VAL | `/login`. (Personal: planificado.) | 1. Copiar el texto al portapapeles. 2. Pegarlo en el DNI (Ctrl+V). | `12a34b5678` | El campo queda en `12345678` (se conservan los dígitos, como máximo 8). | | Pendiente | CP-71_dni_pegado_con_letras.png |
+| CP-72 | RF-01, RF-02 | VAL | `/login`. (Personal: planificado.) | 1. Escribir 7 dígitos. 2. Pasar a la contraseña. 3. Escribir el octavo dígito. | `1000000` | 2: "El DNI debe tener 8 dígitos numéricos" debajo del DNI, borde rojo, botón "Ingresar" desactivado. 3: el aviso desaparece sin salir del campo. | | Pendiente | CP-72_dni_7_digitos.png |
+| CP-73 | RF-01, RF-02 | VAL | `/login`. (Personal: planificado.) | 1. Escribir 9 dígitos. 2. Vaciar y pegar 9 dígitos. | `100000001` | 1: el noveno no se escribe (`10000000`). 2: quedan los 8 primeros. | | Pendiente | CP-73_dni_9_digitos.png |
+| CP-74 | RF-02 | VAL | **Planificado (pantalla `/personal` pendiente).** Formulario de personal. | 1. Escribir números en nombres y apellidos. 2. Enviar. | `Luis2`, `Rojas3` | "Solo se permiten letras, espacios, apóstrofo y guion" debajo de cada campo; no se envía. La regla ya está en `validarNombre` (ver riesgo R-10). | | | CP-74_nombres_con_numeros.png |
+| CP-75 | RF-01, RF-02 | VAL | Sesión con contraseña temporal en `/cambiar-contrasena`. (Personal y restablecimiento: planificado.) | 1. Nueva de 7 caracteres y salir del campo. 2. De 73. 3. De 8, de 17 y de 72. | Cadenas de 7, 8, 17, 72 y 73 caracteres | 1 y 2: "La contraseña debe tener entre 8 y 72 caracteres". 3: sin aviso (17 ya no se rechaza; antes el límite era 16). Ayuda: "Entre 8 y 72 caracteres, distinta de la actual." | | Pendiente | CP-75_contrasena_longitud.png |
+| CP-76 | RF-01, RF-02 | VAL | `/cambiar-contrasena`. (Restablecimiento: planificado.) | 1. Escribir una confirmación distinta de la nueva y salir. 2. Escribir en la actual la misma que la nueva. | Nueva `aaaaaaaa`, confirmación `bbbbbbbb` | 1: "Las contraseñas no coinciden" debajo de la confirmación. 2: "La nueva contraseña debe ser distinta de la actual" debajo de la nueva. No se envía. | | Pendiente | CP-76_confirmacion_distinta.png |
+| CP-77 | RF-01, RF-02, RF-03, RF-09 | VAL | `/login`, `/cambiar-contrasena` y `/incidencias/nueva` (Vigilante con zona asignada). (Personal y zonas: planificado.) | 1. Pulsar el botón de guardar con los campos vacíos. 2. Revisar la pestaña Network. | Campos vacíos | Login: "Este campo es obligatorio" en DNI y contraseña. Cambio: en los tres campos. Incidencias: la zona preseleccionada no tiene aviso; "Elige un tipo de evento", "Elige un nivel de gravedad" y "Este campo es obligatorio" en la descripción. Foco en el primer campo con error. Ninguna petición en Network. | | Pendiente | CP-77_obligatorios_vacios.png |
+| CP-78 | RF-03 | VAL | `/incidencias/nueva`. | 1. Elegir "Otro". 2. Escribir 19 caracteres. 3. Escribir 19 rodeados de espacios. 4. Escribir 20. 5. Cambiar a "Robo" con 2 caracteres. | Textos de 19 y 20 caracteres | 2 y 3: 'Para el tipo "Otro" la descripción debe tener al menos 20 caracteres' y "Mínimo 20 caracteres para "Otro"" junto al contador. 4: sin aviso. 5: sin aviso. | | Pendiente | CP-78_descripcion_otro_corta.png |
+| CP-79 | RF-03 | VAL | `/incidencias/nueva`. | 1. "¿Ocurrió antes? Cambiar fecha y hora". 2. Elegir ahora + 10 min y salir. 3. Elegir hace una hora. | Ahora + 10 min; ahora − 1 h | 2: "La fecha y hora no puede ser futura" debajo del campo y botón desactivado. 3: sin aviso. Se aceptan 2 minutos de desfase, igual que el backend. | | Pendiente | CP-79_fecha_futura.png |
+| CP-84 | RF-01, RF-03 | VAL | `/login` y `/incidencias/nueva`. | 1. Abrir el formulario. 2. Entrar y salir de un campo sin escribir. 3. Escribir un valor válido. 4. Pulsar guardar con errores. 5. Inspeccionar el campo. | DNI vacío y luego `10000001` | 1: ningún aviso. 2: aviso solo en ese campo. 3: el aviso se va mientras se escribe y el botón se habilita. 4: avisos en todos los campos con error, foco en el primero (en incidencias, el primer botón del selector) y botón desactivado. 5: `aria-invalid="true"`, `aria-describedby="error-<campo>"` y borde rojo. | | Pendiente | CP-84_comportamiento_avisos.png |
+| CP-85 | RF-01, RF-03 | VAL | Backend en perfil `local`. Sesión con contraseña temporal. | 1. En `/cambiar-contrasena`, enviar con una actual incorrecta. 2. Corregirla. | Actual incorrecta, nueva válida | 1: "La contraseña actual o temporal no es correcta" debajo de "Contraseña actual o temporal", con el foco ahí. 2: el aviso del backend se borra al editar el campo. | | Pendiente | CP-85_error_backend_bajo_campo.png |
+| CP-86 | RF-03 | VAL | Backend en perfil `local`; Vigilante en `/incidencias/nueva`. | 1. Escribir la descripción con espacios al inicio y al final. 2. Ver el contador. 3. Registrar. 4. Revisar el cuerpo del `POST /api/incidencias` en Network. | `   Persona sospechosa   ` | 2: el contador muestra `n/2000` y el campo no admite más de 2000. 3: confirmación de registro y formulario sin avisos. 4: `descripcion` = `"Persona sospechosa"`. | | Pendiente | CP-86_contador_y_recorte.png |
+
+#### Detalle para automatizar con Playwright
+
+Cada campo tiene un `id` estable y su aviso el id `error-<campo>`:
+
+| Formulario | Ruta | Campos (`id`) | Botón |
+|---|---|---|---|
+| Login | `/login` | `dni`, `contrasena` | `getByRole("button", { name: "Ingresar" })` |
+| Cambio de contraseña | `/cambiar-contrasena` | `actual`, `nueva`, `confirmacion` | `getByRole("button", { name: "Cambiar contraseña" })` |
+| Registro de incidencias | `/incidencias/nueva` | `idZona`, `idTipo`, `idGravedad` (grupos `role="radiogroup"`; opciones con `getByRole("radio", { name })`), `descripcion`, `fecha` | `getByRole("button", { name: "Registrar incidencia" })` |
+
+Pautas:
+
+- Aserciones: `expect(page.locator("#error-dni")).toHaveText("El DNI debe tener 8 dígitos numéricos")`,
+  `toHaveAttribute("aria-invalid", "true")`, `expect(boton).toBeDisabled()`, `expect(page.locator("#dni")).toBeFocused()`
+  y `toHaveValue("12345678")` para el filtrado del DNI.
+- Escritura real con `page.keyboard.type` (CP-70, CP-73); pegado con `navigator.clipboard.writeText` + `Control+V`
+  y permisos `clipboard-read`/`clipboard-write` en el contexto (CP-71). `fill` no pasa por el bloqueo de teclas.
+- Para no enviar peticiones en CP-77 y CP-84, contar las peticiones a la API con `page.on("request")`. Los
+  formularios con sesión se pueden probar sin credenciales simulando la API con `page.route` (catálogos, 400 y 201) y
+  guardando una sesión ficticia en `localStorage` (clave `sgi.sesion`, con `expiraEn` futuro); CP-85 y CP-86 se
+  repiten además contra el backend real.
+- En `npm run dev`, el indicador flotante de Next tapa el botón fijo de "Registrar incidencia" en la vista de 360 px:
+  usar el build (`npm run build && npm run start`) o `devIndicators: false` en la configuración de Playwright.
+- Fechas para CP-79 con el formato de `datetime-local` (`AAAA-MM-DDTHH:mm`) en la hora del navegador.
 
 ### 5.12 Requerimientos no funcionales
 
@@ -331,9 +374,9 @@ Comandos (desde `backend/`; en Windows `.\mvnw.cmd` con `JAVA_HOME` en el JDK 21
 
 | Requerimiento | Casos |
 |---|---|
-| RF-01 | CP-01, CP-02 a CP-15, CP-70 a CP-73, CP-75 a CP-77 |
+| RF-01 | CP-01, CP-02 a CP-15, CP-70 a CP-73, CP-75 a CP-77, CP-84, CP-85 |
 | RF-02 | CP-01, CP-16 a CP-25, CP-70 a CP-77 |
-| RF-03 | CP-01, CP-26 a CP-33, CP-77 a CP-79 |
+| RF-03 | CP-01, CP-26 a CP-33, CP-77 a CP-79, CP-84 a CP-86 |
 | RF-04 | CP-01, CP-34 a CP-38 |
 | RF-05 | CP-01, CP-39 a CP-45 |
 | RF-06 | CP-01, CP-46 a CP-51 |
@@ -365,14 +408,15 @@ hay alternativa), **Media** (el RF se cumple con una alternativa o un error de p
 |---|---|---|---|---|
 | R-01 | Las consultas del historial, del dashboard, de los reportes y de la auditoría solo se probaron en H2. La serie por día usa `AT TIME ZONE` y `to_char`, cuya semántica en H2 no es idéntica, y en H2 `detalle_cambio` es `JSON` en lugar de `JSONB`. | CHANGELOG Fases 5, 6 y 8 | Conteos por día desplazados o errores en Supabase. | CP-34 a CP-37, CP-39 a CP-44, CP-46 a CP-49 y CP-55 a CP-57 se ejecutan contra Supabase con datos de borde de día. |
 | R-02 | Un token emitido antes de desactivar a un usuario, cambiarle el rol o restablecerle la contraseña sigue siendo válido hasta que vence (8 h); las reglas por rol usan el claim. | CHANGELOG Fases 2 y 4 | Acceso con permisos anteriores durante un turno. | Documentado; los servicios rechazan al actor inactivo y `/api/auth/yo` consulta la BD. Se verifica en CP-21. |
-| R-03 | El cambio de contraseña del frontend limita la nueva a 16 caracteres; la API acepta de 8 a 72. | CHANGELOG Fase 8 (cambio obligatorio) | Desalineación con el DTO. | Alinear en `validaciones.ts` (CP-75). |
+| R-03 | **Resuelto.** El cambio de contraseña del frontend limitaba la nueva a 16 caracteres; la API acepta de 8 a 72. | CHANGELOG Fase 8 (cambio obligatorio) | Desalineación con el DTO. | `validaciones.ts` usa 8 a 72 (CP-75). |
 | R-04 | La regla de descripción mínima de "Otro" depende del nombre del tipo de evento. | CHANGELOG Fase 3 | Si se renombra en la BD deja de aplicarse. | La API impide renombrar "Otro" (CP-67). |
 | R-05 | Para leer el nombre del archivo desde el navegador hace falta exponer `Content-Disposition` en CORS (`exposedHeaders`). | CHANGELOG Fase 6 | El botón de exportar no obtiene el nombre del archivo. | Revisar al construir el historial (CP-51). |
 | R-06 | Desactivar una zona no reasigna a sus vigilantes: siguen asignados y dejan de contarse en el despliegue. | CHANGELOG Fase 4 | Vigilantes "invisibles" en RF-07. | Reasignarlos desde personal; se observa en CP-53. |
 | R-07 | El rango personalizado acepta fechas futuras (devuelven 0 incidencias). | CHANGELOG Fase 5 | Resultados vacíos sin aviso. | Comportamiento aceptado; considerar aviso en el frontend. |
 | R-08 | El formulario de incidencias necesita conexión; no guarda registros sin red. | CHANGELOG Fase 7 | Pérdida del reporte en zonas sin cobertura. | Fuera de alcance (sección 1.3). |
-| R-09 | El frontend no tiene pruebas automatizadas; Playwright está por configurar. | CHANGELOG Fase 8 | Regresiones en pantallas sin detectar. | Casos E2E y VAL manuales con capturas hasta configurar Playwright. |
-| R-10 | El DTO de usuario solo limita la longitud de nombres y apellidos; no rechaza números. | `UsuarioCrearRequest`, `UsuarioActualizarRequest` | La validación del frontend (CP-74) no tendría equivalente en el backend. | Agregar la misma regla en ambos lados al crear `validaciones.ts`. |
+| R-09 | El frontend no tiene pruebas automatizadas; Playwright está por configurar. | CHANGELOG Fase 8 | Regresiones en pantallas sin detectar. | Casos E2E y VAL manuales con capturas hasta configurar Playwright; los VAL ya tienen selectores y pautas de automatización (sección 5.11). |
+| R-10 | El DTO de usuario solo limita la longitud de nombres y apellidos; no rechaza números ni símbolos. `validaciones.ts` sí lo hace (`validarNombre`). | `UsuarioCrearRequest`, `UsuarioActualizarRequest` | Una petición directa a la API (Postman) puede guardar `Luis2`. | Agregar `@Pattern` con la misma expresión en los DTO del backend. |
+| R-13 | El backend limita la contraseña a 72 caracteres, pero BCrypt admite 72 bytes: con tildes o ñ, 72 caracteres pueden superar 72 bytes. | `CambioContrasenaRequest`, `RestablecerContrasenaRequest`, `UsuarioCrearRequest` | Contraseñas largas con tildes rechazadas o truncadas al guardar. | El frontend usa el mismo límite en caracteres; revisar el límite en bytes en el backend. |
 | R-11 | Faltan en el environment de Postman las variables `accionAuditoria`, `qAuditoria`, `dniNuevo`, `contrasenaInicial` y `contrasenaActual`. | CHANGELOG Fase 8 y sección 2.2 | El Runner falla en esas peticiones. | Agregarlas antes de la primera corrida. |
 | R-12 | Varias pantallas aún no existen (historial, dashboard con gráficos, personal, catálogos, auditoría). | Estado de la Fase 8 | Casos planificados sin ejecutar al acercarse el cierre. | Cronograma de la sección 10; se ejecutan conforme se terminan. |
 
@@ -384,7 +428,7 @@ hay alternativa), **Media** (el RF se cumple con una alternativa o un error de p
 | 16 – 20 nov | Ejecutar los casos de API y seguridad contra Supabase (prioridad: lo probado solo en H2). | CP-02 a CP-24, CP-26 a CP-30, CP-34 a CP-37, CP-39 a CP-44, CP-46 a CP-50, CP-52 a CP-62, CP-64 a CP-68, CP-80, CP-81, CP-83 |
 | 23 nov | **Aprobación del plan de pruebas integrales.** | — |
 | 18 – 24 nov | Ejecutar los E2E, rendimiento y usabilidad de las pantallas existentes (login, cambio obligatorio, registro móvil). | CP-13 a CP-15, CP-31 a CP-33 |
-| 23 – 29 nov | Validaciones de formularios en cuanto exista `validaciones.ts`; configurar Playwright. | CP-70 a CP-79 |
+| 16 – 29 nov | Validaciones de formularios (login, cambio de contraseña, registro); configurar Playwright. Los de personal y zonas, al existir esas pantallas. | CP-70 a CP-79, CP-84 a CP-86 |
 | 25 nov – 3 dic | E2E de las pantallas nuevas conforme se terminan (dashboard, historial con exportación y auditoría, personal, catálogos). | CP-25, CP-38, CP-45, CP-51, CP-63, CP-69, CP-82 |
 | 1 – 5 dic | Corregir defectos y repetir los casos fallidos; generar evidencias (`index.html`, `reporte_pruebas.pdf`). | Casos fallidos |
 | 6 – 8 dic | Pruebas de humo en el entorno desplegado (Fase 9) y cierre. **Puesta en producción: 8 dic** (límite máximo del Charter: 15 dic). | CP-02, CP-26, CP-32, CP-46, CP-50 |
