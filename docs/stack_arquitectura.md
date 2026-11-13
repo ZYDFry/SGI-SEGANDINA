@@ -124,9 +124,11 @@ Prefijo `/api`. Todo requiere JWT salvo el login.
 | `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |
 | `GET /dashboard/despliegue` | Administrador, Supervisor | RF-07 |
 | `GET /reportes/excel?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento` y `GET /reportes/pdf?...` (mismos filtros que RF-04, sin paginación; responden el archivo como adjunto) | Administrador, Supervisor | RF-06 |
-| `GET /auditoria?desde&hasta&accion&page&size` | Administrador | RF-08 |
+| `GET /auditoria?periodo&desde&hasta&accion&idUsuario&q&page&size` (rango común sobre `fecha_hora`, `size` de 1 a 100) | Administrador | RF-08 |
+| `GET /auditoria/acciones` (valor y etiqueta de cada acción, para el filtro) | Administrador | RF-08 |
 
-Formato de error uniforme: `{ "timestamp", "status", "mensaje", "detalles": [] }`.
+Formato de error uniforme: `{ "timestamp", "status", "mensaje", "detalles": [] }`. Los 400 por query params indican el
+campo en `detalles` (`"campo: motivo"`), también los del filtro de rango (`desde`, `hasta` o `periodo`).
 
 ## 5. Despliegue
 

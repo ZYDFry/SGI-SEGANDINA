@@ -12,6 +12,7 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 import com.segandina.sgi.config.RelojConfig;
+import com.segandina.sgi.exception.ParametroInvalidoException;
 import com.segandina.sgi.exception.ReglaNegocioException;
 
 /**
@@ -102,6 +103,18 @@ class RangoFechasTest {
 	void rangoInvertidoSeRechaza() {
 		assertThrows(ReglaNegocioException.class, () -> RangoFechas.resolver(Periodo.PERSONALIZADO,
 				LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 1), RELOJ));
+	}
+
+	@Test
+	void cadaRechazoIndicaElCampo() {
+		assertEquals("desde", assertThrows(ParametroInvalidoException.class, () -> RangoFechas.resolver(
+				Periodo.PERSONALIZADO, LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 1), RELOJ)).getCampo());
+		assertEquals("hasta", assertThrows(ParametroInvalidoException.class, () -> RangoFechas.resolver(
+				Periodo.PERSONALIZADO, LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 2), RELOJ)).getCampo());
+		assertEquals("hasta", assertThrows(ParametroInvalidoException.class, () -> RangoFechas.resolver(
+				Periodo.PERSONALIZADO, LocalDate.of(2026, 10, 1), null, RELOJ)).getCampo());
+		assertEquals("periodo", assertThrows(ParametroInvalidoException.class, () -> RangoFechas.resolver(
+				Periodo.HOY, LocalDate.of(2026, 10, 1), null, RELOJ)).getCampo());
 	}
 
 	@Test

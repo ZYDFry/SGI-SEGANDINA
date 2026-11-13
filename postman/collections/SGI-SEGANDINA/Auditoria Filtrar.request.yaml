@@ -1,0 +1,33 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auditoria?periodo={{periodo}}&accion={{accionAuditoria}}&page=0&size=20&desde={{desde}}&hasta={{hasta}}"
+method: GET
+queryParams:
+  - key: periodo
+    value: "{{periodo}}"
+    disabled: false
+    description: ""
+  - key: accion
+    value: "{{accionAuditoria}}"
+    disabled: false
+    description: ""
+  - key: q
+    value: "{{qAuditoria}}"
+    disabled: true
+    description: ""
+  - key: page
+    value: "0"
+    disabled: false
+    description: ""
+  - key: size
+    value: "20"
+    disabled: false
+    description: ""
+  - key: desde
+    value: "{{desde}}"
+    disabled: false
+    description: ""
+  - key: hasta
+    value: "{{hasta}}"
+    disabled: false
+    description: ""
+order: 13100

@@ -1,9 +1,21 @@
 $kind: http-request
-url: "{{baseUrl}}/api/reportes/excel?periodo={{periodo}}&idZona=&idNivelGravedad=&idTipoEvento="
+url: "{{baseUrl}}/api/reportes/excel?periodo={{periodo}}&idZona=1&idNivelGravedad=&idTipoEvento="
 method: GET
 queryParams:
-  periodo: "{{periodo}}"
-  idZona: ""
-  idNivelGravedad: ""
-  idTipoEvento: ""
+  - key: periodo
+    value: "{{periodo}}"
+    disabled: false
+    description: ""
+  - key: idZona
+    value: "1"
+    disabled: false
+    description: ""
+  - key: idNivelGravedad
+    value: ""
+    disabled: false
+    description: ""
+  - key: idTipoEvento
+    value: ""
+    disabled: false
+    description: ""
 order: 12000

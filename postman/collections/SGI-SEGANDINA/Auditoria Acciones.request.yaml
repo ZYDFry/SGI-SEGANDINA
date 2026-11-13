@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auditoria/acciones"
+method: GET
+order: 13200

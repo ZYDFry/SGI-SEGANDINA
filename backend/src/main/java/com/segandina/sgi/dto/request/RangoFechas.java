@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 
 import com.segandina.sgi.config.RelojConfig;
-import com.segandina.sgi.exception.ReglaNegocioException;
+import com.segandina.sgi.exception.ParametroInvalidoException;
 
 /**
  * Rango de días (ambos inclusive, en hora de Lima) sobre el que se filtran las incidencias por
@@ -34,13 +34,14 @@ public record RangoFechas(LocalDate desde, LocalDate hasta) {
 	 * @param hasta   último día; solo se acepta (y es obligatorio) con {@link Periodo#PERSONALIZADO}
 	 * @param reloj   reloj de la aplicación (se usa en hora de Lima, sea cual sea su zona)
 	 * @return el rango resuelto
-	 * @throws ReglaNegocioException si se envían fechas sin {@code PERSONALIZADO}, si faltan con
-	 *         {@code PERSONALIZADO}, si {@code desde > hasta} o si el rango supera {@link #MAX_DIAS} días
+	 * @throws ParametroInvalidoException si se envían fechas sin {@code PERSONALIZADO} (campo {@code periodo}), si
+	 *         falta alguna con {@code PERSONALIZADO} ({@code desde} o {@code hasta}), si {@code desde > hasta}
+	 *         ({@code desde}) o si el rango supera {@link #MAX_DIAS} días ({@code hasta})
 	 */
 	public static RangoFechas resolver(Periodo periodo, LocalDate desde, LocalDate hasta, Clock reloj) {
 		Periodo elegido = periodo != null ? periodo : PERIODO_POR_DEFECTO;
 		if (elegido != Periodo.PERSONALIZADO && (desde != null || hasta != null)) {
-			throw new ReglaNegocioException("Las fechas desde y hasta solo se aceptan con periodo=PERSONALIZADO");
+			throw new ParametroInvalidoException("periodo", "Las fechas desde y hasta solo se aceptan con periodo=PERSONALIZADO");
 		}
 		LocalDate hoy = LocalDate.now(reloj.withZone(RelojConfig.ZONA_LIMA));
 		return switch (elegido) {
@@ -55,14 +56,14 @@ public record RangoFechas(LocalDate desde, LocalDate hasta) {
 
 	private static RangoFechas personalizado(LocalDate desde, LocalDate hasta) {
 		if (desde == null || hasta == null) {
-			throw new ReglaNegocioException("Con periodo=PERSONALIZADO debe enviar desde y hasta (AAAA-MM-DD)");
+			throw new ParametroInvalidoException(desde == null ? "desde" : "hasta", "Con periodo=PERSONALIZADO debe enviar desde y hasta (AAAA-MM-DD)");
 		}
 		if (desde.isAfter(hasta)) {
-			throw new ReglaNegocioException("La fecha desde no puede ser posterior a hasta");
+			throw new ParametroInvalidoException("desde", "La fecha desde no puede ser posterior a hasta");
 		}
 		RangoFechas rango = new RangoFechas(desde, hasta);
 		if (rango.dias() > MAX_DIAS) {
-			throw new ReglaNegocioException("El rango no puede superar " + MAX_DIAS + " días");
+			throw new ParametroInvalidoException("hasta", "El rango no puede superar " + MAX_DIAS + " días");
 		}
 		return rango;
 	}

@@ -30,7 +30,13 @@ public record IncidenciaHistorialResponse(Long idIncidencia, OffsetDateTime fech
 	 */
 	public record Registrador(Long idUsuario, String dni, String nombreCompleto) {
 
-		static Registrador desde(Usuario usuario) {
+		/**
+		 * Toma los datos públicos del usuario (sin contraseña ni rol).
+		 *
+		 * @param usuario entidad origen
+		 * @return el resumen del usuario
+		 */
+		public static Registrador desde(Usuario usuario) {
 			StringBuilder nombre = new StringBuilder(usuario.getNombres()).append(' ')
 					.append(usuario.getApellidoPaterno());
 			if (usuario.getApellidoMaterno() != null && !usuario.getApellidoMaterno().isBlank()) {

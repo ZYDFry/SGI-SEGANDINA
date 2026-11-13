@@ -737,3 +737,73 @@ Prueba manual (backend con `./mvnw spring-boot:run -Dspring-boot.run.profiles=lo
 5. Cambio válido → `/login` con "Contraseña actualizada, inicia sesión con la nueva." La temporal ya no sirve; la
    nueva lleva al inicio del rol.
 6. "Cerrar sesión" desde la pantalla de cambio → `/login` sin aviso; al entrar con la temporal vuelve a pedir el cambio.
+
+## Consulta de auditoría (RF-08)
+
+El Administrador puede consultar la tabla `auditoria` con `GET /api/auditoria`: paginada, del registro más reciente
+al más antiguo y con filtros opcionales y combinables por rango de fechas (el mismo de historial y dashboard),
+acción, usuario y DNI. `GET /api/auditoria/acciones` entrega las acciones válidas con su etiqueta en español para
+el filtro del frontend. La consulta solo lee: no inserta registros de auditoría.
+
+### Clases nuevas y modificadas
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `AuditoriaController` (nueva) | `controller` | `/api/auditoria`, solo Administrador (regla `/api/auditoria/**` de `SecurityConfig`, sin cambios). Recibe y valida los query params (`page >= 0`, `size` de 1 a 100) y delega. | `buscar(AuditoriaFiltro, page, size)` → `PaginaResponse<AuditoriaResponse>`; `acciones()` → `List<AccionAuditoriaResponse>` (`GET /acciones`). |
+| `AuditoriaFiltro` (nueva) | `dto.request` | Record con `periodo`, `desde`, `hasta`, `accion` (`AccionAuditoria`), `idUsuario` (`@Positive`) y `q` (`@Pattern [0-9]{0,8}`; vacío = sin filtro). | — |
+| `AuditoriaResponse` (nueva) | `dto.response` | Fila de la consulta: `idAuditoria`, `fechaHora` (en hora de Lima), `accion`, `accionEtiqueta`, `usuario` (`Registrador` o `null`), `dniIntentado`, `detalle` (objeto JSON). | `desde(Auditoria)`. |
+| `AccionAuditoriaResponse` (nueva) | `dto.response` | `{ valor, etiqueta }` de una acción. | `desde(AccionAuditoria)`. |
+| `ParametroInvalidoException` (nueva) | `exception` | Subclase de `ReglaNegocioException` con el nombre del query param rechazado. | `getCampo()`. |
+| `AccionAuditoria` (modificado) | `model` | Cada acción lleva una etiqueta en español. | `getEtiqueta()`; `etiquetaDe(String)`: etiqueta del valor guardado, o el mismo texto si no es una acción conocida. |
+| `AuditoriaDao` (modificado) | `dao` | Sigue extendiendo solo `Repository` (sin `delete` ni `update`). Constante `ORDEN_AUDITORIA` (`fechaHora` e `idAuditoria` descendentes). | `findAll(Specification, Pageable)` con `@EntityGraph("usuario")`: un SELECT con LEFT JOIN al usuario, sin N+1. `conFiltros(RangoFechas, AuditoriaFiltro)`: `fecha_hora` en `[inicio, fin)`, acción exacta, usuario, y `q` como prefijo (`LIKE 'q%'`) del DNI del usuario o del DNI intentado. `count()`. |
+| `AuditoriaService` / `AuditoriaServiceImpl` (modificados) | `service` / `service.impl` | Agrega la consulta, en transacción de solo lectura; recibe el `Clock` de la aplicación. Constante `TAMANO_MAXIMO = 100`. | `buscar(filtro, pagina, tamano)` → `Page<AuditoriaResponse>` (lanza `ParametroInvalidoException` si la página, el tamaño o el rango no son válidos); `acciones()` → todas las acciones en el orden del enum. |
+| `RangoFechas` (modificado) | `dto.request` | `resolver(...)` lanza `ParametroInvalidoException` con el campo: `periodo` (fechas sin `PERSONALIZADO`), `desde`/`hasta` (fecha faltante), `desde` (rango invertido), `hasta` (más de 366 días). Afecta también a historial, dashboard y reportes: mismo mensaje y ahora el campo en `detalles`. | Sin cambios de firma. |
+| `GlobalExceptionHandler` (modificado) | `exception` | `ParametroInvalidoException` → 400 con `"campo: mensaje"` en `detalles`. `HandlerMethodValidationException` (restricciones en `@RequestParam` junto con un `@Valid`) → 400 con un detalle por parámetro o campo, p. ej. `"size: debe estar entre 1 y 100"` o `"q: debe tener solo dígitos, hasta 8"`. | — |
+| `IncidenciaHistorialResponse.Registrador` (modificado) | `dto.response` | `desde(Usuario)` pasa a ser público para reutilizarlo en la auditoría (id, DNI y nombre completo, sin contraseña ni rol). | `desde(Usuario)`. |
+
+### Flujo: `GET /api/auditoria?accion=LOGIN_FALLIDO&q=4040&size=10`
+
+1. `SecurityConfig` valida el JWT y exige `ROLE_Administrador` (401 sin token; 403 con otro rol o con cambio de
+   contraseña pendiente).
+2. Spring arma `AuditoriaFiltro` desde los query params. Un valor de `accion` que no está en el enum o un `periodo`
+   desconocido producen `BindException`; `q` o `idUsuario` inválidos y `size` fuera de 1..100 producen
+   `HandlerMethodValidationException`. En ambos casos responde 400 con el campo en `detalles`.
+3. `AuditoriaController.buscar` delega en `AuditoriaServiceImpl.buscar`, que resuelve el rango con
+   `RangoFechas.resolver` (sin periodo, últimos 30 días en Lima) y arma `PageRequest(page, size, ORDEN_AUDITORIA)`.
+4. `AuditoriaDao.findAll(conFiltros(rango, filtro), pageable)` ejecuta un SELECT con LEFT JOIN a `usuario`
+   (`fecha_hora >= inicio AND fecha_hora < fin AND accion_realizada = 'LOGIN_FALLIDO' AND
+   (u.dni LIKE '4040%' OR a.dni_intentado LIKE '4040%')`) y un SELECT de conteo. Aprovecha los índices
+   `idx_auditoria_fecha` e `idx_auditoria_usuario`.
+5. Cada `Auditoria` se convierte en `AuditoriaResponse` y el controller responde con `PaginaResponse`.
+
+### Cómo probar
+
+```
+cd backend
+./mvnw verify
+```
+Tests de esta funcionalidad:
+- `AuditoriaServiceImplTest` (H2 en modo PostgreSQL, reloj fijo el 24/10/2026 12:00 en Lima): rango por defecto
+  (excluye un registro de hace 30 días), periodo `HOY` con el borde de las 00:00 y `PERSONALIZADO`, filtros por
+  acción, usuario y DNI (exacto, prefijo, DNI intentado, vacío), combinaciones, orden descendente con desempate por
+  id, fila con DNI inexistente (`usuario` nulo y `dniIntentado`), nombre completo y detalle JSON, paginación,
+  parámetros inválidos con su campo, que la consulta no inserte filas y la lista de acciones.
+- `AuditoriaDaoTest` (H2): el usuario llega cargado en la misma consulta, orden descendente, intervalo semiabierto
+  del día en Lima y búsqueda por prefijo.
+- `AuditoriaControllerTest` (seguridad real, servicio simulado): Administrador 200 con el JSON esperado y sin
+  `contrasena`; valores por defecto `page=0` y `size=20`; parámetros vacíos sin filtro; `/acciones` 200; Supervisor
+  y Vigilante 403; cambio de contraseña pendiente 403; sin token 401; `size=101`, `accion=BORRAR`, `q=12ab`,
+  `periodo=AYER` y rango invertido 400 con el campo en `detalles`.
+- `RangoFechasTest`: cada rechazo indica su campo.
+
+Prueba manual con la aplicación en perfil `local` y Postman (environment con `baseUrl`, `token` de un
+Administrador, `periodo`, `accionAuditoria` y `qAuditoria`):
+1. "Auditoria Listar" → 200; el primer registro es el `LOGIN_OK` del login recién hecho y `fechaHora` termina en
+   `-05:00`.
+2. Hacer un login con un DNI que no exista y luego "Auditoria Filtrar" con `periodo=HOY` y
+   `accionAuditoria=LOGIN_FALLIDO` → la fila trae `usuario: null`, `dniIntentado` y
+   `detalle.motivo = "DNI_NO_REGISTRADO"`. Con `qAuditoria` = los primeros dígitos de ese DNI aparece la misma fila.
+3. "Auditoria Acciones" → 16 acciones con su etiqueta.
+4. Con token de Supervisor → 403; con `size=101` o `accion=BORRAR` → 400 con el campo en `detalles`.
+5. En la BD, `SELECT count(*) FROM auditoria;` antes y después de consultar: no cambia (salvo por los logins que
+   hagas).

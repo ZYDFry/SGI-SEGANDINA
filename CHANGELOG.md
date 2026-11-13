@@ -12,6 +12,43 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 / RF-08 — Consulta de auditoría en el backend
+- Qué se hizo:
+  - `GET /api/auditoria` (solo Administrador): paginado (`page` desde 0, `size` de 1 a 100, por defecto 20), orden
+    por `fecha_hora` descendente con desempate por id y el mismo formato de página que el historial. Filtros
+    opcionales y combinables: rango común (`periodo`, `desde`, `hasta`; por defecto últimos 30 días en Lima, máximo
+    366 días), `accion`, `idUsuario` y `q` (DNI exacto o por prefijo, sobre el DNI del usuario y el DNI intentado;
+    vacío = sin filtro).
+  - Cada fila: `idAuditoria`, `fechaHora` en hora de Lima con desfase, `accion`, `accionEtiqueta`, `usuario`
+    (`idUsuario`, `dni`, `nombreCompleto`) o `null` con solo `dniIntentado` si el DNI no existe, y `detalle` como
+    objeto JSON. Sin contraseñas, hashes, rol ni estado.
+  - `GET /api/auditoria/acciones` (solo Administrador): `{valor, etiqueta}` de las 16 acciones.
+  - `AuditoriaDao` sigue sin métodos de borrado ni actualización; la consulta usa `Specification` con
+    `@EntityGraph` (un SELECT con LEFT JOIN al usuario, sin N+1). Consultar no inserta registros de auditoría.
+  - Errores 400 con el campo en `detalles` para `periodo`, fechas, rango invertido o mayor a 366 días, `accion`,
+    `q`, `idUsuario`, `page` y `size`. `RangoFechas` ahora lanza `ParametroInvalidoException` (subclase de
+    `ReglaNegocioException`): el historial, el dashboard y los reportes conservan su mensaje y ahora también
+    traen el campo en `detalles`.
+  - Postman: "Auditoria Listar", "Auditoria Filtrar" (variables `{{periodo}}`, `{{accionAuditoria}}`,
+    `{{qAuditoria}}`) y "Auditoria Acciones", con `{{baseUrl}}` y el `{{token}}` de la colección.
+  - Docs: contrato de RF-08 en `docs/requerimientos_funcionales.md`, endpoints en `docs/stack_arquitectura.md`,
+    sección "Consulta de auditoría (RF-08)" en `docs/referencia_clases.md`.
+- Archivos clave: `controller/AuditoriaController.java`, `dto/request/AuditoriaFiltro.java`,
+  `dto/response/{AuditoriaResponse,AccionAuditoriaResponse}.java`, `exception/ParametroInvalidoException.java`,
+  `dao/AuditoriaDao.java`, `service/AuditoriaService.java`, `service/impl/AuditoriaServiceImpl.java`,
+  `model/AccionAuditoria.java`, `dto/request/RangoFechas.java`, `exception/GlobalExceptionHandler.java`,
+  `dto/response/IncidenciaHistorialResponse.java`; tests `service/impl/AuditoriaServiceImplTest`,
+  `dao/AuditoriaDaoTest`, `dao/TablaAuditoriaH2` (ayuda para la tabla en H2), `controller/AuditoriaControllerTest`,
+  `dto/request/RangoFechasTest`; `postman/collections/SGI-SEGANDINA/Auditoria *.request.yaml`.
+- Cómo probarlo: `cd backend && ./mvnw verify` → pasan 210 tests (27 nuevos). Prueba manual con Postman en
+  `docs/referencia_clases.md`, sección "Consulta de auditoría (RF-08)".
+- Pendientes o problemas conocidos:
+  - La consulta se probó contra H2 (con la tabla recreada con `JSON` en lugar de `JSONB`); falta ejecutarla contra
+    Supabase.
+  - Agregar las variables `accionAuditoria` y `qAuditoria` al environment de Postman.
+  - Los casos `CP-xx` de esta funcionalidad se agregan cuando se cree `docs/plan_pruebas_integrales.md`.
+  - Pantalla de auditoría en el frontend (pestaña del historial).
+
 ## [2026-11-13] Fase 8 — README inicial e instrucciones del proyecto actualizadas
 - Qué se hizo:
   - `README.md` nuevo en la raíz: descripción, tecnologías con versiones, estructura de carpetas (`backend`,

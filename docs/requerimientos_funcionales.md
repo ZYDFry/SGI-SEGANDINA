@@ -130,7 +130,8 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 
 - **Cómo se calculan los periodos** (con "hoy" según la hora de Lima): `HOY` = hoy; `ULTIMOS_7_DIAS` = hoy y los 6 días anteriores; `ULTIMOS_30_DIAS` = hoy y los 29 anteriores; `MES_ACTUAL` = del día 1 del mes a hoy; `ANIO_ACTUAL` = del 1 de enero a hoy.
 - **Límites del día:** se calculan en la zona horaria America/Lima sobre `fecha_hora`. La consulta usa el intervalo semiabierto `[desde 00:00, (hasta + 1 día) 00:00)` en hora de Lima, así que una incidencia de las 23:59:59 entra en su día y una de las 00:00:00 del día siguiente no.
-- **Validaciones (400):** `desde` posterior a `hasta`; rango personalizado de más de 366 días (un año bisiesto completo es el máximo); `PERSONALIZADO` sin alguna de las fechas; fechas enviadas sin `PERSONALIZADO`; `periodo` o fecha con formato no válido.
+- **Validaciones (400):** `desde` posterior a `hasta`; rango personalizado de más de 366 días (un año bisiesto completo es el máximo); `PERSONALIZADO` sin alguna de las fechas; fechas enviadas sin `PERSONALIZADO`; `periodo` o fecha con formato no válido. La respuesta indica el campo en `detalles` (por ejemplo `"desde: La fecha desde no puede ser posterior a hasta"`; el rango excesivo y la fecha faltante se informan en `hasta` o `desde`, y las fechas sin `PERSONALIZADO` en `periodo`).
+- La consulta de auditoría (RF-08) usa el mismo filtro de rango, aplicado sobre `auditoria.fecha_hora`.
 - Un id de zona, nivel o tipo que no existe no es error: simplemente no devuelve resultados.
 
 ## RF-04 Historial y filtros (Prioridad: Alta)
@@ -202,8 +203,35 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
     - `CAMBIAR_CONTRASENA`: `{idUsuario, origen: "propio", cambioObligatorio}`; `cambioObligatorio: true` indica que
       el usuario reemplazó una contraseña temporal.
   - El log se escribe en la misma transacción que la acción (excepto `LOGIN_FALLIDO`).
-  - Consulta solo para Administrador, con filtros por fecha y acción (pantalla "Historial de Incidencias y Auditoría").
-- **Criterios de aceptación:** cada acción listada deja un registro; intentar modificar o borrar un log falla en la BD.
+  - Consulta solo para Administrador, con filtros por fecha, acción, usuario y DNI (pantalla "Historial de Incidencias y Auditoría"). Consultar la auditoría no genera registros de auditoría.
+- **Endpoint de consulta:** `GET /api/auditoria` (solo Administrador; Supervisor y Vigilante reciben 403, sin token 401, y un token con cambio de contraseña pendiente 403).
+
+| Parámetro | Valores | Descripción |
+|---|---|---|
+| `periodo`, `desde`, `hasta` | los del filtro de rango común | Sin valor, últimos 30 días. Días calculados en America/Lima, máximo 366. |
+| `accion` | un valor de `GET /api/auditoria/acciones` | Solo registros de esa acción. Vacío = sin filtro. |
+| `idUsuario` | id positivo | Solo registros hechos por ese usuario. |
+| `q` | de 0 a 8 dígitos | DNI completo o sus primeros dígitos; busca en el DNI del usuario y en el DNI intentado (`dni_intentado`). Vacío = sin filtro. |
+| `page` | desde 0 (por defecto 0) | Página. |
+| `size` | 1 a 100 (por defecto 20) | Tamaño de página. Fuera de ese rango es 400 (no se acota). |
+
+  - Orden por `fecha_hora` descendente y, a igual fecha, por id descendente.
+  - Respuesta con el mismo formato de página que el historial (`contenido`, `pagina`, `tamano`, `totalElementos`, `totalPaginas`). Cada fila:
+    ```json
+    {
+      "idAuditoria": 152,
+      "fechaHora": "2026-11-13T09:15:02.481-05:00",
+      "accion": "LOGIN_FALLIDO",
+      "accionEtiqueta": "Inicio de sesión fallido",
+      "usuario": null,
+      "dniIntentado": "40404040",
+      "detalle": { "motivo": "DNI_NO_REGISTRADO" }
+    }
+    ```
+    `fechaHora` va en hora de Lima con su desfase. `usuario` es `{ idUsuario, dni, nombreCompleto }` cuando la acción tiene autor y `null` cuando el DNI no existe (entonces solo viene `dniIntentado`). `dniIntentado` solo tiene valor en los intentos de login. `detalle` es el contenido de `detalle_cambio` como objeto JSON (o `null`). No se devuelve contraseña, hash, rol ni estado del usuario.
+  - Errores 400 en el formato uniforme, con el campo en `detalles`: `periodo` o fechas no válidos, rango invertido o mayor a 366 días, `accion` desconocida (`"accion: valor no válido 'BORRAR'"`), `q` con letras o más de 8 dígitos, `idUsuario` no positivo, `page` negativo o `size` fuera de 1..100 (`"size: debe estar entre 1 y 100"`).
+- **Endpoint de acciones:** `GET /api/auditoria/acciones` (solo Administrador): lista, en el orden del enum, de `{ "valor": "LOGIN_OK", "etiqueta": "Inicio de sesión correcto" }` para cada acción, para llenar el filtro del frontend.
+- **Criterios de aceptación:** cada acción listada deja un registro; intentar modificar o borrar un log falla en la BD; la consulta devuelve solo lo que cumple todos los filtros, de lo más reciente a lo más antiguo, y no agrega filas a `auditoria`.
 
 ## RF-09 Gestión de zonas y catálogos (Prioridad: Media)
 

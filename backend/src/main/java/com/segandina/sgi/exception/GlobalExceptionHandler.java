@@ -2,6 +2,7 @@ package com.segandina.sgi.exception;
 
 import java.util.List;
 
+import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +10,10 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -22,6 +26,12 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(CredencialesInvalidasException.class)
 	public ResponseEntity<ErrorRespuesta> credencialesInvalidas(CredencialesInvalidasException ex) {
 		return responder(HttpStatus.UNAUTHORIZED, ex.getMessage(), List.of());
+	}
+
+	/** Query param con un valor que incumple una regla (p. ej. rango invertido): 400 con el campo en detalles. */
+	@ExceptionHandler(ParametroInvalidoException.class)
+	public ResponseEntity<ErrorRespuesta> parametroInvalido(ParametroInvalidoException ex) {
+		return responder(HttpStatus.BAD_REQUEST, ex.getMessage(), List.of(ex.getCampo() + ": " + ex.getMessage()));
 	}
 
 	/** Regla de negocio incumplida: 400 con el motivo. */
@@ -73,6 +83,25 @@ public class GlobalExceptionHandler {
 				List.of(ex.getName() + ": valor no válido '" + ex.getValue() + "'"));
 	}
 
+	/**
+	 * Query params que incumplen una restricción cuando el método del controller valida parámetros sueltos
+	 * ({@code @Min}, {@code @Max}; p. ej. {@code size=101}) y objetos con {@code @Valid} a la vez: 400 con un detalle
+	 * por parámetro o por campo.
+	 */
+	@ExceptionHandler(HandlerMethodValidationException.class)
+	public ResponseEntity<ErrorRespuesta> restriccionParametro(HandlerMethodValidationException ex) {
+		List<String> detalles = ex.getParameterValidationResults().stream()
+				.flatMap(resultado -> resultado instanceof ParameterErrors errores
+						// Objeto de filtros con @Valid: un detalle por campo del objeto
+						? errores.getFieldErrors().stream()
+								.map(error -> error.getField() + ": " + error.getDefaultMessage())
+						: resultado.getResolvableErrors().stream()
+								.map(error -> nombreParametro(resultado.getMethodParameter()) + ": "
+										+ error.getDefaultMessage()))
+				.toList();
+		return responder(HttpStatus.BAD_REQUEST, "Parámetros de consulta inválidos", detalles);
+	}
+
 	/** Cuerpo ausente o JSON mal formado: 400. */
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorRespuesta> cuerpoIlegible(HttpMessageNotReadableException ex) {
@@ -86,6 +115,15 @@ public class GlobalExceptionHandler {
 						? error.getField() + ": valor no válido '" + error.getRejectedValue() + "'"
 						: error.getField() + ": " + error.getDefaultMessage())
 				.toList();
+	}
+
+	// Nombre con el que llega el query param (el de @RequestParam si lo declara, si no el del parámetro)
+	private static String nombreParametro(MethodParameter parametro) {
+		RequestParam anotacion = parametro.getParameterAnnotation(RequestParam.class);
+		if (anotacion != null && !anotacion.name().isBlank()) {
+			return anotacion.name();
+		}
+		return parametro.getParameterName();
 	}
 
 	private static ResponseEntity<ErrorRespuesta> responder(HttpStatus status, String mensaje, List<String> detalles) {
