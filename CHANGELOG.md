@@ -12,6 +12,35 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Plan de pruebas integrales y scripts de prueba en Postman
+- Qué se hizo:
+  - `docs/plan_pruebas_integrales.md` nuevo: objetivo, alcance (RF-01 a RF-09, RNF-01 a RNF-05) y fuera de alcance,
+    entorno, estrategia por tipo de prueba, criterios de entrada y salida, 83 casos `CP-01` a `CP-83` (resultado
+    obtenido y estado vacíos; evidencia esperada `CP-xx_descripcion.png`), pruebas existentes con sus comandos,
+    matriz de trazabilidad, plantilla de defectos, riesgos y cronograma hasta el 8 de diciembre de 2026.
+  - Prioridad a lo que solo se probó en H2: historial, dashboard (día, semana y mes en hora de Lima, con datos de
+    borde de día), reportes Excel y PDF y consulta de auditoría, ahora con casos contra Supabase. Casos de
+    inmutabilidad de `auditoria` (triggers, privilegios de `app_sgi` y RLS).
+  - Los casos de pantallas aún no hechas (personal, historial, dashboard con gráficos, exportación, auditoría,
+    catálogos) y los de validación de formularios quedan como planificados.
+  - Colección Postman: las 38 peticiones tienen un script `afterResponse` que comprueba el código de estado de
+    éxito del perfil Administrador (200, 201 o 204); los reportes además comprueban `Content-Type` y que el archivo
+    venga como adjunto. "Login" comprueba el 200, que venga el token sin la contraseña y que quede guardado en
+    `token`.
+  - Se quitaron las credenciales escritas en los cuerpos: "Usuarios Crear" usa `{{dniNuevo}}` y
+    `{{contrasenaInicial}}`; "Usuarios Mi Contrasena" usa `{{contrasenaActual}}` y `{{contrasenaNueva}}`.
+- Archivos clave: `docs/plan_pruebas_integrales.md`, `postman/collections/SGI-SEGANDINA/*.request.yaml`.
+- Cómo probarlo:
+  - `postman collection lint postman/collections/SGI-SEGANDINA` → sin errores ni advertencias.
+  - Agregar al environment local las variables de la sección 2.2 del plan, iniciar el backend en perfil `local` y
+    correr la colección con el Runner empezando por "Login" (como Administrador, sin "Usuarios Mi Contrasena").
+- Pendientes o problemas conocidos:
+  - Ejecutar los casos y llenar resultado obtenido, estado y evidencias en `docs/evidencias/pruebas/`.
+  - Agregar al environment `dniNuevo`, `contrasenaInicial`, `contrasenaActual`, `accionAuditoria` y `qAuditoria`.
+  - Configurar Playwright; mientras tanto los casos E2E y de validación son manuales.
+  - El DTO de usuario no rechaza números en nombres y el cambio de contraseña del frontend limita a 16 caracteres
+    (riesgos R-10 y R-03 del plan): alinear al crear `frontend/src/lib/validaciones.ts`.
+
 ## [2026-11-13] Fase 8 / RF-08 — Consulta de auditoría en el backend
 - Qué se hizo:
   - `GET /api/auditoria` (solo Administrador): paginado (`page` desde 0, `size` de 1 a 100, por defecto 20), orden
