@@ -4,14 +4,40 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import Cargando from "@/components/Cargando";
+import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
 import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido";
 import { useSesion } from "@/context/SesionContext";
-import { errorDeApi, type ErrorApi } from "@/lib/api";
+import { errorDeApi } from "@/lib/api";
 import { cargarCatalogos, registrarIncidencia, type Catalogos } from "@/lib/servicios";
 import type { IncidenciaResponse, NivelGravedad } from "@/lib/tipos";
+import { useValidacion } from "@/lib/useValidacion";
+import {
+  DESCRIPCION_MAX,
+  DESCRIPCION_MIN_OTRO,
+  erroresDelServidor,
+  esTipoOtro,
+  validarIncidencia,
+  type CampoIncidencia,
+  type ReglaServidor,
+} from "@/lib/validaciones";
 
-const MAX_DESCRIPCION = 2000;
-const MIN_DESCRIPCION_OTRO = 20;
+const ORDEN: readonly CampoIncidencia[] = ["idZona", "idTipo", "idGravedad", "descripcion", "fecha"];
+// Nombre del campo en IncidenciaRequest → campo del formulario.
+const MAPA_SERVIDOR: Record<string, CampoIncidencia> = {
+  idZona: "idZona",
+  idTipoEvento: "idTipo",
+  idNivelGravedad: "idGravedad",
+  descripcion: "descripcion",
+  fechaHora: "fecha",
+};
+// Reglas de negocio del backend (400 sin detalles) que se muestran bajo su campo.
+const REGLAS_SERVIDOR: ReglaServidor<CampoIncidencia>[] = [
+  { contiene: "zona seleccionada", campo: "idZona" },
+  { contiene: "tipo de evento seleccionado", campo: "idTipo" },
+  { contiene: "nivel de gravedad seleccionado", campo: "idGravedad" },
+  { contiene: "descripción debe tener al menos", campo: "descripcion" },
+  { contiene: "no puede ser futura", campo: "fecha" },
+];
 
 // Colores por orden de gravedad: 1 Baja verde, 2 Media amarillo, 3 Alta naranja, 4 Crítica rojo.
 const COLORES_GRAVEDAD: Record<number, { normal: string; marcada: string }> = {
@@ -63,8 +89,15 @@ export default function FormularioIncidencia() {
   const [fechaMaxima, setFechaMaxima] = useState("");
 
   const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<ErrorApi | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [registrada, setRegistrada] = useState<IncidenciaResponse | null>(null);
+
+  const tipoElegido = catalogos?.tipos.find((t) => t.idTipoEvento === idTipo);
+  const esOtro = esTipoOtro(tipoElegido?.nombreTipoEvento);
+  const validacion = useValidacion(
+    validarIncidencia({ idZona, idTipo, idGravedad, descripcion, fecha: fechaManual, esOtro }),
+    ORDEN,
+  );
 
   const cargar = useCallback(() => {
     cargarCatalogos()
@@ -99,34 +132,9 @@ export default function FormularioIncidencia() {
   }
   if (!catalogos) return <Cargando texto="Cargando formulario…" />;
 
-  const tipoElegido = catalogos.tipos.find((t) => t.idTipoEvento === idTipo);
-  const esOtro = tipoElegido?.nombreTipoEvento.trim().toLowerCase() === "otro";
-  const minimo = esOtro ? MIN_DESCRIPCION_OTRO : 1;
-
-  function validar(): string | null {
-    if (idZona === null) return "Elige la zona.";
-    if (idTipo === null) return "Elige el tipo de evento.";
-    if (idGravedad === null) return "Elige el nivel de gravedad.";
-    if (descripcion.trim().length < minimo) {
-      return esOtro
-        ? `Para el tipo "Otro" describe lo ocurrido con al menos ${MIN_DESCRIPCION_OTRO} caracteres.`
-        : "Escribe una descripción.";
-    }
-    if (fechaManual !== null) {
-      if (!fechaManual) return "Indica la fecha y hora en que ocurrió.";
-      if (new Date(fechaManual).getTime() > Date.now()) return "La fecha y hora no puede ser futura.";
-    }
-    return null;
-  }
-
   async function enviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    if (enviando) return;
-    const problema = validar();
-    if (problema) {
-      setError({ status: null, mensaje: problema, detalles: [] });
-      return;
-    }
+    if (enviando || !validacion.intentarEnviar()) return;
     setError(null);
     setEnviando(true);
     try {
@@ -138,17 +146,28 @@ export default function FormularioIncidencia() {
         ...(fechaManual ? { fechaHora: aIsoConOffset(fechaManual) } : {}),
       });
       setRegistrada(incidencia);
-      // Listo para otro registro: se conserva la zona.
+      // Listo para otro registro: se conserva la zona y se quitan los avisos.
       setIdTipo(null);
       setIdGravedad(null);
       setDescripcion("");
       setFechaManual(null);
+      validacion.reiniciar();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      setError(errorDeApi(e));
+      const { campos, general } = erroresDelServidor(errorDeApi(e), MAPA_SERVIDOR, REGLAS_SERVIDOR);
+      validacion.ponerErroresServidor(campos);
+      setError(general);
     } finally {
       setEnviando(false);
     }
+  }
+
+  /** Cambia una selección y borra el aviso del backend de ese campo. */
+  function elegir(campo: CampoIncidencia, asignar: (valor: number) => void) {
+    return (valor: number) => {
+      asignar(valor);
+      validacion.alCambiar(campo);
+    };
   }
 
   function alternarFecha() {
@@ -159,7 +178,11 @@ export default function FormularioIncidencia() {
     } else {
       setFechaManual(null);
     }
+    validacion.alCambiar("fecha");
   }
+
+  const errorDescripcion = validacion.error("descripcion");
+  const errorFecha = validacion.error("fecha");
 
   return (
     <form onSubmit={enviar} noValidate className="mx-auto max-w-lg space-y-5 pb-28 sm:pb-6">
@@ -177,24 +200,36 @@ export default function FormularioIncidencia() {
 
       <SelectorRapido
         titulo="Zona"
+        campo="idZona"
         opciones={catalogos.zonas.map((z) => ({ valor: z.idZona, etiqueta: z.nombreZona }))}
         valor={idZona}
-        onCambio={setIdZona}
+        onCambio={elegir("idZona", setIdZona)}
+        error={validacion.error("idZona")}
+        onSalir={() => validacion.alSalir("idZona")}
+        refPrimero={validacion.registrar("idZona")}
       />
 
       <SelectorRapido
         titulo="Tipo de evento"
+        campo="idTipo"
         opciones={catalogos.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento }))}
         valor={idTipo}
-        onCambio={setIdTipo}
+        onCambio={elegir("idTipo", setIdTipo)}
+        error={validacion.error("idTipo")}
+        onSalir={() => validacion.alSalir("idTipo")}
+        refPrimero={validacion.registrar("idTipo")}
       />
 
       <SelectorRapido
         titulo="Nivel de gravedad"
+        campo="idGravedad"
         opciones={opcionesGravedad(catalogos.niveles)}
         valor={idGravedad}
-        onCambio={setIdGravedad}
+        onCambio={elegir("idGravedad", setIdGravedad)}
         columnas={4}
+        error={validacion.error("idGravedad")}
+        onSalir={() => validacion.alSalir("idGravedad")}
+        refPrimero={validacion.registrar("idGravedad")}
       />
 
       <div>
@@ -202,18 +237,23 @@ export default function FormularioIncidencia() {
           Descripción
         </label>
         <textarea
-          id="descripcion"
+          {...validacion.propsCampo("descripcion")}
+          aria-describedby={errorDescripcion ? "error-descripcion contador-descripcion" : "contador-descripcion"}
           rows={4}
-          maxLength={MAX_DESCRIPCION}
+          maxLength={DESCRIPCION_MAX}
           value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
+          onChange={(e) => {
+            setDescripcion(e.target.value);
+            validacion.alCambiar("descripcion");
+          }}
           placeholder="¿Qué pasó? Personas, vehículos, acciones tomadas…"
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base focus:border-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900/20"
+          className={`w-full rounded-lg border bg-white px-3 py-2 text-base focus:outline-none focus:ring-2 ${bordeCampo(!!errorDescripcion)}`}
         />
-        <div className="mt-1 flex justify-between text-xs text-slate-500">
-          <span>{esOtro ? `Mínimo ${MIN_DESCRIPCION_OTRO} caracteres para "Otro"` : ""}</span>
+        <MensajeCampo campo="descripcion" mensaje={errorDescripcion} />
+        <div id="contador-descripcion" className="mt-1 flex justify-between text-xs text-slate-500">
+          <span>{esOtro ? `Mínimo ${DESCRIPCION_MIN_OTRO} caracteres para "Otro"` : ""}</span>
           <span>
-            {descripcion.length}/{MAX_DESCRIPCION}
+            {descripcion.length}/{DESCRIPCION_MAX}
           </span>
         </div>
       </div>
@@ -225,33 +265,33 @@ export default function FormularioIncidencia() {
         {fechaManual === null ? (
           <p className="mt-1 text-xs text-slate-500">Se registrará con la hora actual.</p>
         ) : (
-          <input
-            type="datetime-local"
-            aria-label="Fecha y hora en que ocurrió"
-            value={fechaManual}
-            max={fechaMaxima}
-            onChange={(e) => setFechaManual(e.target.value)}
-            className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base focus:border-blue-900 focus:outline-none"
-          />
+          <>
+            <input
+              {...validacion.propsCampo("fecha")}
+              type="datetime-local"
+              aria-label="Fecha y hora en que ocurrió"
+              value={fechaManual}
+              max={fechaMaxima}
+              onChange={(e) => {
+                setFechaManual(e.target.value);
+                validacion.alCambiar("fecha");
+              }}
+              className={`mt-2 w-full rounded-lg border bg-white px-3 py-2 text-base focus:outline-none focus:ring-2 ${bordeCampo(!!errorFecha)}`}
+            />
+            <MensajeCampo campo="fecha" mensaje={errorFecha} />
+          </>
         )}
       </div>
 
-      {error && (
-        <Alerta tipo="error">
-          <p>{error.mensaje}</p>
-          {error.detalles.length > 0 && (
-            <ul className="mt-1 list-inside list-disc">
-              {error.detalles.map((detalle) => (
-                <li key={detalle}>{detalle}</li>
-              ))}
-            </ul>
-          )}
-        </Alerta>
-      )}
+      {error && <Alerta tipo="error">{error}</Alerta>}
 
       {/* En el celular el botón queda fijo abajo, al alcance del pulgar */}
       <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
-        <Boton type="submit" variante="peligro" disabled={enviando} className="mx-auto block w-full max-w-lg py-4 text-lg">
+        <Boton
+          type="submit"
+          variante="peligro"
+          disabled={enviando || validacion.hayErroresVisibles}
+          className="mx-auto block w-full max-w-lg py-4 text-lg">
           {enviando ? "Registrando…" : "Registrar incidencia"}
         </Boton>
       </div>

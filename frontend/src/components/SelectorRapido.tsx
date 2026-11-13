@@ -1,5 +1,9 @@
 "use client";
 
+import type { FocusEvent } from "react";
+import MensajeCampo from "@/components/MensajeCampo";
+import { idError } from "@/lib/useValidacion";
+
 export interface OpcionSelector {
   valor: number;
   etiqueta: string;
@@ -13,6 +17,14 @@ interface Props {
   valor: number | null;
   onCambio: (valor: number) => void;
   columnas?: 2 | 3 | 4;
+  /** Nombre del campo: id del grupo y del aviso (`error-<campo>`). */
+  campo?: string;
+  /** Aviso a mostrar debajo del grupo. */
+  error?: string;
+  /** Se llama cuando el foco sale del grupo (no al pasar de un botón a otro). */
+  onSalir?: () => void;
+  /** Ref del primer botón, para enfocarlo si el grupo es el primer campo con error. */
+  refPrimero?: (elemento: HTMLElement | null) => void;
 }
 
 const CLASES_POR_DEFECTO = {
@@ -23,17 +35,39 @@ const CLASES_POR_DEFECTO = {
 const GRILLA = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-2 sm:grid-cols-4" } as const;
 
 /** Grupo de botones grandes que funciona como un radio: pensado para tocar con el pulgar. */
-export default function SelectorRapido({ titulo, opciones, valor, onCambio, columnas = 2 }: Props) {
+export default function SelectorRapido({
+  titulo,
+  opciones,
+  valor,
+  onCambio,
+  columnas = 2,
+  campo,
+  error,
+  onSalir,
+  refPrimero,
+}: Props) {
+  function alSalirDelGrupo(evento: FocusEvent<HTMLFieldSetElement>) {
+    if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) onSalir?.();
+  }
+
   return (
-    <fieldset>
+    <fieldset onBlur={alSalirDelGrupo}>
       <legend className="mb-2 text-sm font-semibold text-slate-700">{titulo}</legend>
-      <div role="radiogroup" aria-label={titulo} className={`grid gap-2 ${GRILLA[columnas]}`}>
-        {opciones.map((opcion) => {
+      <div
+        id={campo}
+        role="radiogroup"
+        aria-label={titulo}
+        aria-invalid={!!error}
+        aria-describedby={error && campo ? idError(campo) : undefined}
+        className={`grid gap-2 rounded-lg ${GRILLA[columnas]} ${error ? "outline-2 outline-offset-2 outline-red-500" : ""}`}
+      >
+        {opciones.map((opcion, indice) => {
           const marcada = opcion.valor === valor;
           const clases = opcion.clases ?? CLASES_POR_DEFECTO;
           return (
             <button
               key={opcion.valor}
+              ref={indice === 0 ? refPrimero : undefined}
               type="button"
               role="radio"
               aria-checked={marcada}
@@ -48,6 +82,7 @@ export default function SelectorRapido({ titulo, opciones, valor, onCambio, colu
           );
         })}
       </div>
+      {campo && <MensajeCampo campo={campo} mensaje={error} />}
     </fieldset>
   );
 }
