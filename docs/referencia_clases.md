@@ -893,7 +893,8 @@ Administrador. Todas usan el mismo selector de periodo y un menú lateral que mu
 | `/historial/auditoria` | Pestaña de auditoría | Administrador (`ROLES_ADMIN`) | `GET /api/auditoria`, `GET /api/auditoria/acciones` |
 
 Menú por rol (`lib/roles.ts`, `MENU`): el Administrador ve Dashboard, Historial, Auditoría y Registrar incidencia; el
-Supervisor, Dashboard e Historial; el Vigilante solo tiene el formulario y no ve menú lateral. Si alguien escribe una
+Supervisor, Dashboard e Historial; el Vigilante, el formulario de registro (las opciones de personal, catálogos y
+"Cambiar mi contraseña" se describen en la sección de personal y catálogos). Si alguien escribe una
 ruta que su rol no tiene, `RutaProtegida` lo lleva a su pantalla de inicio. La autorización real la hace la API.
 
 ### Módulos nuevos y modificados (`frontend/src/lib/`)
@@ -960,7 +961,101 @@ Con el backend en el perfil `local`:
    `incidencias_AAAA-MM-DD.xlsx` y `.pdf`).
 3. Escribir `/historial/auditoria` como Supervisor: vuelve a `/dashboard`. Como Administrador: filtrar por "Inicio de
    sesión fallido" y un DNI parcial; el detalle se lee sin JSON.
-4. Como Vigilante: no hay menú lateral y `/dashboard` o `/historial` lo devuelven al formulario.
+4. Como Vigilante: el menú no ofrece Dashboard ni Historial, y `/dashboard` o `/historial` lo devuelven al formulario.
 5. Con el backend detenido, cada gráfico y tabla muestra su error con "Reintentar".
 
 Los casos completos son CP-13, CP-38, CP-45, CP-51, CP-63, CP-82, CP-87 y CP-88 del plan de pruebas integrales.
+
+## Frontend — personal, catálogos y cambio de contraseña (RF-02, RF-09)
+
+Pantallas de administración del frontend: la gestión de personal (alta, edición, reasignación de zona, restablecer
+contraseña y activar o desactivar), los catálogos con pestañas para zonas, tipos de evento y niveles de gravedad, y
+"Cambiar mi contraseña" para cualquier usuario. Todo formulario valida con `lib/validaciones.ts` (mismos límites y
+mensajes que los DTO) y muestra los errores del backend bajo el campo que corresponde.
+
+### Rutas y acceso
+
+| Ruta | Pantalla | Roles (`RutaProtegida`) | Endpoints que usa |
+|---|---|---|---|
+| `/personal` | Gestión de personal | Administrador (`ROLES_ADMIN`) | `GET/POST /api/usuarios`, `PUT /api/usuarios/{id}`, `PATCH /api/usuarios/{id}/estado`, `PATCH /api/usuarios/{id}/contrasena`, `GET /api/catalogos/roles`, `GET /api/catalogos/zonas` |
+| `/catalogos` | Catálogos: Zonas | Administrador | `GET/POST /api/zonas`, `PUT /api/zonas/{id}`, `PATCH /api/zonas/{id}/estado`; para el aviso de vigilantes, `GET /api/catalogos/roles` y `GET /api/usuarios?idZona=&idRol=&activo=true&size=1` |
+| `/catalogos/tipos-evento` | Catálogos: Tipos de evento | Administrador | `GET/POST /api/tipos-evento`, `PUT /api/tipos-evento/{id}`, `PATCH /api/tipos-evento/{id}/estado` |
+| `/catalogos/niveles-gravedad` | Catálogos: Niveles de gravedad | Administrador | `GET /api/niveles-gravedad`, `PUT /api/niveles-gravedad/{id}` |
+| `/mi-contrasena` | Cambiar mi contraseña | Administrador, Supervisor, Vigilante (`ROLES_TODOS`) | `PATCH /api/usuarios/me/contrasena` |
+
+Menú por rol (`MENU` en `lib/roles.ts`): el Administrador ve Dashboard, Historial, Auditoría, Registrar incidencia,
+Personal y Catálogos; el Supervisor, Dashboard e Historial; el Vigilante, Registrar incidencia. Todos ven al pie,
+bajo "Mi cuenta", "Cambiar mi contraseña"; por eso el Vigilante también tiene "☰ Menú" en el celular. Un Supervisor
+o Vigilante que escribe `/personal` o `/catalogos` es llevado a su pantalla de inicio; la API además responde 403.
+
+### Módulos nuevos y modificados (`frontend/src/lib/`)
+
+| Archivo | Responsabilidad | Funciones principales |
+|---|---|---|
+| `tipos.ts` (modificado) | DTO de la gestión. | `RolCatalogo`, `UsuarioGestion` (= `UsuarioResponse`, sin contraseña), `UsuarioRequest` (`contrasena: null` conserva la actual), `FiltroUsuarios`, `ZonaRequest`, `FiltroZonas`. |
+| `servicios.ts` (modificado) | Llamadas a la API de RF-02 y RF-09; los filtros vacíos no se envían. | `listarRoles()`, `listarZonasActivas()`. `buscarUsuarios(filtro, page, size)` → `Pagina<UsuarioGestion>`. `crearUsuario(req)`, `actualizarUsuario(id, req)`, `cambiarEstadoUsuario(id, activo)` → `UsuarioGestion`. `restablecerContrasena(id, nueva)` (204). `contarVigilantesActivos(idZona, idRolVigilante)` → número (usa `totalElementos` de una página de tamaño 1). `buscarZonas(filtro, page, size)`, `crearZona`, `actualizarZona`, `cambiarEstadoZona`. `listarTiposEvento()`, `crearTipoEvento(nombre)`, `actualizarTipoEvento(id, nombre)`, `cambiarEstadoTipoEvento(id, activo)`. `listarNiveles()`, `actualizarNivel(id, nombre, orden)`. |
+| `validaciones.ts` (modificado) | Reglas de los formularios nuevos. | `validarUsuario(campos, esVigilante, conContrasena)`: DNI de 8 dígitos, nombres (80) y apellidos (50) solo con letras, espacios, apóstrofo y guion, apellido materno opcional, rol obligatorio ("Elige un rol"), zona obligatoria para el Vigilante ("El Vigilante debe tener una zona asignada") y, al crear, contraseña de 8 a 72 con confirmación. `validarRestablecer({nueva, confirmacion})`. `validarZona(campos)`: nombre 80, departamento 50, provincia 50, distrito 80, referencia 150 y descripción 2000 (las dos últimas opcionales). `validarTipoEvento` (30). `validarNivel`: nombre 20 y orden entero de 1 a 32767 (`validarOrden`). `validarTexto(valor, max, opcional)` evalúa el texto recortado, como lo guarda el backend. |
+| `roles.ts` (modificado) | Menú y acceso. | `ROLES_TODOS`, `RUTA_MI_CONTRASENA`; opciones Personal, Catálogos y "Cambiar mi contraseña" (`cuenta: true`). `opcionActiva(ruta, opciones)` → `href` de la opción con el prefijo más largo (así `/catalogos/tipos-evento` marca "Catálogos" y `/historial/auditoria` marca "Auditoría"). |
+
+### Componentes (`frontend/src/components/`)
+
+| Componente | Responsabilidad | Props principales |
+|---|---|---|
+| `Modal` (nuevo) | Diálogo `role="dialog"` con `aria-modal` y título enlazado; enfoca el primer campo, se cierra con Escape, "✕" o el fondo (salvo `bloqueado` mientras guarda) y devuelve el foco. Ocupa toda la pantalla en el celular. | `titulo`, `subtitulo?`, `onCerrar`, `bloqueado?`, `ancho?` (`sm`, `md`, `lg`). |
+| `DialogoConfirmacion` (nuevo) | Confirmación antes de activar o desactivar. Muestra "Procesando…" y, si la API responde con error, el mensaje dentro del diálogo. | `titulo`, `textoConfirmar`, `variante?` (`peligro` o `primario`), `onConfirmar: () => Promise<void>`, `onCerrar`. |
+| `CampoTexto`, `EnvolturaCampo` (nuevos) | Etiqueta, control, aviso en rojo (`error-<campo>`) y ayuda enlazados por `aria-describedby`. `EnvolturaCampo` sirve para selects y textareas. | `etiqueta`, `props` (de `useValidacion().propsCampo`), `valor`, `onCambio`, `error?`, `ayuda?`, `opcional?`. También exporta `bloquearNoDigitos` (impide teclear algo que no sea dígito en un DNI; lo usan el login y el formulario de personal), `describirCampo` y `ESTILO_CAMPO`. |
+| `EtiquetaEstado` (nuevo) | Pastilla Activo/Inactivo (Activa/Inactiva con `femenino`). | `activo`, `femenino?`. |
+| `FormularioCambioContrasena` (movido desde `app/cambiar-contrasena/`) | Contraseña actual, nueva (8 a 72, distinta de la actual) y confirmación. | `modo`: `obligatorio` (por defecto; al guardar cierra la sesión y lleva al login) o `voluntario` (la sesión sigue abierta, muestra "Contraseña actualizada…" y "Volver al inicio"). |
+| `MenuLateral`, `MarcoPrivado` (modificados) | Resaltan la opción con `opcionActiva` y separan "Mi cuenta" al pie. | Sin cambios de props. |
+
+### Páginas (`frontend/src/app/(privado)/`)
+
+| Archivo | Qué muestra |
+|---|---|
+| `personal/GestionPersonal.tsx` | Búsqueda por DNI o nombre, filtros de rol, zona y estado, tabla (Nombre, DNI, Rol, Zona, Estado, Acciones) con paginación y aviso de éxito tras cada acción. En la propia fila ("(tú)") "Desactivar" y "Restablecer contraseña" están desactivados. |
+| `personal/FormularioUsuario.tsx` | Modal de alta y edición. Al crear pide la contraseña temporal con confirmación y avisa que el usuario deberá cambiarla en su primer ingreso; al editar no la pide (se envía `contrasena: null`). El rol queda bloqueado al editarse a sí mismo. Errores del backend bajo su campo: DNI duplicado (409), zona inactiva o faltante, quitarse el rol de Administrador. |
+| `personal/CampoZona.tsx` | Selector de zona: zonas activas más la zona actual del usuario, marcada "(inactiva)" si ya no lo está. |
+| `personal/ReasignarZona.tsx` | Modal que solo cambia la zona: `PUT /api/usuarios/{id}` con los datos actuales de la fila y la zona nueva. |
+| `personal/RestablecerContrasena.tsx` | Modal con la nueva contraseña temporal y su confirmación → `PATCH /api/usuarios/{id}/contrasena`. |
+| `personal/nombreCompleto.ts` | `nombreCompleto(usuario)` → "Apellido paterno Apellido materno, Nombres". |
+| `catalogos/PestanasCatalogos.tsx` | Título y pestañas Zonas, Tipos de evento y Niveles de gravedad (cada una es una ruta). |
+| `catalogos/GestionZonas.tsx` | Filtros por nombre, departamento → provincia → distrito en cascada (opciones tomadas de las zonas existentes, porque la API compara esos campos por igualdad exacta), estado y texto libre; tabla paginada; confirmación de activar o desactivar. Al desactivar cuenta los vigilantes activos de la zona y avisa que siguen asignados y dejan de contarse en el despliegue hasta cambiarles la zona, con enlace a Personal. |
+| `catalogos/FormularioZona.tsx` | Modal de alta y edición de zona con sugerencias (`datalist`) de departamentos, provincias y distritos ya usados; nombre duplicado (409) bajo el nombre. |
+| `catalogos/tipos-evento/GestionTiposEvento.tsx` | Lista de todos los tipos, alta y renombrado en un modal, activar o desactivar con confirmación. "Otro" tiene "Editar" desactivado. |
+| `catalogos/niveles-gravedad/GestionNiveles.tsx` | Lista por orden con el color de cada nivel; modal para nombre y orden que avisa con qué nivel se intercambiará el orden. |
+| `mi-contrasena/page.tsx` | `FormularioCambioContrasena` en modo `voluntario`, dentro del marco con encabezado y menú. |
+
+### Flujo: crear un Vigilante con un DNI que ya existe
+
+1. En `/personal`, "+ Agregar personal" abre `FormularioUsuario`. Al elegir el rol Vigilante, `validarUsuario` exige la
+   zona; los avisos aparecen al salir de cada campo o al pulsar "Crear usuario", y si hay alguno no se envía nada.
+2. Con datos válidos, `crearUsuario` envía `POST /api/usuarios` con
+   `{ dni, nombres, apellidoPaterno, apellidoMaterno, contrasena, idRol, idZona }` y el token.
+3. `UsuarioController.crear` → `UsuarioService.crear` encuentra el DNI y lanza `DatoDuplicadoException`;
+   `GlobalExceptionHandler` responde 409 `{ mensaje: "Ya existe un usuario con el DNI …", detalles: [] }`.
+4. `erroresDelServidor` reconoce la regla y `useValidacion.ponerErroresServidor` muestra "Ya existe un usuario con este
+   DNI" bajo el DNI y lo enfoca; el aviso se borra al editar el campo. Con un DNI nuevo la API responde 201, el
+   usuario queda con `debe_cambiar_contrasena = true`, el modal se cierra y la tabla se recarga con el aviso
+   "Se creó a … Su contraseña es temporal: deberá cambiarla en su primer ingreso."
+
+### Cómo probar
+
+```
+cd frontend
+npm run lint
+npm run build
+npm run dev
+```
+
+Con el backend en el perfil `local`:
+
+1. Como Administrador, `/personal`: crear un Vigilante sin zona (aviso), con zona (aviso de contraseña temporal),
+   repetir su DNI (409 bajo el DNI), reasignarle la zona, desactivarlo y activarlo, y restablecerle la contraseña.
+2. Entrar como ese Vigilante: pide cambiar la temporal; después del restablecimiento la vuelve a pedir.
+3. `/catalogos`: desactivar una zona con vigilantes y leer el número en la confirmación; filtrar por ubicación.
+4. `/catalogos/tipos-evento`: crear un tipo y verlo en `/incidencias/nueva`; "Otro" no se puede editar.
+5. `/catalogos/niveles-gravedad`: cambiar el orden de un nivel al de otro y ver el intercambio.
+6. Con cada rol, "Cambiar mi contraseña" desde el menú; la sesión sigue abierta.
+7. Como Supervisor y Vigilante: no aparecen Personal ni Catálogos y las rutas escritas en la barra redirigen.
+
+Los casos completos son CP-25, CP-69, CP-70 a CP-77 y CP-90 a CP-103 del plan de pruebas integrales.

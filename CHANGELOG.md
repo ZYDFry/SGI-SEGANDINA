@@ -12,6 +12,38 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Gestión de personal, catálogos y "Cambiar mi contraseña" en el frontend
+- Qué se hizo:
+  - `/personal` (solo Administrador): tabla de usuarios con búsqueda por DNI o nombre, filtros de rol, zona y estado y
+    paginación; alta y edición en un modal (la zona es obligatoria para el Vigilante y el alta aclara que la contraseña
+    es temporal y deberá cambiarse en el primer ingreso), reasignar zona, restablecer contraseña (nueva temporal de 8 a
+    72 caracteres con confirmación, `PATCH /api/usuarios/{id}/contrasena`) y activar o desactivar con confirmación. En
+    la propia fila no se puede desactivar, restablecer la contraseña ni cambiar el rol.
+  - `/catalogos` (solo Administrador) con pestañas: Zonas (filtros por nombre, departamento → provincia → distrito,
+    estado y texto libre; crear, editar, activar y desactivar; al desactivar muestra cuántos vigilantes activos siguen
+    asignados y que dejan de contarse en el despliegue hasta cambiarles la zona), Tipos de evento (crear, renombrar,
+    activar y desactivar; "Otro" no se puede renombrar) y Niveles de gravedad (nombre y orden, con aviso del
+    intercambio).
+  - "Cambiar mi contraseña" (`/mi-contrasena`) en el menú de todos los roles, bajo "Mi cuenta". Reutiliza el formulario
+    del cambio obligatorio en modo voluntario: al guardar, la sesión sigue abierta. El Vigilante ahora tiene menú.
+  - Errores del backend bajo su campo: DNI duplicado (409), nombre de zona, tipo o nivel duplicado (409), zona inactiva
+    o faltante, quitarse el rol de Administrador, renombrar "Otro". "No puede desactivar su propia cuenta" se vería en
+    el diálogo de confirmación.
+  - Validaciones nuevas en `validaciones.ts` con los límites de los DTO. Componentes comunes `Modal`,
+    `DialogoConfirmacion`, `CampoTexto` y `EtiquetaEstado`. El menú marca la opción con el prefijo más largo de la ruta.
+  - No se modificó el backend: todos los endpoints existían.
+- Archivos clave: `frontend/src/app/(privado)/personal/`, `frontend/src/app/(privado)/catalogos/`,
+  `frontend/src/app/(privado)/mi-contrasena/page.tsx`, `frontend/src/components/{Modal,DialogoConfirmacion,CampoTexto,EtiquetaEstado,FormularioCambioContrasena,MenuLateral}.tsx`,
+  `frontend/src/lib/{servicios,tipos,validaciones,roles}.ts`, `docs/plan_pruebas_integrales.md` (CP-25, CP-69, CP-70 a
+  CP-77, CP-82 y nuevos CP-90 a CP-103), `docs/referencia_clases.md`, `docs/ui_pantallas.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build` (sin errores); luego `npm run dev` con el backend en
+  perfil `local` y seguir CP-25, CP-69 y CP-90 a CP-103.
+- Pendientes o problemas conocidos:
+  - Falta probar las pantallas en el navegador (los casos siguen en estado `Pendiente`).
+  - Las opciones de ubicación del filtro de zonas salen de las primeras 100 zonas (límite de `size` del listado).
+  - No hay peticiones nuevas de Postman: las pantallas usan endpoints que ya están en la colección (usuarios, zonas,
+    tipos de evento, niveles y contraseñas).
+
 ## [2026-11-13] Fase 8 — Selector de zona con búsqueda en el registro de incidencias
 - Qué se hizo:
   - `SelectorBuscable`: desplegable con buscador para elegir la zona en `/incidencias/nueva`, en lugar de un botón

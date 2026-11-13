@@ -21,8 +21,13 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 | `/historial` | Historial de incidencias con filtros y exportación | Administrador, Supervisor | RF-04, RF-06 |
 | `/historial/auditoria` | Pestaña de auditoría del historial | Administrador | RF-08 |
 | `/personal` | Gestión de personal | Administrador | RF-02 |
+| `/catalogos` | Catálogos: pestaña Zonas | Administrador | RF-09 |
+| `/catalogos/tipos-evento` | Catálogos: pestaña Tipos de evento | Administrador | RF-09 |
+| `/catalogos/niveles-gravedad` | Catálogos: pestaña Niveles de gravedad | Administrador | RF-09 |
+| `/mi-contrasena` | Cambiar mi contraseña (voluntario) | Administrador, Supervisor, Vigilante | RF-02 |
+| `/cambiar-contrasena` | Cambio obligatorio de la contraseña temporal (sin menú) | Cualquier rol con contraseña temporal | RF-01 |
 
-Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. El menú lateral muestra solo las opciones permitidas para el rol (Administrador: dashboard, historial, auditoría y registro; Supervisor: dashboard e historial; el Vigilante, con una sola pantalla, no tiene menú lateral), y las rutas verifican el rol también al escribirlas en la barra.
+Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. El menú lateral muestra solo las opciones permitidas para el rol (Administrador: dashboard, historial, auditoría, registro, personal y catálogos; Supervisor: dashboard e historial; Vigilante: registro) y, al pie, bajo "Mi cuenta", "Cambiar mi contraseña" para todos. En escritorio es una barra fija; en tablet y celular se abre con "☰ Menú" (también el Vigilante). Las rutas verifican el rol también al escribirlas en la barra: con otro rol se redirige a la pantalla de inicio.
 
 ## Pantallas
 
@@ -53,9 +58,25 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
   de cada registro en texto legible.
 
 ### 5. Gestión de personal (panel Administrador)
-- Tabla: nombre, DNI, Rol, Zona asignada, Estado.
-- Botón "+ Agregar Personal" (formulario/modal), editar y activar/desactivar.
+- Tabla: nombre, DNI, Rol, Zona asignada, Estado, con búsqueda por DNI o nombre, filtros de rol, zona y estado y paginación.
+- Botón "+ Agregar personal" (modal): DNI, nombres, apellidos, rol, zona (obligatoria para el Vigilante) y una contraseña
+  temporal con confirmación; el formulario aclara que el usuario deberá cambiarla en su primer ingreso.
+- Acciones por fila: Editar, Reasignar zona, Restablecer contraseña (nueva temporal con confirmación) y
+  Activar/Desactivar con confirmación. En la propia fila no se puede desactivar, restablecer la contraseña ni cambiar el rol.
+
+### 6. Catálogos (panel Administrador)
+- Pestañas: Zonas, Tipos de evento y Niveles de gravedad.
+- Zonas: filtros por nombre, departamento → provincia → distrito (en cascada), estado y texto libre; crear y editar
+  (departamento, provincia, distrito, referencia y descripción) y activar/desactivar. Al desactivar avisa cuántos
+  vigilantes activos siguen asignados y que dejan de contarse en el despliegue hasta cambiarles la zona.
+- Tipos de evento: crear, renombrar y activar/desactivar; "Otro" no se puede renombrar.
+- Niveles de gravedad: editar nombre y orden; si el orden lo tiene otro nivel, se intercambian.
+
+### 7. Cambiar mi contraseña
+- Contraseña actual, nueva (8 a 72, distinta de la actual) y confirmación. Al guardar, la sesión sigue abierta y se
+  muestra la confirmación. Es el mismo formulario del cambio obligatorio de la contraseña temporal.
 
 ## Responsive
 
-El documento del proyecto incluye una ilustración de "Diseño Responsive". Reglas: formulario del vigilante pensado desde móvil hacia arriba; dashboard, historial y personal pensados para escritorio, utilizables en tablet.
+El documento del proyecto incluye una ilustración de "Diseño Responsive". Reglas: formulario del vigilante pensado desde móvil hacia arriba; dashboard, historial, personal y catálogos pensados para escritorio, utilizables en tablet; los formularios de
+personal y catálogos se abren en un modal que en el celular ocupa toda la pantalla.
