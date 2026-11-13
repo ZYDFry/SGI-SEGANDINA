@@ -1,4 +1,4 @@
-import FormularioCambioContrasena from "./FormularioCambioContrasena";
+import FormularioCambioContrasena from "@/components/FormularioCambioContrasena";
 
 /** Cambio obligatorio de la contraseña temporal. Va fuera de (privado): sin encabezado ni menú. */
 export default function PaginaCambiarContrasena() {

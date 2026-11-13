@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import type { OpcionMenu } from "@/lib/roles";
+import { opcionActiva, type OpcionMenu } from "@/lib/roles";
 
 interface Props {
   opciones: OpcionMenu[];
@@ -51,25 +51,34 @@ export default function MenuLateral({ opciones, abierto, onCerrar }: Props) {
 }
 
 function Opciones({ opciones, onElegir }: { opciones: OpcionMenu[]; onElegir: () => void }) {
-  const ruta = usePathname();
+  const activa = opcionActiva(usePathname(), opciones);
+  const enlace = (opcion: OpcionMenu) => {
+    const actual = opcion.href === activa;
+    return (
+      <Link
+        key={opcion.href}
+        href={opcion.href}
+        onClick={onElegir}
+        aria-current={actual ? "page" : undefined}
+        className={`rounded-lg px-3 py-2 text-sm ${
+          actual ? "bg-white font-semibold text-blue-900" : "text-blue-100 hover:bg-blue-800"
+        }`}
+      >
+        {opcion.etiqueta}
+      </Link>
+    );
+  };
+  const trabajo = opciones.filter((o) => !o.cuenta);
+  const cuenta = opciones.filter((o) => o.cuenta);
   return (
     <nav aria-label="Menú principal" className="flex flex-col gap-1 p-3">
-      {opciones.map((opcion) => {
-        const actual = ruta === opcion.href;
-        return (
-          <Link
-            key={opcion.href}
-            href={opcion.href}
-            onClick={onElegir}
-            aria-current={actual ? "page" : undefined}
-            className={`rounded-lg px-3 py-2 text-sm ${
-              actual ? "bg-white font-semibold text-blue-900" : "text-blue-100 hover:bg-blue-800"
-            }`}
-          >
-            {opcion.etiqueta}
-          </Link>
-        );
-      })}
+      {trabajo.map(enlace)}
+      {cuenta.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1 border-t border-blue-800 pt-3">
+          <p className="px-3 text-xs font-semibold uppercase tracking-wide text-blue-300">Mi cuenta</p>
+          {cuenta.map(enlace)}
+        </div>
+      )}
     </nav>
   );
 }

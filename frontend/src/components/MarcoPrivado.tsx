@@ -7,8 +7,9 @@ import Encabezado from "./Encabezado";
 import MenuLateral from "./MenuLateral";
 
 /**
- * Marco de las pantallas con sesión: encabezado y, si el rol tiene más de una pantalla (Administrador y
- * Supervisor), menú lateral. El Vigilante solo tiene el formulario, así que lo ve sin menú y a todo el ancho móvil.
+ * Marco de las pantallas con sesión: encabezado y, si el rol tiene más de una pantalla, menú lateral (fijo en
+ * escritorio, deslizable con "☰ Menú" en tablet y celular). Todos los roles lo tienen: el Vigilante, con el
+ * registro de incidencias y "Cambiar mi contraseña".
  */
 export default function MarcoPrivado({ children }: { children: ReactNode }) {
   const { sesion } = useSesion();
