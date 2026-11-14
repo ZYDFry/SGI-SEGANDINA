@@ -32,6 +32,7 @@ import com.segandina.sgi.model.Usuario;
 import com.segandina.sgi.model.Zona;
 import com.segandina.sgi.service.AuditoriaService;
 import com.segandina.sgi.service.IncidenciaService;
+import com.segandina.sgi.service.UsuarioService;
 
 @Service
 public class IncidenciaServiceImpl implements IncidenciaService {
@@ -62,6 +63,10 @@ public class IncidenciaServiceImpl implements IncidenciaService {
 		Usuario usuario = usuarioDao.findById(idUsuario)
 				.filter(u -> Boolean.TRUE.equals(u.getEstadoActivo()))
 				.orElseThrow(CredencialesInvalidasException::new);
+
+		if (UsuarioService.ROL_VIGILANTE.equals(usuario.getRol().getNombreRol())) {
+			validarZonaDelVigilante(usuario, request.idZona());
+		}
 
 		Zona zona = activo(zonaDao.findById(request.idZona()), Zona::getEstadoActivo,
 				"La zona seleccionada no existe o está inactiva");
@@ -109,6 +114,21 @@ public class IncidenciaServiceImpl implements IncidenciaService {
 				IncidenciaDao.ORDEN_HISTORIAL);
 		return incidenciaDao.findAll(IncidenciaDao.conFiltros(rango, filtro), pageable)
 				.map(IncidenciaHistorialResponse::desde);
+	}
+
+	// El Vigilante solo registra en su zona asignada y activa. Se valida antes de buscar la zona pedida, así que
+	// una zona ajena (exista o no) recibe el mismo mensaje.
+	private static void validarZonaDelVigilante(Usuario vigilante, Integer idZona) {
+		Zona asignada = vigilante.getZona();
+		if (asignada == null) {
+			throw new ReglaNegocioException(SIN_ZONA_ASIGNADA);
+		}
+		if (!Boolean.TRUE.equals(asignada.getEstadoActivo())) {
+			throw new ReglaNegocioException(ZONA_ASIGNADA_INACTIVA);
+		}
+		if (!asignada.getIdZona().equals(idZona)) {
+			throw new ReglaNegocioException(SOLO_ZONA_ASIGNADA);
+		}
 	}
 
 	// Devuelve el registro del catálogo si existe y está activo; si no, rechaza con el mensaje indicado

@@ -43,11 +43,13 @@ import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.AccionAuditoria;
 import com.segandina.sgi.model.Incidencia;
 import com.segandina.sgi.model.NivelGravedad;
+import com.segandina.sgi.model.Rol;
 import com.segandina.sgi.model.TipoEvento;
 import com.segandina.sgi.model.Usuario;
 import com.segandina.sgi.model.Zona;
 import com.segandina.sgi.service.AuditoriaService;
 import com.segandina.sgi.service.IncidenciaService;
+import com.segandina.sgi.service.UsuarioService;
 
 /**
  * Pruebas unitarias del registro (RF-03) y del historial (RF-04) de incidencias con DAO y auditoría simulados y un reloj fijo.
@@ -91,6 +93,7 @@ class IncidenciaServiceImplTest {
 		usuario = new Usuario();
 		usuario.setIdUsuario(ID_USUARIO);
 		usuario.setEstadoActivo(true);
+		usuario.setRol(rol(UsuarioService.ROL_ADMINISTRADOR));
 		zona = new Zona();
 		zona.setIdZona(ID_ZONA);
 		zona.setNombreZona("Sede Miraflores");
@@ -272,6 +275,66 @@ class IncidenciaServiceImplTest {
 	}
 
 	@Test
+	void vigilanteRegistraEnSuZonaAsignada() {
+		hacerVigilante(zona);
+
+		incidenciaService.registrar(new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO);
+
+		assertEquals(zona, capturarGuardada().getZona());
+		verify(auditoriaService).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void vigilanteSinZonaAsignadaNoPuedeRegistrar() {
+		hacerVigilante(null);
+
+		ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> incidenciaService.registrar(
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
+
+		assertEquals(IncidenciaService.SIN_ZONA_ASIGNADA, ex.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void vigilanteConZonaAsignadaInactivaNoPuedeRegistrar() {
+		zona.setEstadoActivo(false);
+		hacerVigilante(zona);
+
+		ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> incidenciaService.registrar(
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
+
+		assertEquals(IncidenciaService.ZONA_ASIGNADA_INACTIVA, ex.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void vigilanteNoPuedeRegistrarEnOtraZona() {
+		hacerVigilante(zona);
+		Zona ajena = new Zona();
+		ajena.setIdZona(2);
+		when(zonaDao.findById(2)).thenReturn(Optional.of(ajena));
+
+		ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> incidenciaService.registrar(
+				new IncidenciaRequest(2, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
+
+		assertEquals(IncidenciaService.SOLO_ZONA_ASIGNADA, ex.getMessage());
+		// La regla se aplica antes de consultar la zona pedida
+		verify(zonaDao, never()).findById(any());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void administradorPuedeRegistrarEnCualquierZonaActiva() {
+		Zona propia = new Zona();
+		propia.setIdZona(2);
+		usuario.setZona(propia);
+
+		incidenciaService.registrar(new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO);
+
+		assertEquals(zona, capturarGuardada().getZona());
+	}
+
+	@Test
 	@SuppressWarnings("unchecked")
 	void historialOrdenaPorFechaDescendenteYAcotaElTamano() {
 		Incidencia incidencia = new Incidencia();
@@ -320,6 +383,17 @@ class IncidenciaServiceImplTest {
 	private void verificarQueNoSeGuardoNiAudito() {
 		verify(incidenciaDao, never()).save(any());
 		verifyNoInteractions(auditoriaService);
+	}
+
+	private void hacerVigilante(Zona asignada) {
+		usuario.setRol(rol(UsuarioService.ROL_VIGILANTE));
+		usuario.setZona(asignada);
+	}
+
+	private static Rol rol(String nombre) {
+		Rol rol = new Rol();
+		rol.setNombreRol(nombre);
+		return rol;
 	}
 
 	private static TipoEvento tipo(short id, String nombre) {

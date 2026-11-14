@@ -26,16 +26,27 @@ public interface IncidenciaService {
 	/** Tamaño máximo de página del historial. */
 	int TAMANO_MAXIMO = 100;
 
+	/** Rechazo cuando un Vigilante sin zona asignada intenta registrar. */
+	String SIN_ZONA_ASIGNADA = "No tiene una zona asignada; avise al Administrador";
+
+	/** Rechazo cuando la zona asignada al Vigilante fue desactivada. */
+	String ZONA_ASIGNADA_INACTIVA = "Su zona asignada está inactiva; avise al Administrador";
+
+	/** Rechazo cuando un Vigilante envía una zona distinta de la suya. */
+	String SOLO_ZONA_ASIGNADA = "Solo puede registrar incidencias en su zona asignada";
+
 	/**
 	 * Registra una incidencia a nombre del usuario autenticado y audita {@code REGISTRAR_INCIDENCIA} en la
-	 * misma transacción.
+	 * misma transacción. Un Vigilante solo puede registrar en su zona asignada (y esta debe estar activa); el
+	 * Administrador puede elegir cualquier zona activa.
 	 *
 	 * @param request   datos del formulario
 	 * @param idUsuario id del usuario, tomado del token (nunca del body)
 	 * @return la incidencia guardada
 	 * @throws com.segandina.sgi.exception.CredencialesInvalidasException si el usuario no existe o está inactivo
-	 * @throws com.segandina.sgi.exception.ReglaNegocioException si la zona, el tipo o el nivel no existe o está
-	 *         inactivo, si la fecha es futura o si la descripción de un tipo "Otro" es demasiado corta
+	 * @throws com.segandina.sgi.exception.ReglaNegocioException si el Vigilante no tiene zona, su zona está
+	 *         inactiva o envía otra zona; si la zona, el tipo o el nivel no existe o está inactivo, si la fecha es
+	 *         futura o si la descripción de un tipo "Otro" es demasiado corta
 	 */
 	IncidenciaResponse registrar(IncidenciaRequest request, Long idUsuario);
 
