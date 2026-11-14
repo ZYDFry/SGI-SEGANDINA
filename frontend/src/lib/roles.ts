@@ -15,22 +15,60 @@ export const ROLES_TODOS: Rol[] = ["Administrador", "Supervisor", "Vigilante"];
 /** Cambio voluntario de la contraseña propia (cualquier rol, con sesión normal). */
 export const RUTA_MI_CONTRASENA = "/mi-contrasena";
 
+/** Íconos disponibles para el menú (se dibujan en `components/IconoMenu.tsx`). */
+export type NombreIcono =
+  | "dashboard"
+  | "historial"
+  | "auditoria"
+  | "registrar"
+  | "mis-incidencias"
+  | "personal"
+  | "catalogos"
+  | "contrasena"
+  | "cuenta"
+  | "menu"
+  | "cerrar"
+  | "cerrar-sesion";
+
+/** Grupos titulados del menú, en el orden en que se muestran. */
+export const GRUPOS_MENU = ["Gestión", "Administración", "Mi cuenta"] as const;
+export type GrupoMenu = (typeof GRUPOS_MENU)[number];
+
 export interface OpcionMenu {
   href: string;
   etiqueta: string;
   roles: Rol[];
-  /** Se muestra separada al pie del menú (opciones de la cuenta, no del trabajo). */
-  cuenta?: boolean;
+  grupo: GrupoMenu;
+  icono: NombreIcono;
+  /** Texto corto para la barra inferior del celular (si falta, se usa `etiqueta`). */
+  etiquetaCorta?: string;
+  /** `false` deja la opción preparada pero oculta hasta que exista su pantalla. */
+  disponible?: boolean;
 }
 
 export const MENU: OpcionMenu[] = [
-  { href: "/dashboard", etiqueta: "Dashboard", roles: ROLES_GERENCIA },
-  { href: "/historial", etiqueta: "Historial", roles: ROLES_GERENCIA },
-  { href: "/historial/auditoria", etiqueta: "Auditoría", roles: ROLES_ADMIN },
-  { href: "/incidencias/nueva", etiqueta: "Registrar incidencia", roles: ROLES_REGISTRO },
-  { href: "/personal", etiqueta: "Personal", roles: ROLES_ADMIN },
-  { href: "/catalogos", etiqueta: "Catálogos", roles: ROLES_ADMIN },
-  { href: RUTA_MI_CONTRASENA, etiqueta: "Cambiar mi contraseña", roles: ROLES_TODOS, cuenta: true },
+  { href: "/dashboard", etiqueta: "Dashboard", roles: ROLES_GERENCIA, grupo: "Gestión", icono: "dashboard" },
+  { href: "/historial", etiqueta: "Historial", roles: ROLES_GERENCIA, grupo: "Gestión", icono: "historial" },
+  {
+    href: "/incidencias/nueva",
+    etiqueta: "Registrar incidencia",
+    etiquetaCorta: "Registrar",
+    roles: ROLES_REGISTRO,
+    grupo: "Gestión",
+    icono: "registrar",
+  },
+  {
+    href: "/mis-incidencias",
+    etiqueta: "Mis incidencias",
+    roles: ["Vigilante"],
+    grupo: "Gestión",
+    icono: "mis-incidencias",
+    disponible: false,
+  },
+  { href: "/historial/auditoria", etiqueta: "Auditoría", roles: ROLES_ADMIN, grupo: "Administración", icono: "auditoria" },
+  { href: "/personal", etiqueta: "Personal", roles: ROLES_ADMIN, grupo: "Administración", icono: "personal" },
+  { href: "/catalogos", etiqueta: "Catálogos", roles: ROLES_ADMIN, grupo: "Administración", icono: "catalogos" },
+  { href: RUTA_MI_CONTRASENA, etiqueta: "Cambiar mi contraseña", roles: ROLES_TODOS, grupo: "Mi cuenta", icono: "contrasena" },
 ];
 
 /** Pantalla de inicio tras el login: el vigilante va al formulario; gerencia, al dashboard. */
@@ -50,8 +88,20 @@ export function rutaLogin(motivo: MotivoCierre | null): string {
   return "/login";
 }
 
+/** Opciones del menú visibles para el rol (omite las preparadas con `disponible: false`). */
 export function menuDe(rol: Rol): OpcionMenu[] {
-  return MENU.filter((opcion) => opcion.roles.includes(rol));
+  return MENU.filter((opcion) => opcion.roles.includes(rol) && opcion.disponible !== false);
+}
+
+/**
+ * Agrupa las opciones bajo sus títulos ("Gestión", "Administración", "Mi cuenta") en el orden de `GRUPOS_MENU`.
+ *
+ * @return los grupos con al menos una opción, cada uno con su título y sus opciones en el orden de `MENU`
+ */
+export function gruposDe(opciones: OpcionMenu[]): { titulo: GrupoMenu; opciones: OpcionMenu[] }[] {
+  return GRUPOS_MENU.map((titulo) => ({ titulo, opciones: opciones.filter((o) => o.grupo === titulo) })).filter(
+    (g) => g.opciones.length > 0,
+  );
 }
 
 /**

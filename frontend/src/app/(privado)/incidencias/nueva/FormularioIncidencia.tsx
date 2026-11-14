@@ -366,8 +366,8 @@ export default function FormularioIncidencia() {
 
       {error && <Alerta tipo="error">{error}</Alerta>}
 
-      {/* En el celular el botón queda fijo abajo, al alcance del pulgar */}
-      <div className="fixed inset-x-0 bottom-0 space-y-1 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+      {/* En el celular el botón queda fijo abajo, al alcance del pulgar y por encima de la barra inferior */}
+      <div className="fixed inset-x-0 bottom-[var(--alto-barra-inferior,0px)] z-30 space-y-1 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
         <Boton
           type="submit"
           variante="peligro"
