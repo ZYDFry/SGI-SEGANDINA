@@ -1,0 +1,29 @@
+$kind: http-request
+description: "Inicia sesión como Vigilante para CP-104. Guarda tokenVigilante, idZonaVigilante e idZonaAjena (una zona que no es la suya)."
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+body:
+  type: json
+  content: |-
+    {
+      "dni": "{{dniVigilante}}",
+      "contrasena": "{{contrasenaVigilante}}"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('El usuario es Vigilante', () => pm.expect(data.usuario.rol).to.eql('Vigilante'));
+      pm.test('La respuesta no trae la contraseña', () => pm.expect(data.usuario).to.not.have.property('contrasena'));
+      if (data.token) {
+        pm.environment.set('tokenVigilante', data.token);
+        const idZona = data.usuario.idZona;
+        pm.environment.set('idZonaVigilante', idZona === null ? '' : String(idZona));
+        // Cualquier id distinto del suyo: la regla se aplica antes de buscar la zona
+        pm.environment.set('idZonaAjena', String((idZona ?? 0) + 1000000));
+      }
+    language: text/javascript
+order: 1100

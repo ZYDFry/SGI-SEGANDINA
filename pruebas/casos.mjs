@@ -15,10 +15,11 @@ export const TIPOS = [
 /** Casos automatizados: id → datos del plan. */
 export const CASOS = {
   // Backend
-  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 210 tests, sin fallos ni errores.", automatiza: "Completo." },
+  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 215 tests, sin fallos ni errores.", automatiza: "Completo." },
 
   // API (Newman, colección en modo solo lectura)
   "CP-02": { rf: "RF-01", tipo: "API", descripcion: "Login válido del Administrador.", esperado: "200 con token, sin campo contrasena; token guardado para el resto de peticiones.", automatiza: "Paso 1 (la fila LOGIN_OK se verifica en SQL)." },
+  "CP-104": { rf: "RF-03", tipo: "API", descripcion: "Un Vigilante intenta registrar en una zona distinta de la asignada.", esperado: "400 \"Solo puede registrar incidencias en su zona asignada\" (o \"No tiene una zona asignada; avise al Administrador\" si no tiene zona); no se guarda nada.", automatiza: "Completo, con la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omite." },
   "CP-19": { rf: "RF-02", tipo: "API", descripcion: "Listar y obtener usuarios.", esperado: "Página de usuarios activos y detalle por id (200), sin contrasena.", automatiza: "Pasos 1 y 2 con los parámetros de la colección." },
   "CP-34": { rf: "RF-04", tipo: "API", descripcion: "Historial por defecto contra Supabase.", esperado: "200 con la página del historial de los últimos 30 días.", automatiza: "Paso 1 (la comparación con el conteo SQL es manual)." },
   "CP-35": { rf: "RF-04", tipo: "API", descripcion: "Historial con rango personalizado.", esperado: "200 con las incidencias del rango desde–hasta.", automatiza: "Rango personalizado del mes actual; los filtros combinados se prueban a mano." },
@@ -36,7 +37,7 @@ export const CASOS = {
 
   // Frontend (Playwright)
   "CP-03": { rf: "RF-01", tipo: "SEG", descripcion: "Login con credenciales incorrectas desde la pantalla.", esperado: "Alerta \"DNI o contraseña incorrectos\" y la sesión no se abre.", automatiza: "Variante en el frontend del caso de API." },
-  "CP-13": { rf: "RF-01", tipo: "E2E", descripcion: "Login por rol, redirección y menú.", esperado: "Vigilante a /incidencias/nueva sin menú; Supervisor a /dashboard; Administrador con menú completo. Rutas ajenas redirigen al inicio del rol.", automatiza: "Pasos 1 a 4 en escritorio (el menú de tablet es manual)." },
+  "CP-13": { rf: "RF-01", tipo: "E2E", descripcion: "Login por rol, redirección y menú.", esperado: "Vigilante a /incidencias/nueva con menú de registro y Cambiar mi contraseña; Supervisor a /dashboard; Administrador con menú completo. Rutas ajenas redirigen al inicio del rol.", automatiza: "Pasos 1 a 4 en escritorio (el menú de tablet es manual)." },
   "CP-25": { rf: "RF-02", tipo: "E2E", descripcion: "Pantalla de personal: tabla y filtros.", esperado: "Tabla con nombre, DNI, rol, zona y estado; los filtros reducen la tabla.", automatiza: "Pasos 1 y 6 (no se crean ni modifican usuarios)." },
   "CP-31": { rf: "RF-03", tipo: "E2E", descripcion: "Registro de una incidencia desde el celular (360 × 740).", esperado: "Confirmación con el número de incidencia y formulario listo para otro registro.", automatiza: "Completo, contra el backend real." },
   "CP-33": { rf: "RNF-03", tipo: "USA", descripcion: "Vista móvil de 360 px del formulario de incidencias.", esperado: "Sin desplazamiento horizontal y botón de registro visible.", automatiza: "Ancho sin desplazamiento horizontal y botón fijo (el cronometraje y el celular real son manuales)." },
@@ -54,7 +55,9 @@ export const CASOS = {
   "CP-78": { rf: "RF-03", tipo: "VAL", descripcion: "Descripción corta con el tipo \"Otro\".", esperado: "Aviso de mínimo 20 caracteres para \"Otro\"; con 20 no hay aviso.", automatiza: "Completo." },
   "CP-79": { rf: "RF-03", tipo: "VAL", descripcion: "Fecha y hora futura en el registro.", esperado: "\"La fecha y hora no puede ser futura\" y botón desactivado.", automatiza: "Fecha + 10 min." },
   "CP-84": { rf: "RF-01, RF-03", tipo: "VAL", descripcion: "Comportamiento de los avisos (aria-invalid, foco, borde).", esperado: "Sin avisos al abrir; aviso al salir del campo; aria-invalid y aria-describedby en el campo inválido.", automatiza: "Login." },
-  "CP-89": { rf: "RF-03", tipo: "VAL", descripcion: "Selector de zona con búsqueda en el registro de incidencias (360 × 740).", esperado: "Zona del vigilante preseleccionada y primera como \"Tu zona\"; búsqueda por nombre, distrito, provincia o referencia sin distinguir mayúsculas ni tildes; \"Sin coincidencias\"; opciones de al menos 44 px y lista limitada con más de 8 zonas; teclado (Inicio, ↓, Enter, Escape); solo zonas activas; \"Elige una zona\" con foco al registrar sin zona.", automatiza: "Completo con un catálogo ficticio de 10 zonas (se intercepta GET /api/catalogos/zonas); la prueba con lector de pantalla es manual." },
+  "CP-89": { rf: "RF-03", tipo: "VAL", descripcion: "Selector de zona con búsqueda del Administrador en el registro de incidencias (360 × 740).", esperado: "Sin zona elegida al abrir; búsqueda por nombre, distrito, provincia o referencia sin distinguir mayúsculas ni tildes; \"Sin coincidencias\"; opciones de al menos 44 px y lista limitada con más de 8 zonas; teclado (Inicio, ↓, Enter, Escape); solo zonas activas; \"Elige una zona\" con foco al registrar sin zona.", automatiza: "Completo con un catálogo ficticio de 9 zonas activas (se intercepta GET /api/catalogos/zonas); la prueba con lector de pantalla es manual." },
+  "CP-105": { rf: "RF-03", tipo: "VAL", descripcion: "El Vigilante ve su zona fija y registra en ella; sin zona o con la zona inactiva no puede registrar.", esperado: "Título \"Zona asignada\" y una tarjeta con solo el nombre y el distrito, sin selector, y el registro envía su idZona; sin zona o con la zona inactiva, aviso en la tarjeta y botón desactivado con el motivo.", automatiza: "Completo con zonas, usuario (GET /api/auth/yo) y registro simulados; no escribe en la base." },
+  "CP-106": { rf: "RF-03", tipo: "E2E", descripcion: "El Administrador elige cualquier zona activa al registrar.", esperado: "El selector lista las zonas activas con la propia marcada \"Tu zona\" y el registro envía la zona elegida, distinta de la propia.", automatiza: "Completo con zonas, usuario y registro simulados; no escribe en la base." },
   "CP-90": { rf: "RF-02", tipo: "VAL", descripcion: "Vigilante sin zona en \"Agregar personal\".", esperado: "\"El Vigilante debe tener una zona asignada\" y sin petición.", automatiza: "Pasos 1 y 2." },
   "CP-96": { rf: "RF-09", tipo: "VAL", descripcion: "Validaciones del formulario de zona.", esperado: "\"Este campo es obligatorio\" en nombre, departamento, provincia y distrito; el nombre admite como máximo 80.", automatiza: "Pasos 1 y 2 (el 409 requiere crear datos)." },
   "CP-99": { rf: "RF-09, RF-03", tipo: "VAL", descripcion: "Validaciones del formulario de tipo de evento.", esperado: "\"Este campo es obligatorio\"; el nombre admite como máximo 30.", automatiza: "Paso 1 (no se crea el tipo)." },
@@ -70,6 +73,8 @@ export const CASO_POR_PETICION = {
   "Catalogo Tipos": "CP-67",
   "Catalogo Niveles": "CP-67",
   "Registrar Incidencias": "CP-26",
+  "Login Vigilante": "CP-104",
+  "Registrar Incidencia Otra Zona": "CP-104",
   "Usuarios Listar": "CP-19",
   "Usuarios Obtener": "CP-19",
   "Usuarios Crear": "CP-16",

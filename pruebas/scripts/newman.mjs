@@ -18,7 +18,7 @@ const DIR_SALIDA = join(DIR_PRUEBAS, "reportes", "newman");
 const completo = process.argv.includes("--completo");
 
 /** Peticiones cuyo cuerpo (de ida o de vuelta) puede llevar contraseñas o el token. */
-const CUERPOS_OCULTOS = ["Login", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
+const CUERPOS_OCULTOS = ["Login", "Login Vigilante", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
 
 /** Fecha AAAA-MM-DD en hora de Lima. */
 function fechaLima(fecha = new Date()) {
@@ -33,6 +33,10 @@ function guardarResumen(resumen) {
 const baseUrl = (process.env.BASE_URL || "http://localhost:8080").replace(/\/$/, "");
 const dni = process.env.E2E_ADMIN_DNI;
 const contrasena = process.env.E2E_ADMIN_PASSWORD;
+// Opcionales: con ellas corre CP-104 (un Vigilante no puede registrar en otra zona).
+const dniVigilante = process.env.E2E_VIGILANTE_DNI;
+const contrasenaVigilante = process.env.E2E_VIGILANTE_PASSWORD;
+const conVigilante = Boolean(dniVigilante && contrasenaVigilante);
 
 if (!dni || !contrasena) {
   console.error("Newman no se ejecutó: faltan E2E_ADMIN_DNI y/o E2E_ADMIN_PASSWORD.");
@@ -51,6 +55,11 @@ const valores = {
   hasta: hoy,
   accionAuditoria: "LOGIN_FALLIDO",
   qAuditoria: "9999",
+  dniVigilante: dniVigilante ?? "",
+  contrasenaVigilante: contrasenaVigilante ?? "",
+  tokenVigilante: "",
+  idZonaVigilante: "",
+  idZonaAjena: "",
 };
 
 if (completo) {
@@ -65,7 +74,8 @@ if (completo) {
   valores.contrasenaNueva = temporal;
 }
 
-const { coleccion, incluidas } = cargarColeccion({ completo });
+const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante });
+if (!conVigilante) console.log("Sin E2E_VIGILANTE_DNI/E2E_VIGILANTE_PASSWORD: se omite CP-104 (Login Vigilante y Registrar Incidencia Otra Zona).");
 console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : " (solo lectura)"}.`);
 
 mkdirSync(DIR_SALIDA, { recursive: true });

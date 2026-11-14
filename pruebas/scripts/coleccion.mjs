@@ -14,9 +14,15 @@ export const DIR_COLECCION = join(RAIZ, "postman", "collections", "SGI-SEGANDINA
 /** Peticiones que nunca corren en la corrida automática (cambian la contraseña del dueño del token). */
 export const EXCLUIDAS = new Set(["Usuarios Mi Contrasena"]);
 
-/** Login y GET no modifican datos; el resto solo corre con --completo. */
+/**
+ * Peticiones que necesitan la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omiten. No escriben:
+ * "Registrar Incidencia Otra Zona" (CP-104) siempre la rechaza el backend con 400.
+ */
+export const PETICIONES_VIGILANTE = new Set(["Login Vigilante", "Registrar Incidencia Otra Zona"]);
+
+/** Los login, los GET y las peticiones del Vigilante no modifican datos; el resto solo corre con --completo. */
 function esLectura(nombre, metodo) {
-  return metodo === "GET" || nombre === "Login";
+  return metodo === "GET" || nombre === "Login" || PETICIONES_VIGILANTE.has(nombre);
 }
 
 /** queryParams viene como objeto {clave: valor} o como lista [{key, value, disabled}]. */
@@ -44,6 +50,11 @@ function convertirPeticion(nombre, def) {
     request.header.push({ key: "Content-Type", value: "application/json" });
   }
   if (def.auth?.type === "noauth") request.auth = { type: "noauth" };
+  if (def.auth?.type === "bearer") {
+    // credentials es una lista [{key, value}]; Newman espera la misma forma en `bearer`.
+    const token = (def.auth.credentials || []).find((c) => c.key === "token")?.value ?? "{{token}}";
+    request.auth = { type: "bearer", bearer: [{ key: "token", value: token, type: "string" }] };
+  }
 
   const event = [];
   for (const script of def.scripts || []) {
@@ -64,13 +75,15 @@ function convertirPeticion(nombre, def) {
 }
 
 /** Lee la colección y la devuelve en formato v2.1, ordenada por `order`. */
-export function cargarColeccion({ completo = false } = {}) {
+export function cargarColeccion({ completo = false, vigilante = true } = {}) {
   const archivos = readdirSync(DIR_COLECCION).filter((f) => f.endsWith(".request.yaml"));
   const peticiones = archivos
     .map((f) => convertirPeticion(f.replace(/\.request\.yaml$/, ""), parse(readFileSync(join(DIR_COLECCION, f), "utf8"))))
     .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre));
 
-  const incluidas = peticiones.filter((p) => !EXCLUIDAS.has(p.nombre) && (completo || p.lectura));
+  const incluidas = peticiones.filter(
+    (p) => !EXCLUIDAS.has(p.nombre) && (completo || p.lectura) && (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)),
+  );
 
   // Autenticación de la colección (Bearer {{token}}), definida en .resources/definition.yaml
   let auth = { type: "bearer", bearer: [{ key: "token", value: "{{token}}", type: "string" }] };

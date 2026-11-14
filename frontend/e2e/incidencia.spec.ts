@@ -1,14 +1,17 @@
-// RF-03: registro real de una incidencia desde la vista móvil de 360 × 740 (es la única prueba de Playwright
-// que escribe datos: deja una incidencia con la descripción "Prueba E2E Playwright …").
+// RF-03: registro de incidencias desde la vista móvil de 360 × 740. CP-31 es la única prueba de Playwright que
+// escribe datos: deja una incidencia con la descripción "Prueba E2E Playwright …". Las demás simulan el catálogo de
+// zonas, el usuario (`GET /api/auth/yo`) y el registro con `page.route`, para no depender de la base ni escribir.
 
 import { expect, test, type Page } from "@playwright/test";
 import { capturar, capturarAlFallar, caso, esperarPantalla, ocultarIndicadorNext, usarSesion } from "./ayudas";
 
 capturarAlFallar();
 
+const MOVIL = { viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true };
+
 test.describe("Registro de incidencia en el celular", () => {
   usarSesion("vigilante");
-  test.use({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+  test.use(MOVIL);
 
   test("CP-33 vista móvil de 360 px sin desplazamiento horizontal", async ({ page }, testInfo) => {
     caso("CP-33");
@@ -29,12 +32,12 @@ test.describe("Registro de incidencia en el celular", () => {
     await page.goto("/incidencias/nueva");
     await esperarPantalla(page, /\/incidencias\/nueva$/);
 
-    // Zona: la asignada viene preseleccionada; si no hay, se elige la primera activa.
-    const botonZona = page.locator("#idZona");
-    if ((await botonZona.innerText()).includes("Elige una zona")) {
-      await botonZona.click();
-      await page.getByRole("option").first().click();
-    }
+    // El vigilante de prueba debe tener una zona activa: se muestra fija, sin selector
+    await expect(page.locator("#titulo-zona")).toHaveText("Zona asignada");
+    await expect(page.getByRole("combobox"), "sin selector de zona").toHaveCount(0);
+    await expect(page.locator("#idZona [role=alert]"), "el vigilante de prueba necesita una zona asignada y activa").toHaveCount(0);
+    const idZonaSesion = await page.evaluate(() => JSON.parse(localStorage.getItem("sgi.sesion") ?? "{}").usuario?.idZona);
+
     await page.getByRole("radiogroup", { name: "Tipo de evento" }).getByRole("radio").first().click();
     await page.getByRole("radiogroup", { name: "Nivel de gravedad" }).getByRole("radio").first().click();
     const texto = `Prueba E2E Playwright ${new Date().toISOString()}`;
@@ -45,7 +48,9 @@ test.describe("Registro de incidencia en el celular", () => {
     await page.getByRole("button", { name: "Registrar incidencia" }).click();
     const r = await respuesta;
     expect(r.status()).toBe(201);
-    expect(r.request().postDataJSON().descripcion, "la descripción se envía sin espacios al inicio ni al final").toBe(texto);
+    const cuerpo = r.request().postDataJSON();
+    expect(cuerpo.descripcion, "la descripción se envía sin espacios al inicio ni al final").toBe(texto);
+    expect(cuerpo.idZona, "se envía la zona asignada").toBe(idZonaSesion);
 
     await expect(page.getByRole("status").filter({ hasText: /Incidencia N\.° \d+ registrada/ })).toBeVisible();
     await expect(page.locator("#descripcion")).toHaveValue("");
@@ -53,8 +58,9 @@ test.describe("Registro de incidencia en el celular", () => {
   });
 });
 
-// CP-89: el selector de zona se prueba con un catálogo ficticio de 10 zonas (se intercepta `GET /api/catalogos/zonas`)
-// para no depender de los datos de la base; estas pruebas no registran nada.
+// ---------------------------------------------------------------------------------------------------------------
+// Datos simulados
+
 interface ZonaFicticia {
   idZona: number;
   nombreZona: string;
@@ -82,42 +88,142 @@ const ZONAS_FICTICIAS: ZonaFicticia[] = [
   zona(9009, "Puerto Seco Callao", "Callao"),
 ];
 
-/** Intercepta las zonas activas; la zona asignada al vigilante (leída de su sesión) se agrega activa o inactiva. */
-async function simularZonas(page: Page, zonaAsignadaActiva: boolean) {
-  await page.route("**/api/catalogos/zonas", async (ruta) => {
-    const sesion = await page.evaluate(() => localStorage.getItem("sgi.sesion"));
-    const idZona: number | null = sesion ? JSON.parse(sesion).usuario?.idZona ?? null : null;
-    const asignada = idZona === null ? [] : [{ ...zona(idZona, "Zona asignada de prueba", "Breña"), estadoActivo: zonaAsignadaActiva }];
-    await ruta.fulfill({ json: [...ZONAS_FICTICIAS, ...asignada] });
+/** Zona asignada al vigilante en CP-105. */
+const ZONA_ASIGNADA = zona(9100, "Zona asignada de prueba", "Breña");
+
+/** Intercepta las zonas activas del formulario con el catálogo ficticio más las zonas extra indicadas. */
+async function simularZonas(page: Page, extra: ZonaFicticia[] = []) {
+  await page.route("**/api/catalogos/zonas", (ruta) => ruta.fulfill({ json: [...ZONAS_FICTICIAS, ...extra] }));
+}
+
+/** Responde `GET /api/auth/yo` con el usuario real de la sesión, pero con la zona asignada indicada. */
+async function simularZonaDelUsuario(page: Page, idZona: number | null) {
+  await page.route("**/api/auth/yo", async (ruta) => {
+    const real = await ruta.fetch();
+    await ruta.fulfill({ response: real, json: { ...(await real.json()), idZona } });
   });
 }
 
-test.describe("Selector de zona con búsqueda", () => {
-  usarSesion("vigilante");
-  test.use({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+/** Responde el registro con un 201 ficticio armado con lo enviado (no escribe en la base). */
+async function simularRegistro(page: Page) {
+  await page.route("**/api/incidencias", async (ruta) => {
+    if (ruta.request().method() !== "POST") return ruta.fallback();
+    const enviado = ruta.request().postDataJSON();
+    const zonaEnviada = [...ZONAS_FICTICIAS, ZONA_ASIGNADA].find((z) => z.idZona === enviado.idZona) ?? ZONA_ASIGNADA;
+    await ruta.fulfill({
+      status: 201,
+      json: {
+        idIncidencia: 999999,
+        fechaHora: new Date().toISOString(),
+        descripcion: enviado.descripcion,
+        zona: zonaEnviada,
+        tipoEvento: { idTipoEvento: enviado.idTipoEvento, nombreTipoEvento: "Tipo de prueba", estadoActivo: true },
+        nivelGravedad: { idNivelGravedad: enviado.idNivelGravedad, nombreNivel: "Nivel de prueba", orden: 1, estadoActivo: true },
+        idUsuario: 0,
+      },
+    });
+  });
+}
 
-  test("CP-89 selector de zona con búsqueda, teclado y lista limitada", async ({ page }, testInfo) => {
-    caso("CP-89");
-    await simularZonas(page, true);
+/** Elige el primer tipo y el primer nivel y escribe una descripción válida. */
+async function completarResto(page: Page) {
+  await page.getByRole("radiogroup", { name: "Tipo de evento" }).getByRole("radio").first().click();
+  await page.getByRole("radiogroup", { name: "Nivel de gravedad" }).getByRole("radio").first().click();
+  await page.locator("#descripcion").fill("Prueba simulada: no se guarda en la base de datos");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// CP-105: el Vigilante solo registra en su zona asignada
+
+test.describe("Zona fija del Vigilante", () => {
+  usarSesion("vigilante");
+  test.use(MOVIL);
+
+  test("CP-105 el Vigilante ve su zona fija y registra en ella", async ({ page }, testInfo) => {
+    caso("CP-105");
+    await simularZonas(page, [ZONA_ASIGNADA]);
+    await simularZonaDelUsuario(page, ZONA_ASIGNADA.idZona);
+    await simularRegistro(page);
     await page.goto("/incidencias/nueva");
     await esperarPantalla(page, /\/incidencias\/nueva$/);
 
-    // La zona del vigilante viene preseleccionada (nombre y distrito en el botón)
+    const tarjeta = page.locator("#idZona");
+    // Título "Zona asignada" fuera de la tarjeta; dentro, solo el nombre y el distrito
+    await expect(page.locator("#titulo-zona")).toHaveText("Zona asignada");
+    await expect(tarjeta).toContainText("Zona asignada de prueba");
+    await expect(tarjeta).toContainText("Breña");
+    await expect(tarjeta).not.toContainText("Tu zona");
+    // Sin selector: ni botón para abrir la lista ni buscador
+    await expect(page.getByRole("combobox")).toHaveCount(0);
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await completarResto(page);
+    await capturar(page, testInfo, "CP-105_zona_fija");
+
+    const respuesta = page.waitForRequest((r) => r.url().endsWith("/api/incidencias") && r.method() === "POST");
+    await ocultarIndicadorNext(page);
+    await page.getByRole("button", { name: "Registrar incidencia" }).click();
+    expect((await respuesta).postDataJSON().idZona, "se envía el id de la zona asignada").toBe(ZONA_ASIGNADA.idZona);
+    await expect(page.getByRole("status").filter({ hasText: "Incidencia N.° 999999 registrada" })).toBeVisible();
+  });
+
+  test("CP-105 sin zona asignada no puede registrar", async ({ page }, testInfo) => {
+    caso("CP-105");
+    await simularZonas(page);
+    await simularZonaDelUsuario(page, null);
+    await page.goto("/incidencias/nueva");
+    await esperarPantalla(page, /\/incidencias\/nueva$/);
+
+    await expect(page.locator("#idZona")).toContainText("No tienes una zona asignada; avisa al Administrador.");
+    const boton = page.getByRole("button", { name: "Registrar incidencia" });
+    await expect(boton).toBeDisabled();
+    await expect(boton).toHaveAttribute("aria-describedby", "motivo-incidencia");
+    await expect(page.locator("#motivo-incidencia")).toHaveText("No tienes una zona asignada; avisa al Administrador.");
+    await capturar(page, testInfo, "CP-105_sin_zona");
+  });
+
+  test("CP-105 con la zona asignada inactiva no puede registrar", async ({ page }, testInfo) => {
+    caso("CP-105");
+    // La zona asignada no viene en el catálogo de activas
+    await simularZonas(page);
+    await simularZonaDelUsuario(page, ZONA_ASIGNADA.idZona);
+    await page.goto("/incidencias/nueva");
+    await esperarPantalla(page, /\/incidencias\/nueva$/);
+
+    await expect(page.locator("#idZona")).toContainText("Tu zona asignada está inactiva; avisa al Administrador.");
+    await expect(page.getByRole("button", { name: "Registrar incidencia" })).toBeDisabled();
+    await expect(page.locator("#motivo-incidencia")).toHaveText("Tu zona asignada está inactiva; avisa al Administrador.");
+    await capturar(page, testInfo, "CP-105_zona_inactiva");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// CP-89 y CP-106: el Administrador elige la zona con el selector con búsqueda
+
+test.describe("Selector de zona con búsqueda (Administrador)", () => {
+  usarSesion("admin");
+  test.use(MOVIL);
+
+  test("CP-89 selector de zona con búsqueda, teclado y lista limitada", async ({ page }, testInfo) => {
+    caso("CP-89");
+    await simularZonas(page);
+    await simularZonaDelUsuario(page, null);
+    await page.goto("/incidencias/nueva");
+    await esperarPantalla(page, /\/incidencias\/nueva$/);
+
+    // Sin zona elegida al abrir
     const botonZona = page.locator("#idZona");
-    await expect(botonZona).toContainText("Zona asignada de prueba");
-    await expect(botonZona).toContainText("Breña");
+    await expect(botonZona).toContainText("Elige una zona");
 
     await botonZona.click();
     const buscador = page.getByRole("combobox", { name: "Buscar zona" });
     const lista = page.getByRole("listbox", { name: "Zona" });
     const opciones = lista.getByRole("option");
     await expect(buscador).toBeFocused();
-    await expect(opciones).toHaveCount(10);
-    // Primero la zona asignada, con la marca "Tu zona"; cada opción muestra el distrito en una segunda línea
-    await expect(opciones.first()).toContainText("Tu zona");
-    await expect(opciones.nth(1)).toContainText("San Martín de Porres");
+    await expect(opciones).toHaveCount(ZONAS_FICTICIAS.length);
+    // Cada opción muestra el distrito en una segunda línea
+    await expect(opciones.first()).toContainText("San Martín de Porres");
     // Opciones de al menos 44 px y, con más de 8 zonas, lista limitada en altura y desplazable
-    for (const indice of [0, 5, 9]) {
+    for (const indice of [0, 4, 8]) {
       const caja = await opciones.nth(indice).boundingBox();
       expect(caja?.height ?? 0, "opción de al menos 44 px").toBeGreaterThanOrEqual(44);
     }
@@ -145,7 +251,7 @@ test.describe("Selector de zona con búsqueda", () => {
     await expect(opciones.nth(1)).toHaveAttribute("aria-selected", "true");
     await buscador.press("Enter");
     await expect(lista).toBeHidden();
-    await expect(botonZona).toContainText("Almacén Norte");
+    await expect(botonZona).toContainText("Centro Empresarial Pardo");
     await expect(botonZona).toBeFocused();
 
     // Escape cierra sin cambiar la elección
@@ -154,16 +260,16 @@ test.describe("Selector de zona con búsqueda", () => {
     await buscador.press("Escape");
     await expect(lista).toBeHidden();
     await expect(botonZona).toBeFocused();
-    await expect(botonZona).toContainText("Almacén Norte");
+    await expect(botonZona).toContainText("Centro Empresarial Pardo");
   });
 
   test("CP-89 zona obligatoria y solo zonas activas", async ({ page }, testInfo) => {
     caso("CP-89");
-    await simularZonas(page, false);
+    await simularZonas(page, [{ ...zona(9010, "Zona desactivada de prueba", "Breña"), estadoActivo: false }]);
+    await simularZonaDelUsuario(page, null);
     await page.goto("/incidencias/nueva");
     await esperarPantalla(page, /\/incidencias\/nueva$/);
 
-    // La zona asignada está inactiva: no se preselecciona
     const botonZona = page.locator("#idZona");
     await expect(botonZona).toContainText("Elige una zona");
 
@@ -178,6 +284,32 @@ test.describe("Selector de zona con búsqueda", () => {
     await botonZona.click();
     const opciones = page.getByRole("listbox", { name: "Zona" }).getByRole("option");
     await expect(opciones).toHaveCount(ZONAS_FICTICIAS.length);
-    await expect(opciones.filter({ hasText: "Zona asignada de prueba" })).toHaveCount(0);
+    await expect(opciones.filter({ hasText: "Zona desactivada de prueba" })).toHaveCount(0);
+  });
+
+  test("CP-106 el Administrador elige cualquier zona activa", async ({ page }, testInfo) => {
+    caso("CP-106");
+    await simularZonas(page);
+    // Con zona propia (Almacén Norte), que aparece primero con la marca "Tu zona"
+    await simularZonaDelUsuario(page, 9001);
+    await simularRegistro(page);
+    await page.goto("/incidencias/nueva");
+    await esperarPantalla(page, /\/incidencias\/nueva$/);
+
+    const botonZona = page.locator("#idZona");
+    await botonZona.click();
+    const opciones = page.getByRole("listbox", { name: "Zona" }).getByRole("option");
+    await expect(opciones.first()).toContainText("Tu zona");
+    await page.getByRole("combobox", { name: "Buscar zona" }).fill("javier prado");
+    await opciones.first().click();
+    await expect(botonZona).toContainText("Torre Javier Prado");
+    await completarResto(page);
+    await capturar(page, testInfo, "CP-106_admin_elige_zona");
+
+    const respuesta = page.waitForRequest((r) => r.url().endsWith("/api/incidencias") && r.method() === "POST");
+    await ocultarIndicadorNext(page);
+    await page.getByRole("button", { name: "Registrar incidencia" }).click();
+    expect((await respuesta).postDataJSON().idZona, "se envía la zona elegida, distinta de la propia").toBe(9005);
+    await expect(page.getByRole("status").filter({ hasText: "Incidencia N.° 999999 registrada" })).toBeVisible();
   });
 });

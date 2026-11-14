@@ -1,0 +1,31 @@
+$kind: http-request
+description: "CP-104: un Vigilante intenta registrar en una zona que no es la suya; el backend responde 400 y no guarda nada."
+url: "{{baseUrl}}/api/incidencias"
+method: POST
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenVigilante}}"
+body:
+  type: json
+  content: |-
+    {
+      "idZona": {{idZonaAjena}},
+      "idTipoEvento": 1,
+      "idNivelGravedad": 2,
+      "descripcion": "Prueba CP-104: zona distinta de la asignada"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 400', () => pm.response.to.have.status(400));
+      const data = pm.response.json();
+      const sinZona = !pm.environment.get('idZonaVigilante');
+      const esperado = sinZona
+        ? 'No tiene una zona asignada; avise al Administrador'
+        : 'Solo puede registrar incidencias en su zona asignada';
+      pm.test('Mensaje de la regla de zona asignada', () => pm.expect(data.mensaje).to.eql(esperado));
+      pm.test('Formato uniforme de error', () => pm.expect(data).to.include.keys('timestamp', 'status', 'mensaje'));
+    language: text/javascript
+order: 5100
