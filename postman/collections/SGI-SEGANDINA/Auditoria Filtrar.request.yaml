@@ -1,9 +1,9 @@
 $kind: http-request
-url: "{{baseUrl}}/api/auditoria?periodo={{periodo}}&accion={{accionAuditoria}}&page=0&size=20&desde={{desde}}&hasta={{hasta}}"
+url: "{{baseUrl}}/api/auditoria?periodo=PERSONALIZADO&accion={{accionAuditoria}}&page=0&size=20&desde={{desde}}&hasta={{hasta}}"
 method: GET
 queryParams:
   - key: periodo
-    value: "{{periodo}}"
+    value: "PERSONALIZADO"
     disabled: false
     description: ""
   - key: accion
