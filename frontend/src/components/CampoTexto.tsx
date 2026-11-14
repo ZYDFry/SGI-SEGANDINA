@@ -1,7 +1,6 @@
 "use client";
 
-import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
-import { LARGO_DNI, sonDigitos } from "@/lib/validaciones";
+import type { InputHTMLAttributes, ReactNode } from "react";
 import type { PropsCampo } from "@/lib/useValidacion";
 import MensajeCampo, { bordeCampo } from "./MensajeCampo";
 
@@ -87,18 +86,4 @@ export default function CampoTexto({
       />
     </EnvolturaCampo>
   );
-}
-
-/**
- * Impide teclear en un DNI un carácter que no sea dígito o que pase del octavo, sin que salte el cursor. Lo que
- * llega de golpe (pegado, autocorrector) no se bloquea entero: `limpiarDni` en `onChange` conserva sus dígitos.
- */
-export function bloquearNoDigitos(evento: FormEvent<HTMLInputElement>) {
-  const datos = (evento.nativeEvent as InputEvent).data;
-  if (!datos || datos.length !== 1) return;
-  const input = evento.currentTarget;
-  const seleccionados = (input.selectionEnd ?? 0) - (input.selectionStart ?? 0);
-  if (!sonDigitos(datos) || input.value.length - seleccionados >= LARGO_DNI) {
-    evento.preventDefault();
-  }
 }

@@ -3,9 +3,11 @@
 import { useState, type FormEvent } from "react";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
-import CampoTexto, { bloquearNoDigitos, describirCampo, ESTILO_CAMPO, EnvolturaCampo } from "@/components/CampoTexto";
+import CampoDni from "@/components/CampoDni";
+import CampoTexto, { describirCampo, ESTILO_CAMPO, EnvolturaCampo } from "@/components/CampoTexto";
 import { bordeCampo } from "@/components/MensajeCampo";
 import Modal from "@/components/Modal";
+import MotivoDesactivado, { textoMotivo } from "@/components/MotivoDesactivado";
 import { errorDeApi } from "@/lib/api";
 import { actualizarUsuario, crearUsuario } from "@/lib/servicios";
 import type { RolCatalogo, UsuarioGestion, UsuarioRequest, Zona } from "@/lib/tipos";
@@ -15,8 +17,6 @@ import {
   CONTRASENA_MAX,
   CONTRASENA_MIN,
   erroresDelServidor,
-  LARGO_DNI,
-  limpiarDni,
   NOMBRES_MAX,
   ROL_VIGILANTE,
   validarUsuario,
@@ -37,6 +37,18 @@ const ORDEN: readonly CampoUsuario[] = [
   "contrasena",
   "confirmacion",
 ];
+
+/** Nombre visible de cada campo, para explicar por qué el botón de guardar está desactivado. */
+const ETIQUETAS: Record<CampoUsuario, string> = {
+  dni: "DNI",
+  nombres: "Nombres",
+  apellidoPaterno: "Apellido paterno",
+  apellidoMaterno: "Apellido materno",
+  idRol: "Rol",
+  idZona: "Zona",
+  contrasena: "Contraseña temporal",
+  confirmacion: "Confirma la contraseña",
+};
 
 /** Campo del DTO (`"dni: debe tener 8 dígitos"`) → campo del formulario. */
 const MAPA_SERVIDOR: Record<string, CampoUsuario> = {
@@ -144,6 +156,7 @@ export default function FormularioUsuario({
 
   const propsRol = validacion.propsCampo("idRol");
   const errorRol = validacion.error("idRol");
+  const motivoBloqueo = enviando ? undefined : textoMotivo(validacion.primerErrorVisible(), ETIQUETAS);
 
   return (
     <Modal
@@ -157,17 +170,12 @@ export default function FormularioUsuario({
         {error && <Alerta tipo="error">{error}</Alerta>}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <CampoTexto
-            etiqueta="DNI"
+          <CampoDni
             props={validacion.propsCampo("dni")}
             valor={campos.dni}
-            onCambio={(v) => cambiar("dni", limpiarDni(v))}
-            onBeforeInput={bloquearNoDigitos}
+            onCambio={(dni) => cambiar("dni", dni)}
             error={validacion.error("dni")}
-            inputMode="numeric"
-            maxLength={LARGO_DNI}
-            autoComplete="off"
-            className="tracking-widest"
+            className="px-3 py-2.5"
           />
           <CampoTexto
             etiqueta="Nombres"
@@ -264,13 +272,20 @@ export default function FormularioUsuario({
           </fieldset>
         )}
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
           <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
             Cancelar
           </Boton>
-          <Boton type="submit" disabled={enviando || validacion.hayErroresVisibles}>
+          <Boton
+            type="submit"
+            disabled={enviando || validacion.hayErroresVisibles}
+            title={motivoBloqueo}
+            aria-describedby={motivoBloqueo ? "motivo-usuario" : undefined}
+          >
             {enviando ? "Guardando…" : crear ? "Crear usuario" : "Guardar cambios"}
           </Boton>
+          {/* Último en el DOM: en el celular (columna invertida) queda encima de los botones; desde sm, a la izquierda. */}
+          <MotivoDesactivado id="motivo-usuario" texto={motivoBloqueo} className="sm:order-first sm:mr-auto sm:max-w-xs" />
         </div>
       </form>
     </Modal>

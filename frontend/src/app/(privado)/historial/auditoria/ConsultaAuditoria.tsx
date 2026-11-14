@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import Boton from "@/components/Boton";
+import CampoDni from "@/components/CampoDni";
 import EstadoDatos from "@/components/EstadoDatos";
-import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
+import MotivoDesactivado, { textoMotivo } from "@/components/MotivoDesactivado";
 import Paginacion from "@/components/Paginacion";
 import SelectorPeriodo, { PERIODO_INICIAL } from "@/components/SelectorPeriodo";
 import { formatearFechaHora } from "@/lib/fechas";
@@ -11,11 +12,12 @@ import { buscarAuditoria, listarAccionesAuditoria } from "@/lib/servicios";
 import type { FiltroAuditoria, FiltroPeriodo, RegistroAuditoria } from "@/lib/tipos";
 import { useConsulta } from "@/lib/useConsulta";
 import { useValidacion } from "@/lib/useValidacion";
-import { LARGO_DNI, limpiarDni, sonDigitos, validarDniBusqueda } from "@/lib/validaciones";
+import { AYUDA_DNI_BUSQUEDA, validarDniBusqueda } from "@/lib/validaciones";
 import DetalleAuditoria from "./DetalleAuditoria";
 
 const FILTRO_INICIAL: FiltroAuditoria = { ...PERIODO_INICIAL, accion: "", q: "" };
 const ORDEN = ["q"] as const;
+const ETIQUETAS = { q: "DNI" } as const;
 
 /**
  * Consulta de auditoría: filtros por periodo, acción y DNI (completo o sus primeros dígitos), tabla paginada en el
@@ -54,21 +56,7 @@ export default function ConsultaAuditoria() {
     aplicar({ accion: "", q: "" });
   }
 
-  // Igual que en el login: no se escriben letras y al pegar se conservan solo los dígitos.
-  function alTeclear(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !sonDigitos(e.key)) e.preventDefault();
-  }
-  function alPegar(e: ClipboardEvent<HTMLInputElement>) {
-    e.preventDefault();
-    const pegado = limpiarDni(e.clipboardData.getData("text"));
-    const campo = e.currentTarget;
-    const inicio = campo.selectionStart ?? dni.length;
-    const fin = campo.selectionEnd ?? dni.length;
-    setDni(limpiarDni(dni.slice(0, inicio) + pegado + dni.slice(fin)));
-    validacion.alCambiar("q");
-  }
-
-  const errorQ = validacion.error("q");
+  const motivoBloqueo = textoMotivo(validacion.primerErrorVisible(), ETIQUETAS);
 
   return (
     <div className="space-y-5">
@@ -108,30 +96,29 @@ export default function ConsultaAuditoria() {
                 </p>
               )}
             </div>
-            <div className="w-full sm:w-48">
-              <label htmlFor="q" className="mb-1 block text-sm font-semibold text-slate-700">
-                DNI
-              </label>
-              <input
-                {...validacion.propsCampo("q")}
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={LARGO_DNI}
-                placeholder="Completo o primeros dígitos"
-                value={dni}
-                onKeyDown={alTeclear}
-                onPaste={alPegar}
-                onChange={(e) => {
-                  setDni(e.target.value);
+            {/* Opcional y por prefijo: DNI completo o sus primeros dígitos (sin aviso por tener menos de 8). */}
+            <div className="w-full sm:w-56">
+              <CampoDni
+                props={validacion.propsCampo("q")}
+                valor={dni}
+                onCambio={(valor) => {
+                  setDni(valor);
                   validacion.alCambiar("q");
                 }}
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-4 ${bordeCampo(!!errorQ)}`}
+                error={validacion.error("q")}
+                ayuda={AYUDA_DNI_BUSQUEDA}
+                placeholder="Completo o primeros dígitos"
+                className="px-3 py-2 text-sm"
               />
-              <MensajeCampo campo="q" mensaje={errorQ} />
             </div>
             <div className="flex gap-2 sm:mt-6">
-              <Boton type="submit" className="py-2 text-sm" disabled={validacion.hayErroresVisibles}>
+              <Boton
+                type="submit"
+                className="py-2 text-sm"
+                disabled={validacion.hayErroresVisibles}
+                title={motivoBloqueo}
+                aria-describedby={motivoBloqueo ? "motivo-auditoria" : undefined}
+              >
                 Buscar
               </Boton>
               {(filtro.accion || filtro.q || dni) && (
@@ -140,6 +127,7 @@ export default function ConsultaAuditoria() {
                 </Boton>
               )}
             </div>
+            <MotivoDesactivado id="motivo-auditoria" texto={motivoBloqueo} className="w-full" />
           </form>
         </div>
       </section>

@@ -4,21 +4,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
-import { bloquearNoDigitos } from "@/components/CampoTexto";
+import CampoDni from "@/components/CampoDni";
 import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
+import MotivoDesactivado, { textoMotivo } from "@/components/MotivoDesactivado";
 import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
 import { destinoInicial } from "@/lib/roles";
 import { iniciarSesion } from "@/lib/servicios";
 import { useValidacion } from "@/lib/useValidacion";
-import {
-  erroresDelServidor,
-  limpiarDni,
-  validarLogin,
-  type CamposLogin as CamposLoginForm,
-} from "@/lib/validaciones";
+import { erroresDelServidor, validarLogin, type CamposLogin as CamposLoginForm } from "@/lib/validaciones";
 
 const ORDEN = ["dni", "contrasena"] as const;
+const ETIQUETAS: Record<keyof CamposLoginForm, string> = { dni: "DNI", contrasena: "Contraseña" };
 const MAPA_SERVIDOR: Record<string, keyof CamposLoginForm> = { dni: "dni", contrasena: "contrasena" };
 const ESTILO_CAMPO = "w-full rounded-lg border px-3 py-3 text-lg focus:outline-none focus:ring-2";
 
@@ -91,6 +88,8 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
 
   const errorDni = validacion.error("dni");
   const errorContrasena = validacion.error("contrasena");
+  // Por qué "Ingresar" está desactivado (solo por avisos, no mientras se envía).
+  const motivoBloqueo = enviando || conSesion ? undefined : textoMotivo(validacion.primerErrorVisible(), ETIQUETAS);
 
   return (
     // Equipos compartidos entre vigilantes: el navegador no debe rellenar ni restaurar las credenciales.
@@ -103,26 +102,14 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
       )}
       {error && <Alerta tipo="error">{error}</Alerta>}
 
-      <div>
-        <label htmlFor="dni" className="mb-1 block text-sm font-semibold text-slate-700">
-          DNI
-        </label>
-        <input
-          {...validacion.propsCampo("dni")}
-          name="dni"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoComplete="off"
-          value={campos.dni}
-          onBeforeInput={bloquearNoDigitos}
-          // Cubre lo pegado, el autocorrector y lo que no pase por beforeinput: solo dígitos, máximo 8.
-          onChange={(e) => cambiar("dni", limpiarDni(e.target.value))}
-          className={`${ESTILO_CAMPO} tracking-widest ${bordeCampo(!!errorDni)}`}
-          placeholder="12345678"
-        />
-        <MensajeCampo campo="dni" mensaje={errorDni} />
-      </div>
+      <CampoDni
+        props={validacion.propsCampo("dni")}
+        valor={campos.dni}
+        onCambio={(dni) => cambiar("dni", dni)}
+        error={errorDni}
+        placeholder="12345678"
+        className="px-3 py-3 text-lg"
+      />
 
       <div>
         <label htmlFor="contrasena" className="mb-1 block text-sm font-semibold text-slate-700">
@@ -142,13 +129,18 @@ function CamposLogin({ conSesion }: { conSesion: boolean }) {
       </div>
 
       {/* Con sesión ya iniciada se espera la redirección: el botón no vuelve a "Ingresar" */}
-      <Boton
-        type="submit"
-        disabled={enviando || conSesion || validacion.hayErroresVisibles}
-        className="w-full text-lg"
-      >
-        {enviando || conSesion ? "Ingresando…" : "Ingresar"}
-      </Boton>
+      <div className="space-y-2">
+        <Boton
+          type="submit"
+          disabled={enviando || conSesion || validacion.hayErroresVisibles}
+          title={motivoBloqueo}
+          aria-describedby={motivoBloqueo ? "motivo-login" : undefined}
+          className="w-full text-lg"
+        >
+          {enviando || conSesion ? "Ingresando…" : "Ingresar"}
+        </Boton>
+        <MotivoDesactivado id="motivo-login" texto={motivoBloqueo} className="text-center" />
+      </div>
     </form>
   );
 }

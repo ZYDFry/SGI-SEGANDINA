@@ -104,7 +104,31 @@ export function useValidacion<C extends string>(errores: Errores<C>, orden: read
     setServidor({});
   }
 
+  /**
+   * Primer aviso visible según `orden`, para explicar junto al botón por qué está desactivado.
+   *
+   * @return el campo y su mensaje, o `null` si no hay avisos visibles
+   */
+  function primerErrorVisible(): { campo: C; mensaje: string } | null {
+    for (const campo of orden) {
+      const mensaje = error(campo);
+      if (mensaje) return { campo, mensaje };
+    }
+    return null;
+  }
+
   const hayErroresVisibles = orden.some((campo) => !!error(campo));
 
-  return { error, alSalir, alCambiar, registrar, propsCampo, intentarEnviar, ponerErroresServidor, reiniciar, hayErroresVisibles };
+  return {
+    error,
+    alSalir,
+    alCambiar,
+    registrar,
+    propsCampo,
+    intentarEnviar,
+    ponerErroresServidor,
+    reiniciar,
+    hayErroresVisibles,
+    primerErrorVisible,
+  };
 }

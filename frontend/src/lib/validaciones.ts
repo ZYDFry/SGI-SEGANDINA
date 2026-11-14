@@ -56,7 +56,15 @@ export const MENSAJES = {
   rol: "Elige un rol",
   zonaVigilante: `El ${ROL_VIGILANTE} debe tener una zona asignada`,
   ordenInvalido: `El orden debe ser un número entero entre ${ORDEN_MIN} y ${ORDEN_MAX}`,
+  soloNumeros: "Solo se permiten números",
 } as const;
+
+/** Ayuda fija bajo el DNI de login y personal. */
+export const AYUDA_DNI = `${LARGO_DNI} dígitos, solo números`;
+/** Ayuda fija bajo el DNI del filtro de auditoría (acepta los primeros dígitos). */
+export const AYUDA_DNI_BUSQUEDA = `Hasta ${LARGO_DNI} dígitos, solo números`;
+/** Duración del aviso temporal "Solo se permiten números". */
+export const AVISO_TEMPORAL_MS = 3000;
 
 /** Mensaje de error por campo; un campo sin clave es válido. */
 export type Errores<C extends string> = Partial<Record<C, string>>;
@@ -76,6 +84,11 @@ export function limpiarDni(texto: string): string {
 /** Indica si un texto que se va a insertar en el DNI son solo dígitos (para bloquear letras al escribir). */
 export function sonDigitos(texto: string): boolean {
   return SOLO_DIGITOS.test(texto);
+}
+
+/** Indica si un texto escrito o pegado en el DNI trae algún carácter que no es dígito (se descarta y se avisa). */
+export function tieneNoDigitos(texto: string): boolean {
+  return /\D/.test(texto);
 }
 
 /** "Otro" sin distinguir mayúsculas ni espacios, igual que el backend. */
