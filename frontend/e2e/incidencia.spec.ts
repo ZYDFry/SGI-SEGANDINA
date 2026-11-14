@@ -295,6 +295,8 @@ test.describe("Selector de zona con búsqueda (Administrador)", () => {
     await simularRegistro(page);
     await page.goto("/incidencias/nueva");
     await esperarPantalla(page, /\/incidencias\/nueva$/);
+    // En `npm run dev` el indicador flotante de Next intercepta los clics en la hoja de zonas y en los botones de abajo
+    await ocultarIndicadorNext(page);
 
     const botonZona = page.locator("#idZona");
     await botonZona.click();
@@ -307,7 +309,6 @@ test.describe("Selector de zona con búsqueda (Administrador)", () => {
     await capturar(page, testInfo, "CP-106_admin_elige_zona");
 
     const respuesta = page.waitForRequest((r) => r.url().endsWith("/api/incidencias") && r.method() === "POST");
-    await ocultarIndicadorNext(page);
     await page.getByRole("button", { name: "Registrar incidencia" }).click();
     expect((await respuesta).postDataJSON().idZona, "se envía la zona elegida, distinta de la propia").toBe(9005);
     await expect(page.getByRole("status").filter({ hasText: "Incidencia N.° 999999 registrada" })).toBeVisible();
