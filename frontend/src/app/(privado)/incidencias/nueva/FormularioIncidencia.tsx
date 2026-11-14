@@ -5,14 +5,14 @@ import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import Cargando from "@/components/Cargando";
 import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
+import MotivoDesactivado, { textoMotivo } from "@/components/MotivoDesactivado";
 import SelectorBuscable, { type OpcionBuscable } from "@/components/SelectorBuscable";
 import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido";
-import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
 import { coloresGravedad } from "@/lib/gravedad";
-import { cargarCatalogos, registrarIncidencia, type Catalogos } from "@/lib/servicios";
-import type { IncidenciaResponse, NivelGravedad, Zona } from "@/lib/tipos";
-import { useValidacion } from "@/lib/useValidacion";
+import { cargarCatalogos, refrescarUsuario, registrarIncidencia, type Catalogos } from "@/lib/servicios";
+import type { IncidenciaResponse, NivelGravedad, Usuario, Zona } from "@/lib/tipos";
+import { idError, useValidacion } from "@/lib/useValidacion";
 import {
   DESCRIPCION_MAX,
   DESCRIPCION_MIN_OTRO,
@@ -35,11 +35,29 @@ const MAPA_SERVIDOR: Record<string, CampoIncidencia> = {
 // Reglas de negocio del backend (400 sin detalles) que se muestran bajo su campo.
 const REGLAS_SERVIDOR: ReglaServidor<CampoIncidencia>[] = [
   { contiene: "zona seleccionada", campo: "idZona" },
+  // Vigilante: sin zona, zona inactiva o zona distinta de la asignada
+  { contiene: "zona asignada", campo: "idZona" },
   { contiene: "tipo de evento seleccionado", campo: "idTipo" },
   { contiene: "nivel de gravedad seleccionado", campo: "idGravedad" },
   { contiene: "descripción debe tener al menos", campo: "descripcion" },
   { contiene: "no puede ser futura", campo: "fecha" },
 ];
+
+const ETIQUETAS: Record<CampoIncidencia, string> = {
+  idZona: "Zona",
+  idTipo: "Tipo de evento",
+  idGravedad: "Nivel de gravedad",
+  descripcion: "Descripción",
+  fecha: "Fecha y hora",
+};
+
+const AVISO_SIN_ZONA = "No tienes una zona asignada; avisa al Administrador.";
+const AVISO_ZONA_INACTIVA = "Tu zona asignada está inactiva; avisa al Administrador.";
+
+/** Zona asignada si está en el catálogo de activas; `undefined` si no tiene o está inactiva. */
+function zonaActiva(zonas: Zona[], idZona: number | null): Zona | undefined {
+  return idZona === null ? undefined : zonas.find((z) => z.idZona === idZona && z.estadoActivo);
+}
 
 /** Con más tipos de evento que esto, el tipo se elige con el desplegable con búsqueda en vez de botones. */
 const MAX_TIPOS_EN_BOTONES = 8;
@@ -82,11 +100,13 @@ function opcionesZona(zonas: Zona[]): OpcionBuscable[] {
     }));
 }
 
-/** Formulario Mobile-First: selectores rápidos, descripción y confirmación al guardar. */
+/**
+ * Formulario Mobile-First: selectores rápidos, descripción y confirmación al guardar. Al abrirlo se vuelve a leer el
+ * usuario (la zona pudo cambiar desde el login): el Vigilante ve su zona fija y solo registra en ella; el
+ * Administrador elige cualquier zona activa.
+ */
 export default function FormularioIncidencia() {
-  const { sesion } = useSesion();
-  const idZonaAsignada = sesion?.usuario.idZona ?? null;
-
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
@@ -108,17 +128,22 @@ export default function FormularioIncidencia() {
     ORDEN,
   );
 
+  const esVigilante = usuario?.rol === "Vigilante";
+  const zonaAsignada = catalogos && usuario ? zonaActiva(catalogos.zonas, usuario.idZona) : undefined;
+  // Vigilante sin zona o con la zona inactiva: no puede registrar hasta que el Administrador lo resuelva.
+  const bloqueoZona =
+    !esVigilante || zonaAsignada ? undefined : usuario?.idZona === null ? AVISO_SIN_ZONA : AVISO_ZONA_INACTIVA;
+
   const cargar = useCallback(() => {
-    cargarCatalogos()
-      .then((datos) => {
+    Promise.all([cargarCatalogos(), refrescarUsuario()])
+      .then(([datos, yo]) => {
         setCatalogos(datos);
-        // Zona del vigilante preseleccionada, si sigue activa.
-        if (idZonaAsignada !== null && datos.zonas.some((z) => z.idZona === idZonaAsignada && z.estadoActivo)) {
-          setIdZona((actual) => actual ?? idZonaAsignada);
-        }
+        setUsuario(yo);
+        // El Vigilante solo registra en su zona: se fija la asignada (o ninguna, si no tiene o está inactiva).
+        if (yo.rol === "Vigilante") setIdZona(zonaActiva(datos.zonas, yo.idZona)?.idZona ?? null);
       })
       .catch((e) => setErrorCarga(errorDeApi(e).mensaje));
-  }, [idZonaAsignada]);
+  }, []);
 
   useEffect(() => {
     cargar();
@@ -166,6 +191,8 @@ export default function FormularioIncidencia() {
       const { campos, general } = erroresDelServidor(errorDeApi(e), MAPA_SERVIDOR, REGLAS_SERVIDOR);
       validacion.ponerErroresServidor(campos);
       setError(general);
+      // La zona del vigilante pudo cambiar con el formulario abierto: se vuelve a leer para mostrar la actual.
+      if (esVigilante && campos.idZona) cargar();
     } finally {
       setEnviando(false);
     }
@@ -190,7 +217,9 @@ export default function FormularioIncidencia() {
     validacion.alCambiar("fecha");
   }
 
+  const errorZona = validacion.error("idZona");
   const errorDescripcion = validacion.error("descripcion");
+  const motivoBloqueo = enviando ? undefined : (bloqueoZona ?? textoMotivo(validacion.primerErrorVisible(), ETIQUETAS));
   const errorFecha = validacion.error("fecha");
 
   return (
@@ -207,19 +236,45 @@ export default function FormularioIncidencia() {
         </Alerta>
       )}
 
-      <SelectorBuscable
-        titulo="Zona"
-        campo="idZona"
-        placeholder="Elige una zona"
-        placeholderBusqueda="Buscar por nombre, distrito o referencia…"
-        opciones={opcionesZona(catalogos.zonas)}
-        valor={idZona}
-        onCambio={elegir("idZona", setIdZona)}
-        destacado={idZonaAsignada}
-        error={validacion.error("idZona")}
-        onSalir={() => validacion.alSalir("idZona")}
-        refPrimero={validacion.registrar("idZona")}
-      />
+      {esVigilante ? (
+        <div>
+          <p id="titulo-zona" className="mb-2 block text-sm font-semibold text-slate-700">
+            Zona asignada
+          </p>
+          {/* Solo lectura: el Vigilante registra únicamente en su zona asignada */}
+          <div
+            id="idZona"
+            ref={validacion.registrar("idZona")}
+            tabIndex={-1}
+            aria-labelledby="titulo-zona"
+            aria-describedby={errorZona ? idError("idZona") : undefined}
+            className={`rounded-lg border bg-slate-50 px-3 py-3 focus:outline-none focus:ring-2 ${bordeCampo(!!errorZona)}`}>
+            {zonaAsignada ? (
+              <>
+                <p className="text-base font-semibold text-blue-900">{zonaAsignada.nombreZona}</p>
+                <p className="text-sm text-slate-600">{zonaAsignada.distrito}</p>
+              </>
+            ) : (
+              <Alerta tipo="error">{bloqueoZona}</Alerta>
+            )}
+          </div>
+          <MensajeCampo campo="idZona" mensaje={errorZona} />
+        </div>
+      ) : (
+        <SelectorBuscable
+          titulo="Zona"
+          campo="idZona"
+          placeholder="Elige una zona"
+          placeholderBusqueda="Buscar por nombre, distrito o referencia…"
+          opciones={opcionesZona(catalogos.zonas)}
+          valor={idZona}
+          onCambio={elegir("idZona", setIdZona)}
+          destacado={usuario?.idZona ?? null}
+          error={errorZona}
+          onSalir={() => validacion.alSalir("idZona")}
+          refPrimero={validacion.registrar("idZona")}
+        />
+      )}
 
       {catalogos.tipos.length > MAX_TIPOS_EN_BOTONES ? (
         <SelectorBuscable
@@ -312,14 +367,17 @@ export default function FormularioIncidencia() {
       {error && <Alerta tipo="error">{error}</Alerta>}
 
       {/* En el celular el botón queda fijo abajo, al alcance del pulgar */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+      <div className="fixed inset-x-0 bottom-0 space-y-1 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
         <Boton
           type="submit"
           variante="peligro"
-          disabled={enviando || validacion.hayErroresVisibles}
+          disabled={enviando || !!bloqueoZona || validacion.hayErroresVisibles}
+          title={motivoBloqueo}
+          aria-describedby={motivoBloqueo ? "motivo-incidencia" : undefined}
           className="mx-auto block w-full max-w-lg py-4 text-lg">
           {enviando ? "Registrando…" : "Registrar incidencia"}
         </Boton>
+        <MotivoDesactivado id="motivo-incidencia" texto={motivoBloqueo} className="mx-auto max-w-lg text-center" />
       </div>
     </form>
   );

@@ -3,7 +3,7 @@
 import axios from "axios";
 import { api } from "./api";
 import { hoyLima } from "./fechas";
-import { guardarSesion } from "./sesion";
+import { guardarSesion, leerSesion } from "./sesion";
 import type {
   AccionAuditoria,
   Agrupacion,
@@ -45,6 +45,17 @@ export async function iniciarSesion(dni: string, contrasena: string): Promise<Us
   const { data } = await api.post<LoginResponse>("/api/auth/login", { dni, contrasena });
   guardarSesion({ token: data.token, expiraEn: data.expiraEn, usuario: data.usuario });
   return data.usuario;
+}
+
+/**
+ * Vuelve a leer el usuario autenticado (`GET /api/auth/yo`) y lo guarda en la sesión, conservando el token. Sirve
+ * cuando un dato pudo cambiar desde el login, como la zona asignada al vigilante.
+ */
+export async function refrescarUsuario(): Promise<Usuario> {
+  const { data } = await api.get<Usuario>("/api/auth/yo");
+  const sesion = leerSesion();
+  if (sesion) guardarSesion({ ...sesion, usuario: data });
+  return data;
 }
 
 export interface Catalogos {
