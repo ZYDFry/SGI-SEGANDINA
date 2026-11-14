@@ -12,6 +12,36 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Validación visible del DNI
+- Qué se hizo:
+  - Componente `CampoDni` para los tres campos DNI (login, alta y edición de personal, filtro de auditoría): ayuda fija
+    debajo ("8 dígitos, solo números"; en auditoría "Hasta 8 dígitos, solo números"), contador "n/8" a la derecha y,
+    al teclear o pegar un carácter no numérico, el bloqueo de siempre más un aviso ámbar "Solo se permiten números"
+    durante 3 s, anunciado con `aria-live`.
+  - Al salir con menos de 8 dígitos, "El DNI debe tener 8 dígitos numéricos" en rojo (login y personal). En auditoría
+    no, porque el filtro busca por los primeros dígitos.
+  - `MotivoDesactivado`: junto al botón desactivado ("Ingresar", "Crear usuario"/"Guardar cambios", "Buscar"), el
+    primer aviso pendiente ("Revisa el campo DNI: …"), también como `title` y enlazado con `aria-describedby`.
+  - `validaciones.ts`: `MENSAJES.soloNumeros`, `AYUDA_DNI`, `AYUDA_DNI_BUSQUEDA`, `AVISO_TEMPORAL_MS`,
+    `tieneNoDigitos`. `useValidacion`: `primerErrorVisible()`. `bloquearNoDigitos` pasó de `CampoTexto` a `CampoDni`.
+  - Corrección de paso: en personal, pegar `12a34b5678` dejaba `123456` (el `maxLength` cortaba antes de quitar las
+    letras); ahora deja `12345678`, como en el login.
+  - Sin cambios en el backend.
+- Archivos clave: `frontend/src/components/{CampoDni,MotivoDesactivado,CampoTexto}.tsx`,
+  `frontend/src/lib/{validaciones,useValidacion}.ts`, `frontend/src/app/login/FormularioLogin.tsx`,
+  `frontend/src/app/(privado)/personal/FormularioUsuario.tsx`,
+  `frontend/src/app/(privado)/historial/auditoria/ConsultaAuditoria.tsx`, `docs/plan_pruebas_integrales.md` (CP-70 a
+  CP-73 y CP-88), `docs/referencia_clases.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/login.spec.ts`; a mano,
+  CP-70 a CP-73 en `/login` y "+ Agregar personal", y CP-88 en `/historial/auditoria`.
+- Resultados (13/11/2026): lint y build sin errores. Playwright: CP-70, CP-72, CP-77, CP-84 y CP-74 aprobados; CP-90
+  sigue fallando por DEF-01 (ya conocido). Capturas CP-70, CP-72, CP-74, CP-77 y CP-84 regeneradas con la nueva
+  vista.
+- Pendientes o problemas conocidos:
+  - Las pruebas de Playwright no verifican todavía la ayuda, el contador, el aviso ámbar ni el texto del botón:
+    CP-70 a CP-73 y CP-88 quedan en `Pendiente` hasta probarlos a mano o automatizarlos.
+  - DEF-01 sigue abierto, pero ahora el texto junto al botón explica por qué queda desactivado.
+
 ## [2026-11-13] Fase 8 / RF-03 — Selector de zona con búsqueda accesible
 - Qué se hizo:
   - `SelectorBuscable` como combobox accesible: cada opción muestra el nombre de la zona y, en una segunda línea más

@@ -1003,7 +1003,7 @@ o Vigilante que escribe `/personal` o `/catalogos` es llevado a su pantalla de i
 |---|---|---|
 | `Modal` (nuevo) | Diálogo `role="dialog"` con `aria-modal` y título enlazado; enfoca el primer campo, se cierra con Escape, "✕" o el fondo (salvo `bloqueado` mientras guarda) y devuelve el foco. Ocupa toda la pantalla en el celular. | `titulo`, `subtitulo?`, `onCerrar`, `bloqueado?`, `ancho?` (`sm`, `md`, `lg`). |
 | `DialogoConfirmacion` (nuevo) | Confirmación antes de activar o desactivar. Muestra "Procesando…" y, si la API responde con error, el mensaje dentro del diálogo. | `titulo`, `textoConfirmar`, `variante?` (`peligro` o `primario`), `onConfirmar: () => Promise<void>`, `onCerrar`. |
-| `CampoTexto`, `EnvolturaCampo` (nuevos) | Etiqueta, control, aviso en rojo (`error-<campo>`) y ayuda enlazados por `aria-describedby`. `EnvolturaCampo` sirve para selects y textareas. | `etiqueta`, `props` (de `useValidacion().propsCampo`), `valor`, `onCambio`, `error?`, `ayuda?`, `opcional?`. También exporta `bloquearNoDigitos` (impide teclear algo que no sea dígito en un DNI; lo usan el login y el formulario de personal), `describirCampo` y `ESTILO_CAMPO`. |
+| `CampoTexto`, `EnvolturaCampo` (nuevos) | Etiqueta, control, aviso en rojo (`error-<campo>`) y ayuda enlazados por `aria-describedby`. `EnvolturaCampo` sirve para selects y textareas. | `etiqueta`, `props` (de `useValidacion().propsCampo`), `valor`, `onCambio`, `error?`, `ayuda?`, `opcional?`. También exporta `describirCampo`, `idAyuda` y `ESTILO_CAMPO` (el bloqueo de no dígitos del DNI pasó a `CampoDni`). |
 | `EtiquetaEstado` (nuevo) | Pastilla Activo/Inactivo (Activa/Inactiva con `femenino`). | `activo`, `femenino?`. |
 | `FormularioCambioContrasena` (movido desde `app/cambiar-contrasena/`) | Contraseña actual, nueva (8 a 72, distinta de la actual) y confirmación. | `modo`: `obligatorio` (por defecto; al guardar cierra la sesión y lleva al login) o `voluntario` (la sesión sigue abierta, muestra "Contraseña actualizada…" y "Volver al inicio"). |
 | `MenuLateral`, `MarcoPrivado` (modificados) | Resaltan la opción con `opcionActiva` y separan "Mi cuenta" al pie. | Sin cambios de props. |
@@ -1144,3 +1144,37 @@ evento y nivel de gravedad siguen como botones. No hay cambios en el backend ni 
   usa un catálogo ficticio de 10 zonas y deja `CP-89_selector_zona_busqueda.png` y `CP-89_zona_obligatoria.png`.
 - A mano: `npm run dev`, `/incidencias/nueva` en 360 px y seguir CP-89 del plan de pruebas, incluido el paso con
   lector de pantalla.
+
+## Frontend — validación visible del DNI (RF-01, RF-02, RF-08)
+
+Los campos DNI del login, del alta y edición de personal y del filtro de auditoría siguen bloqueando lo que no es
+dígito, pero ahora lo hacen a la vista: ayuda fija debajo, contador "n/8" a la derecha, aviso ámbar temporal "Solo se
+permiten números" al teclear o pegar letras o símbolos, aviso rojo al salir con un DNI incompleto (salvo en auditoría,
+que busca por los primeros dígitos) y un texto junto al botón que explica por qué está desactivado. Solo frontend.
+
+### Módulos y componentes (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/validaciones.ts` (modificado) | Textos y reglas nuevas del DNI. | `MENSAJES.soloNumeros` ("Solo se permiten números"), `AYUDA_DNI` ("8 dígitos, solo números"), `AYUDA_DNI_BUSQUEDA` ("Hasta 8 dígitos, solo números"), `AVISO_TEMPORAL_MS` (3000). `tieneNoDigitos(texto)` → `true` si el texto escrito o pegado trae algún carácter que no es dígito. `validarDni` y `validarDniBusqueda` no cambian. |
+| `lib/useValidacion.ts` (modificado) | Expone el primer aviso visible. | `primerErrorVisible()` → `{ campo, mensaje }` del primer campo de `orden` con aviso visible, o `null`. |
+| `components/CampoDni.tsx` (nuevo) | Campo DNI completo: etiqueta, input (`inputMode="numeric"`, `maxLength` 8), contador "n/8" (verde al llegar a 8; para el lector de pantalla, "n de 8 dígitos" en `contador-<campo>`), aviso rojo (`error-<campo>`), aviso ámbar (`aviso-<campo>`, región `aria-live="polite"` siempre montada, se oculta a los 3 s y cada intento reinicia la cuenta) y ayuda fija (`ayuda-<campo>`). Al teclear bloquea el carácter no numérico o el noveno dígito (`beforeinput`); al pegar inserta solo los dígitos en la posición del cursor; `onChange` cubre el autocompletado y los teclados que no emiten `beforeinput`. | Props: `etiqueta?` ("DNI"), `props` (de `useValidacion().propsCampo`), `valor`, `onCambio(dniLimpio)`, `error?`, `ayuda?` (`AYUDA_DNI` por defecto), `placeholder?`, `className?` (tamaño en cada pantalla). |
+| `components/MotivoDesactivado.tsx` (nuevo) | Texto breve junto al botón desactivado. | `textoMotivo(primero, etiquetas)` → "Revisa el campo {etiqueta}: {mensaje}" o `undefined`. `MotivoDesactivado({ id, texto, className? })`: párrafo que el botón enlaza con `aria-describedby`; el botón repite el texto en `title`. |
+| `app/login/FormularioLogin.tsx` (modificado) | DNI con `CampoDni`; motivo bajo "Ingresar" (no se muestra mientras se envía o se redirige). | — |
+| `app/(privado)/personal/FormularioUsuario.tsx` (modificado) | DNI con `CampoDni`; motivo a la izquierda de "Cancelar" y del botón de guardar (encima de los botones en el celular), con un nombre visible por campo. | — |
+| `app/(privado)/historial/auditoria/ConsultaAuditoria.tsx` (modificado) | DNI con `CampoDni` y `AYUDA_DNI_BUSQUEDA`; se quitaron sus manejadores propios de teclado y pegado. Sin aviso rojo por tener menos de 8 dígitos (búsqueda por prefijo). Motivo bajo la fila del formulario. | — |
+
+### Flujo: pegar `12a34b5678` en el DNI del login
+
+1. `CampoDni.alPegar` cancela el pegado normal (con `maxLength` 8 el navegador cortaría el texto antes de quitar las
+   letras), detecta letras con `tieneNoDigitos` y muestra el aviso ámbar durante 3 s.
+2. Inserta `limpiarDni("12a34b5678")` = `12345678` en la posición del cursor y llama a `onCambio`.
+3. `FormularioLogin` guarda el DNI y `useValidacion` recalcula `validarLogin`: el DNI es válido, el contador queda en
+   "8/8" y, si no hay otros avisos, el botón "Ingresar" se habilita y desaparece el texto del motivo.
+4. Nada llega al backend hasta pulsar "Ingresar" (`POST /api/auth/login`, sin cambios).
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- `npx playwright test e2e/login.spec.ts` (CP-70, CP-72, CP-77, CP-84 siguen pasando con los ids de siempre).
+- A mano, con `npm run dev`: CP-70 a CP-73 en `/login` y en "+ Agregar personal", y CP-88 en `/historial/auditoria`.
