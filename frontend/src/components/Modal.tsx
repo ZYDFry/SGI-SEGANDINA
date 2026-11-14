@@ -37,11 +37,17 @@ export default function Modal({ titulo, subtitulo, onCerrar, bloqueado = false, 
     bloqueadoRef.current = bloqueado;
   });
 
+  // Elemento que abrió el modal. Se toma una sola vez: en desarrollo React ejecuta el efecto dos veces (modo
+  // estricto) y en la segunda el elemento activo ya sería el primer campo.
+  const anteriorRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
-    const anterior = document.activeElement as HTMLElement | null;
+    anteriorRef.current ??= document.activeElement as HTMLElement | null;
+    const anterior = anteriorRef.current;
+    const nodo = panel.current;
     // El primer campo del cuerpo (se salta el botón "✕" del encabezado).
-    const primero = panel.current?.querySelector<HTMLElement>(`[data-cuerpo] :is(${ENFOCABLES})`);
-    (primero ?? panel.current)?.focus();
+    const primero = nodo?.querySelector<HTMLElement>(`[data-cuerpo] :is(${ENFOCABLES})`);
+    (primero ?? nodo)?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -52,7 +58,11 @@ export default function Modal({ titulo, subtitulo, onCerrar, bloqueado = false, 
     return () => {
       window.removeEventListener("keydown", alTeclear);
       document.body.style.overflow = overflow;
-      anterior?.focus();
+      // Devuelve el foco solo si el modal se cerró de verdad. En el ensayo del modo estricto el panel sigue en el
+      // DOM: mover el foco haría perder el foco al primer campo, que mostraría su aviso sin haberlo tocado.
+      setTimeout(() => {
+        if (!nodo?.isConnected) anterior?.focus();
+      }, 0);
     };
   }, []);
 
