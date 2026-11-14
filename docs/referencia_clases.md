@@ -1178,3 +1178,72 @@ que busca por los primeros dígitos) y un texto junto al botón que explica por 
 - `cd frontend && npm run lint && npm run build`.
 - `npx playwright test e2e/login.spec.ts` (CP-70, CP-72, CP-77, CP-84 siguen pasando con los ids de siempre).
 - A mano, con `npm run dev`: CP-70 a CP-73 en `/login` y en "+ Agregar personal", y CP-88 en `/historial/auditoria`.
+
+## Frontend — botón de envío que no roba el foco (corrección DEF-01)
+
+En los modales de alta (personal, zonas y tipos de evento), pulsar el botón de crear con el formulario vacío solo
+mostraba el aviso del primer campo. Al presionar el botón, el campo enfocado perdía el foco, su aviso aparecía y el
+botón se desactivaba antes de recibir el clic. Ahora los botones de envío no toman el foco con el puntero. Solo
+frontend.
+
+### Componentes (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `components/Boton.tsx` (modificado) | Botón con las variantes `primario`, `secundario` y `peligro`. Con `type="submit"` cancela el `mousedown` (`preventDefault`) para no quitar el foco al campo actual; el `onMouseDown` recibido por props se sigue llamando. Con el teclado (Tab y Enter o Espacio) se enfoca y funciona igual. | Props: `variante?` (`primario` por defecto), `type?` (`button` por defecto) y el resto de atributos de `<button>`. |
+
+### Flujo: "Crear zona" con el formulario vacío
+
+1. Al abrirse el modal, el foco está en "Nombre de la zona".
+2. `mousedown` sobre "Crear zona": `Boton` lo cancela, así que el campo no pierde el foco y su `onBlur` (`alSalir`) no
+   se dispara. El botón sigue habilitado.
+3. `click` → `submit` → `useValidacion().intentarEnviar()` muestra los avisos de nombre, departamento, provincia y
+   distrito, enfoca el nombre y devuelve `false`. No sale ninguna petición.
+4. Desde ese momento el botón queda desactivado hasta que se corrigen los avisos.
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- `npx playwright test e2e/validaciones.spec.ts -g "CP-90|CP-96|CP-99"` (con las variables `E2E_*`).
+- A mano: abrir "+ Nueva zona" y pulsar "Crear zona" sin escribir nada. Deben aparecer los cuatro avisos
+  obligatorios y el foco debe ir al nombre. Repetir en "+ Agregar personal" (rol Vigilante sin zona) y en
+  "+ Nuevo tipo".
+
+## RF-03 — el Vigilante solo registra en su zona asignada
+
+El Vigilante ya no elige la zona: registra únicamente en la que tiene asignada, y el backend rechaza cualquier otra.
+El Administrador sigue eligiendo cualquier zona activa. El contrato de `POST /api/incidencias` no cambia (`idZona`
+sigue siendo obligatorio).
+
+### Backend (`backend/src/main/java/com/segandina/sgi/`)
+
+| Clase | Paquete | Responsabilidad | Métodos públicos principales |
+|---|---|---|---|
+| `IncidenciaService` (modificado) | `service` | Mensajes de la regla: `SIN_ZONA_ASIGNADA`, `ZONA_ASIGNADA_INACTIVA`, `SOLO_ZONA_ASIGNADA`. | `registrar(IncidenciaRequest, Long idUsuario)` → `IncidenciaResponse`; ahora también lanza `ReglaNegocioException` si el Vigilante no tiene zona, su zona está inactiva o envía otra. |
+| `IncidenciaServiceImpl` (modificado) | `service.impl` | Si el rol del usuario es `Vigilante`, valida su zona (método privado `validarZonaDelVigilante`) antes de buscar la zona pedida, así que una zona ajena recibe el mismo mensaje exista o no. El Administrador no pasa por esa regla. | `registrar(...)`. |
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/servicios.ts` (modificado) | Relectura del usuario autenticado. | `refrescarUsuario()` → `Usuario`: `GET /api/auth/yo` y guarda el usuario en la sesión, conservando el token y su vencimiento. |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Al abrir carga a la vez los catálogos y `refrescarUsuario()`. Vigilante: título `#titulo-zona` "Zona asignada" y tarjeta de solo lectura `#idZona` con el nombre y, debajo, el distrito y el `idZona` fijo; sin zona o con la zona fuera del catálogo de activas, aviso en la tarjeta y botón desactivado con `MotivoDesactivado` (`#motivo-incidencia`). Administrador: `SelectorBuscable`. Los tres mensajes nuevos del 400 se muestran bajo la zona (regla `"zona asignada"` en `REGLAS_SERVIDOR`) y, si el usuario es Vigilante, el formulario vuelve a cargar el usuario y los catálogos. El botón muestra también el primer aviso pendiente como motivo. | — |
+
+### Flujo: un Vigilante envía otra zona
+
+1. `POST /api/incidencias` con `{ idZona: 5, … }` y el token del Vigilante (zona asignada 1).
+2. `IncidenciaController.registrar` valida el DTO y llama a `IncidenciaService.registrar(request, Long.valueOf(jwt.getSubject()))`.
+3. `IncidenciaServiceImpl` carga el usuario con `UsuarioDao.findById` (activo), ve el rol `Vigilante` y compara su zona
+   asignada (activa, id 1) con `idZona` 5: lanza `ReglaNegocioException("Solo puede registrar incidencias en su zona asignada")`.
+4. `GlobalExceptionHandler` responde 400 con `{timestamp, status, mensaje, detalles}`. No se consulta `ZonaDao`, no se
+   inserta la incidencia ni se audita (la transacción se revierte).
+
+### Cómo probar
+
+- `cd backend && .\mvnw.cmd -q verify` (`IncidenciaServiceImplTest`: Vigilante en su zona, sin zona, con zona
+  inactiva, con otra zona; Administrador en cualquier zona).
+- `cd frontend && npm run lint && npm run build`; con las variables `E2E_*`, `npx playwright test e2e/incidencia.spec.ts`
+  (CP-31, CP-89, CP-105, CP-106).
+- `cd pruebas && npm run newman` con `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`: "Login Vigilante" y
+  "Registrar Incidencia Otra Zona" (CP-104, 400).
+- A mano: `curl -X POST http://localhost:8080/api/incidencias -H "Authorization: Bearer <token de vigilante>" -H "Content-Type: application/json" -d "{\"idZona\":999999,\"idTipoEvento\":1,\"idNivelGravedad\":2,\"descripcion\":\"Prueba\"}"` → 400.

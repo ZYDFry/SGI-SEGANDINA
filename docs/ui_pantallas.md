@@ -38,7 +38,13 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 
 ### 2. Registro de incidencias (estricto Mobile-First)
 - Pensado para el vigilante en campo, una mano, pantalla pequeña.
-- Selectores rápidos como botones para Zona, Tipo de evento y Nivel de gravedad (los de gravedad con color).
+- Zona según el rol (al abrir, el formulario vuelve a leer el usuario con `GET /api/auth/yo`):
+  - Vigilante: título "Zona asignada" y una tarjeta de solo lectura con el nombre de la zona y, debajo, el distrito, sin selector; se registra en esa zona. Sin
+    zona asignada o con la zona inactiva, la tarjeta muestra el aviso ("No tienes una zona asignada; avisa al
+    Administrador." / "Tu zona asignada está inactiva; avisa al Administrador.") y el botón de registro queda
+    desactivado con el motivo debajo.
+  - Administrador: desplegable con búsqueda de las zonas activas (su propia zona, si tiene, primero con "Tu zona").
+- Selectores rápidos como botones para Tipo de evento y Nivel de gravedad (los de gravedad con color).
 - Campo de descripción y botón de registro grande y destacado.
 - Confirmación visible al guardar y formulario listo para otro registro.
 

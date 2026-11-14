@@ -102,7 +102,16 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   - `id_usuario` se toma del JWT.
   - `fecha_hora` (cuándo ocurrió): si no se envía, el backend usa la hora actual; no puede ser futura. `fecha_registro` la asigna la BD.
   - `descripcion` obligatoria y no vacía.
-  - Zona preseleccionada con la zona asignada al vigilante (propuesto), editable.
+  - **Zona según el rol:**
+    - El Vigilante solo registra en su zona asignada. El formulario la muestra fija (título "Zona asignada" y una tarjeta con el
+      nombre y el distrito, sin selector) y envía su id; al abrirse vuelve a leer el usuario con `GET /api/auth/yo`, porque
+      el Administrador pudo reasignarla después del login. El backend lo verifica antes de buscar la zona pedida:
+      sin zona asignada → 400 "No tiene una zona asignada; avise al Administrador"; zona asignada inactiva → 400
+      "Su zona asignada está inactiva; avise al Administrador"; `idZona` distinto del asignado → 400 "Solo puede
+      registrar incidencias en su zona asignada". En los dos primeros casos el formulario muestra el aviso y deja
+      el botón de registro desactivado con el motivo.
+    - El Administrador elige cualquier zona activa con el selector con búsqueda (su propia zona, si tiene, aparece
+      primero con la marca "Tu zona").
   - Tipos y gravedades vienen de los catálogos (`tipo_evento`, `nivel_gravedad`).
   - Zona, tipo y nivel deben existir y estar activos (`estado_activo = true`); los catálogos se obtienen con
     `GET /api/catalogos/zonas`, `/tipos-evento` y `/niveles-gravedad`, que solo devuelven los activos.
@@ -113,7 +122,7 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 - **Contrato:** `POST /api/incidencias` (Vigilante, Administrador) con
   `{ "idZona", "idTipoEvento", "idNivelGravedad", "descripcion", "fechaHora"? }`. Respuestas: 201 con la incidencia
   guardada (zona, tipo y nivel con sus nombres); 400 por datos faltantes o regla incumplida (catálogo inactivo,
-  fecha futura, "Otro" corto); 401 sin token o con usuario inactivo; 403 con rol Supervisor.
+  fecha futura, "Otro" corto, Vigilante sin zona, con la zona inactiva o con una zona distinta de la asignada); 401 sin token o con usuario inactivo; 403 con rol Supervisor.
 - **Criterios de aceptación:** el flujo completo se hace con selectores rápidos y un campo de texto; el servidor responde en menos de 3 segundos en red móvil (RNF-04); tras guardar se muestra confirmación y el formulario queda listo para otro registro.
 
 ## Rango de fechas y filtros comunes (RF-04, RF-05 y RF-06)

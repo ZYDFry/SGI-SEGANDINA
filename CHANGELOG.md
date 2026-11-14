@@ -12,6 +12,55 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 / RF-03 — el Vigilante solo registra en su zona asignada
+- Qué se hizo:
+  - Backend: en `registrar()`, si el usuario es Vigilante se valida su zona antes de buscar la pedida: sin zona → 400
+    "No tiene una zona asignada; avise al Administrador"; zona asignada inactiva → 400 "Su zona asignada está
+    inactiva; avise al Administrador"; `idZona` distinto → 400 "Solo puede registrar incidencias en su zona
+    asignada". El Administrador puede elegir cualquier zona activa. El contrato no cambia.
+  - Frontend: el formulario vuelve a leer el usuario con `GET /api/auth/yo` al abrirse (`refrescarUsuario`). El
+    Vigilante ve su zona fija (título "Zona asignada" y una tarjeta con solo el nombre y el distrito, sin selector); sin zona o con la zona inactiva, aviso
+    y botón de registro desactivado con el motivo. El Administrador usa el selector con búsqueda. Los nuevos 400 se
+    muestran bajo la zona.
+  - RF-03 actualizado (se quita "preseleccionada (propuesto), editable").
+  - Pruebas: 5 tests nuevos en `IncidenciaServiceImplTest` (215 en total). Playwright: CP-105 (Vigilante: zona fija,
+    sin zona, zona inactiva) y CP-106 (Administrador elige otra zona) con zonas, usuario y registro simulados; CP-89 pasa
+    a la sesión de Administrador; CP-31 comprueba que se envía la zona asignada. Postman: "Login Vigilante" y
+    "Registrar Incidencia Otra Zona" (CP-104, 400, no escribe); Newman las corre con `E2E_VIGILANTE_DNI` y
+    `E2E_VIGILANTE_PASSWORD` y las omite sin ellas. El conversor de la colección acepta auth bearer por petición.
+- Archivos clave: `backend/.../service/IncidenciaService.java`, `backend/.../service/impl/IncidenciaServiceImpl.java`,
+  `IncidenciaServiceImplTest.java`, `frontend/src/app/(privado)/incidencias/nueva/FormularioIncidencia.tsx`,
+  `frontend/src/lib/servicios.ts`, `frontend/e2e/incidencia.spec.ts`,
+  `postman/collections/SGI-SEGANDINA/{Login Vigilante,Registrar Incidencia Otra Zona}.request.yaml`,
+  `pruebas/scripts/{coleccion,newman}.mjs`, `pruebas/casos.mjs`, `docs/requerimientos_funcionales.md`,
+  `docs/plan_pruebas_integrales.md`, `docs/ui_pantallas.md`, `docs/referencia_clases.md`.
+- Cómo probarlo: `cd backend && .\mvnw.cmd -q verify`; `cd frontend && npm run lint && npm run build`; con las
+  variables `E2E_*`, `npx playwright test e2e/incidencia.spec.ts` y `cd pruebas && npm run newman`.
+- Resultados (13/11/2026): `verify` con 215 tests sin fallos; lint, build y `tsc` sin errores; `postman collection lint`
+  sin problemas. Playwright y Newman no se corrieron (faltan las variables `E2E_*` en esta sesión).
+- Pendientes: correr Playwright y Newman con credenciales para regenerar las capturas CP-89, CP-104 a CP-106. El
+  Vigilante de prueba necesita una zona activa para CP-31. Si su zona está inactiva, CP-104 recibe "Su zona asignada
+  está inactiva…" y su test falla.
+
+## [2026-11-13] Fase 8 — Corrección de DEF-01 (botón de envío desactivado antes del clic)
+- Qué se hizo:
+  - En "Agregar personal", "Nueva zona" y "Nuevo tipo de evento", pulsar el botón de crear con el formulario vacío
+    solo mostraba el aviso del primer campo y no se procesaba el clic. Al presionar, el campo enfocado perdía el foco,
+    su aviso aparecía y el botón se desactivaba antes de recibir el clic.
+  - `Boton`: un botón `type="submit"` ya no toma el foco al presionarlo con el mouse o el dedo
+    (`onMouseDown` con `preventDefault`). El clic llega, se muestran todos los avisos y el foco va al primer campo con
+    error. Con el teclado se enfoca igual. Aplica a todos los formularios del sistema. Se mantiene que el botón quede
+    desactivado mientras haya avisos visibles.
+  - Plan de pruebas: DEF-01 queda corregido, pendiente de verificar en la próxima corrida. Se actualizó el resultado
+    esperado de CP-13 (el Vigilante sí tiene menú, con "Cambiar mi contraseña"; el Administrador ve también Personal y
+    Catálogos) en el plan y en `pruebas/casos.mjs`.
+- Archivos clave: `frontend/src/components/Boton.tsx`, `docs/plan_pruebas_integrales.md`, `pruebas/casos.mjs`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build` (pasan). Con las variables `E2E_*`:
+  `npx playwright test e2e/validaciones.spec.ts -g "CP-90|CP-96|CP-99"` y después `pruebas\ejecutar-todo.cmd` para
+  regenerar el índice y el PDF de evidencias.
+- Pendientes: falta la corrida de Playwright que confirme CP-90, CP-96 y CP-99, y los 17 casos manuales pendientes
+  del plan de pruebas.
+
 ## [2026-11-13] Fase 8 — Validación visible del DNI
 - Qué se hizo:
   - Componente `CampoDni` para los tres campos DNI (login, alta y edición de personal, filtro de auditoría): ayuda fija
