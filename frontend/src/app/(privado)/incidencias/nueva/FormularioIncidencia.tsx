@@ -5,13 +5,13 @@ import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import Cargando from "@/components/Cargando";
 import MensajeCampo, { bordeCampo } from "@/components/MensajeCampo";
-import SelectorBuscable from "@/components/SelectorBuscable";
+import SelectorBuscable, { type OpcionBuscable } from "@/components/SelectorBuscable";
 import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido";
 import { useSesion } from "@/context/SesionContext";
 import { errorDeApi } from "@/lib/api";
 import { coloresGravedad } from "@/lib/gravedad";
 import { cargarCatalogos, registrarIncidencia, type Catalogos } from "@/lib/servicios";
-import type { IncidenciaResponse, NivelGravedad } from "@/lib/tipos";
+import type { IncidenciaResponse, NivelGravedad, Zona } from "@/lib/tipos";
 import { useValidacion } from "@/lib/useValidacion";
 import {
   DESCRIPCION_MAX,
@@ -70,6 +70,18 @@ function opcionesGravedad(niveles: NivelGravedad[]): OpcionSelector[] {
   }));
 }
 
+/** Zonas activas para el selector: nombre, distrito en la segunda línea; provincia y referencia solo para buscar. */
+function opcionesZona(zonas: Zona[]): OpcionBuscable[] {
+  return zonas
+    .filter((z) => z.estadoActivo)
+    .map((z) => ({
+      valor: z.idZona,
+      etiqueta: z.nombreZona,
+      detalle: z.distrito,
+      busqueda: `${z.provincia} ${z.referencia ?? ""}`,
+    }));
+}
+
 /** Formulario Mobile-First: selectores rápidos, descripción y confirmación al guardar. */
 export default function FormularioIncidencia() {
   const { sesion } = useSesion();
@@ -101,7 +113,7 @@ export default function FormularioIncidencia() {
       .then((datos) => {
         setCatalogos(datos);
         // Zona del vigilante preseleccionada, si sigue activa.
-        if (idZonaAsignada !== null && datos.zonas.some((z) => z.idZona === idZonaAsignada)) {
+        if (idZonaAsignada !== null && datos.zonas.some((z) => z.idZona === idZonaAsignada && z.estadoActivo)) {
           setIdZona((actual) => actual ?? idZonaAsignada);
         }
       })
@@ -199,11 +211,8 @@ export default function FormularioIncidencia() {
         titulo="Zona"
         campo="idZona"
         placeholder="Elige una zona"
-        opciones={catalogos.zonas.map((z) => ({
-          valor: z.idZona,
-          etiqueta: z.nombreZona,
-          detalle: `${z.distrito}, ${z.provincia}`,
-        }))}
+        placeholderBusqueda="Buscar por nombre, distrito o referencia…"
+        opciones={opcionesZona(catalogos.zonas)}
         valor={idZona}
         onCambio={elegir("idZona", setIdZona)}
         destacado={idZonaAsignada}
