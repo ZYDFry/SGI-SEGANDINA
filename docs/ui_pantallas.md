@@ -27,7 +27,27 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 | `/mi-contrasena` | Cambiar mi contraseña (voluntario) | Administrador, Supervisor, Vigilante | RF-02 |
 | `/cambiar-contrasena` | Cambio obligatorio de la contraseña temporal (sin menú) | Cualquier rol con contraseña temporal | RF-01 |
 
-Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. El menú lateral muestra solo las opciones permitidas para el rol (Administrador: dashboard, historial, auditoría, registro, personal y catálogos; Supervisor: dashboard e historial; Vigilante: registro) y, al pie, bajo "Mi cuenta", "Cambiar mi contraseña" para todos. En escritorio es una barra fija; en tablet y celular se abre con "☰ Menú" (también el Vigilante). Las rutas verifican el rol también al escribirlas en la barra: con otro rol se redirige a la pantalla de inicio.
+Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/dashboard`. Las rutas verifican el rol también al escribirlas en la barra: con otro rol se redirige a la pantalla de inicio.
+
+### Menú de navegación por rol
+
+- El menú muestra solo las opciones permitidas para el rol, cada una con su ícono (SVG en línea) y agrupadas bajo
+  títulos: **Gestión** (Dashboard, Historial, Registrar incidencia), **Administración** (Auditoría, Personal,
+  Catálogos; solo el Administrador) y **Mi cuenta** (Cambiar mi contraseña). Supervisor: Dashboard e Historial;
+  Vigilante: Registrar incidencia. "Mis incidencias" del Vigilante está preparada y se mostrará cuando exista su pantalla.
+- El encabezado muestra el título de la pantalla actual (el nombre de la opción activa) y debajo el usuario y su rol.
+- Escritorio (`lg`, desde 1024 px): barra lateral fija con la marca, los íconos y los grupos; la opción de la
+  pantalla actual va resaltada y con `aria-current="page"` (en `/historial/auditoria` se marca "Auditoría", no
+  "Historial"). "Cerrar sesión" está en el encabezado.
+- Tablet y celular (`< lg`), Administrador y Supervisor (y el Vigilante desde 640 px): botón "Menú" (ícono y texto,
+  `aria-expanded`, `aria-controls`) que abre un panel deslizable con los mismos grupos; en "Mi cuenta" incluye
+  "Cerrar sesión". Al abrir, el foco va al primer enlace y Tab no sale del panel; se cierra al elegir una opción,
+  con Escape, con ✕ o tocando fuera, y el foco vuelve al botón "Menú".
+- Vigilante en el celular (`< sm`, menos de 640 px): barra inferior fija con ícono y texto: "Registrar" y
+  "Mi cuenta" (y "Mis incidencias" cuando exista). La opción actual va marcada (`aria-current="page"`). "Mi cuenta"
+  abre una hoja con "Cambiar mi contraseña" y "Cerrar sesión" (Escape o tocar fuera la cierran). El botón fijo
+  "Registrar incidencia" queda por encima de la barra.
+- En el celular, "Cerrar sesión" no está en el encabezado: está dentro de "Mi cuenta" (panel o barra inferior).
 
 ## Pantallas
 
@@ -49,7 +69,7 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 - Confirmación visible al guardar y formulario listo para otro registro.
 
 ### 3. Dashboard gerencial (Desktop)
-- Sidebar de navegación (en tablet y móvil se abre con el botón "☰ Menú").
+- Barra lateral de navegación con íconos y grupos (en tablet y móvil se abre con el botón "Menú").
 - Selector de periodo común: Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado (dos calendarios).
 - Tarjetas KPI arriba: incidencias de hoy, del periodo, vigilantes desplegados y una por nivel de gravedad con su color.
 - Gráfico de barras (incidencias por zona), anillo (por tipo de evento) y serie por tiempo (línea o barras, por día,
@@ -85,4 +105,5 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 ## Responsive
 
 El documento del proyecto incluye una ilustración de "Diseño Responsive". Reglas: formulario del vigilante pensado desde móvil hacia arriba; dashboard, historial, personal y catálogos pensados para escritorio, utilizables en tablet; los formularios de
-personal y catálogos se abren en un modal que en el celular ocupa toda la pantalla.
+personal y catálogos se abren en un modal que en el celular ocupa toda la pantalla. Navegación: barra lateral desde
+`lg`, panel deslizable con "Menú" por debajo de `lg` y, para el Vigilante en el celular (`< sm`), barra inferior fija.

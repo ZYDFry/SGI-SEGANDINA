@@ -919,7 +919,7 @@ ruta que su rol no tiene, `RutaProtegida` lo lleva a su pantalla de inicio. La a
 | `EstadoDatos` | Cargando, error con "Reintentar" (y los detalles de un 400), mensaje sin datos o el contenido. | `cargando`, `error`, `vacio`, `mensajeVacio?`, `onReintentar`. |
 | `Tarjeta`, `TarjetaKpi` | Contenedor con título y acciones; indicador grande con borde de color y modo alerta (rojo). | `titulo`, `acciones?` · `etiqueta`, `valor`, `detalle?`, `color?`, `alerta?`, `cargando?`. |
 | `Paginacion` | Total, página actual, Anterior/Siguiente y filas por página (10, 20, 50). | `pagina`, `totalPaginas`, `totalElementos`, `tamano`, `onPagina`, `onTamano`. |
-| `MenuLateral`, `MarcoPrivado`, `Encabezado` (modificado) | Menú lateral fijo en escritorio y panel deslizable en tablet y móvil (botón "☰ Menú"; se cierra con Escape, al tocar fuera o al elegir). El marco solo lo muestra si el rol tiene más de una pantalla. | `MenuLateral`: `opciones`, `abierto`, `onCerrar`. `Encabezado`: `onAbrirMenu?`. |
+| `MenuLateral`, `MarcoPrivado`, `Encabezado` (modificado) | Menú lateral fijo en escritorio y panel deslizable en tablet y móvil (botón "Menú"; se cierra con Escape, al tocar fuera o al elegir). El marco solo lo muestra si el rol tiene más de una pantalla. | `MenuLateral`: `opciones`, `abierto`, `onCerrar`. `Encabezado`: `onAbrirMenu?`. |
 | `graficos/GraficoBarras`, `GraficoAnillo`, `GraficoSerie` | Barras horizontales por zona, anillo por tipo (con porcentaje en el tooltip) y serie en línea o barras (tooltip con el tramo completo). Cada uno trae una tabla oculta con los datos para lectores de pantalla. | `titulo`, `datos: Conteo[]` · `serie: SerieTiempo`, `tipo: "linea"` o `"barras"`. `graficos/registro.ts` registra en Chart.js solo los elementos usados y define los colores corporativos. |
 
 ### Páginas (`frontend/src/app/(privado)/`)
@@ -985,7 +985,7 @@ mensajes que los DTO) y muestra los errores del backend bajo el campo que corres
 
 Menú por rol (`MENU` en `lib/roles.ts`): el Administrador ve Dashboard, Historial, Auditoría, Registrar incidencia,
 Personal y Catálogos; el Supervisor, Dashboard e Historial; el Vigilante, Registrar incidencia. Todos ven al pie,
-bajo "Mi cuenta", "Cambiar mi contraseña"; por eso el Vigilante también tiene "☰ Menú" en el celular. Un Supervisor
+bajo "Mi cuenta", "Cambiar mi contraseña"; por eso el Vigilante también tiene menú (desde la sección "Menú de navegación por rol", en el celular es una barra inferior). Un Supervisor
 o Vigilante que escribe `/personal` o `/catalogos` es llevado a su pantalla de inicio; la API además responde 403.
 
 ### Módulos nuevos y modificados (`frontend/src/lib/`)
@@ -1247,3 +1247,50 @@ sigue siendo obligatorio).
 - `cd pruebas && npm run newman` con `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`: "Login Vigilante" y
   "Registrar Incidencia Otra Zona" (CP-104, 400).
 - A mano: `curl -X POST http://localhost:8080/api/incidencias -H "Authorization: Bearer <token de vigilante>" -H "Content-Type: application/json" -d "{\"idZona\":999999,\"idTipoEvento\":1,\"idNivelGravedad\":2,\"descripcion\":\"Prueba\"}"` → 400.
+
+## Menú de navegación por rol
+
+El menú se agrupa por títulos ("Gestión", "Administración", "Mi cuenta") y cada opción lleva un ícono SVG en línea.
+El encabezado muestra el título de la pantalla actual. En escritorio hay una barra lateral fija; por debajo de `lg`,
+un panel deslizable con manejo de foco y Escape; y el Vigilante, en el celular, navega con una barra inferior fija.
+La lógica de acceso por rol no cambia (`RutaProtegida`, `ROLES_*`, `rutaInicio`).
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/roles.ts` (modificado) | Modelo del menú. `OpcionMenu` tiene ahora `grupo` (`GrupoMenu`), `icono` (`NombreIcono`), `etiquetaCorta?` (texto de la barra inferior: "Registrar") y `disponible?` (`false` = preparada y oculta: "Mis incidencias" del Vigilante, `/mis-incidencias`). Sustituye al antiguo `cuenta?`. | `GRUPOS_MENU`: orden de los grupos. `menuDe(rol)` → opciones del rol sin las de `disponible: false`. `gruposDe(opciones)` → `{ titulo, opciones }[]` en el orden de `GRUPOS_MENU`, sin grupos vacíos. `opcionActiva(ruta, opciones)` sin cambios. |
+| `components/IconoMenu.tsx` (nuevo) | Ícono SVG de 24×24 en trazo (`currentColor`), decorativo (`aria-hidden`); sin dependencias. | Props: `nombre: NombreIcono`, `className?` (`h-5 w-5` por defecto). |
+| `components/MenuLateral.tsx` (modificado) | Barra lateral (`lg`, `aside` "Menú lateral") y panel deslizable (`< lg`, `role="dialog"`, `id="menu-panel"`), ambos con el `nav` "Menú principal" agrupado. El panel enfoca el primer enlace al abrir, mantiene el Tab dentro, se cierra con Escape, ✕, fondo o al elegir y devuelve el foco al botón "Menú". En el panel, "Mi cuenta" agrega "Cerrar sesión". | Props: `opciones`, `abierto`, `onCerrar`, `botonMenuRef`. Exporta `ID_PANEL_MENU`. |
+| `components/BarraInferior.tsx` (nuevo) | Solo Vigilante y solo `< sm`: `nav` "Navegación inferior" fija al pie (alto 4rem) con las opciones de trabajo ("Registrar") y el botón "Mi cuenta", que abre la hoja `role="dialog"` "Mi cuenta" con "Cambiar mi contraseña" y "Cerrar sesión" (Escape o fondo la cierran y el foco vuelve al botón). La opción actual lleva `aria-current="page"` ("Mi cuenta" en `/mi-contrasena`). | Props: `opciones`. |
+| `components/Encabezado.tsx` (modificado) | Título de la pantalla actual (`data-testid="titulo-pantalla"`, la etiqueta de la opción activa) y usuario · rol. Botón "Menú" con ícono, `aria-expanded` y `aria-controls`; oculto en `lg` y, si hay barra inferior, también en `< sm`. "Cerrar sesión" del encabezado se oculta en `< sm` cuando el menú lo ofrece en "Mi cuenta". | Props: `opciones`, `onAbrirMenu?`, `menuAbierto?`, `botonMenuRef?`, `conBarraInferior?`. |
+| `components/MarcoPrivado.tsx` (modificado) | Arma encabezado, menú y barra inferior según el rol; guarda el `ref` del botón "Menú" y publica la variable CSS `--alto-barra-inferior` (4rem en `< sm` con barra; 0 en otro caso), que agrega espacio al pie del contenido. | — |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | El contenedor fijo del botón "Registrar incidencia" se ubica en `bottom: var(--alto-barra-inferior)` (`z-30`): con la barra queda justo encima de ella; sin barra (Administrador) sigue al pie. | — |
+
+### Flujo: el Supervisor abre el menú en una tablet
+
+1. `MarcoPrivado` calcula `menuDe("Supervisor")` → Dashboard, Historial y Cambiar mi contraseña (más de una opción: hay menú; no es Vigilante: sin barra inferior).
+2. `Encabezado` muestra "Dashboard" como título (`opcionActiva("/dashboard", …)`) y el botón "Menú" con `aria-expanded="false"`.
+3. Clic en "Menú" → `menuAbierto = true` → `MenuLateral` dibuja el panel con `gruposDe(...)`: "Gestión" y "Mi cuenta" (con "Cerrar sesión"); el efecto enfoca "Dashboard".
+4. Escape → `onCerrar()` → el panel se desmonta y el efecto devuelve el foco a `botonMenuRef` ("Menú", otra vez `aria-expanded="false"`).
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- Con las variables `E2E_*` y el backend y el frontend en marcha: `npx playwright test e2e/navegacion.spec.ts`
+  (CP-107 Vigilante a 360 × 740, CP-108 Supervisor a 768 × 1024, CP-109 Administrador a 1366 × 768).
+- A mano, con las herramientas de desarrollo del navegador en modo dispositivo: como Vigilante a 360 px, comprobar la
+  barra inferior, que el botón "Registrar incidencia" no quede tapado y la hoja "Mi cuenta"; como Supervisor a 768 px,
+  abrir "Menú", recorrer con Tab (no sale del panel) y cerrar con Escape; en escritorio, navegar y ver la opción marcada.
+
+### Corrección de DEF-01 en `Modal` y ajuste de CP-106
+
+| Archivo | Cambio |
+|---|---|
+| `components/Modal.tsx` (modificado) | El elemento que abrió el modal se guarda una sola vez en una referencia y el foco se le devuelve solo cuando el panel ya no está en el DOM (cierre real, comprobado en un `setTimeout`). En desarrollo, React ejecuta el efecto dos veces (modo estricto); antes, la primera limpieza movía el foco fuera del primer campo, que mostraba "Este campo es obligatorio" y dejaba desactivado el botón de envío antes del clic. Props sin cambios. |
+| `e2e/incidencia.spec.ts` (CP-106) | Oculta el indicador flotante de Next (`ocultarIndicadorNext`) al abrir la pantalla y no solo antes de enviar: en `npm run dev`, a 360 px, el indicador intercepta los clics en la hoja de zonas y en los botones de la parte baja. No es un fallo de la aplicación (con el indicador oculto, el clic y el teclado funcionan igual a 360 px y en escritorio). |
+
+Cómo probar: `cd frontend && npx playwright test e2e/validaciones.spec.ts -g "CP-90|CP-96|CP-99"` y
+`npx playwright test e2e/incidencia.spec.ts -g "CP-106"`. A mano, en `npm run dev`: abrir "+ Nueva zona" y pulsar
+"Crear zona" sin escribir: aparecen los cuatro avisos y el foco va al nombre; al cerrar el modal, el foco vuelve a
+"+ Nueva zona".

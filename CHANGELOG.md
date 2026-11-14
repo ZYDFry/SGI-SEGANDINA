@@ -12,6 +12,45 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-14] Fase 8 — revisión de la corrida de Playwright: DEF-01 cerrado y CP-106
+- Qué se hizo:
+  - Corrida del 14/11: 37 de 41 aprobadas; CP-107 a CP-109 (menú por rol) aprobadas. Fallaban CP-90, CP-96, CP-99
+    (DEF-01) y CP-106; ninguno por el menú.
+  - DEF-01: la causa era el efecto de `Modal` ejecutado dos veces en desarrollo (modo estricto de React): la limpieza
+    devolvía el foco al botón que abrió el modal, el primer campo mostraba su aviso y el botón de envío quedaba
+    desactivado antes del clic. `Modal` guarda el elemento que lo abrió una sola vez y solo le devuelve el foco al
+    cerrarse de verdad. Defecto cerrado.
+  - CP-106: el indicador flotante de Next (`npm run dev`) interceptaba los clics en la hoja de zonas a 360 px; la
+    prueba lo oculta al abrir la pantalla. No era un fallo de la aplicación.
+  - Plan de pruebas: resultados de CP-90, CP-96, CP-99, CP-106 y CP-107 a CP-109 (Aprobado) y DEF-01 cerrado. Se
+    borran las capturas `CP-90_fallo.png`, `CP-96_fallo.png`, `CP-99_fallo.png` y `CP-106_fallo.png`.
+- Archivos clave: `frontend/src/components/Modal.tsx`, `frontend/e2e/incidencia.spec.ts`,
+  `docs/plan_pruebas_integrales.md`, `docs/referencia_clases.md`.
+- Cómo probarlo: `npx playwright test e2e/validaciones.spec.ts e2e/incidencia.spec.ts e2e/navegacion.spec.ts`
+  (21 aprobadas el 14/11); después `pruebas\ejecutar-todo.cmd` para regenerar el índice y el PDF.
+- Pendientes: `docs/evidencias/pruebas/index.html` y `reporte_pruebas.pdf` aún reflejan la corrida anterior.
+
+## [2026-11-13] Fase 8 — menú de navegación claro por rol
+- Qué se hizo:
+  - Íconos SVG en línea (sin dependencias) para cada opción del menú y grupos titulados "Gestión", "Administración"
+    y "Mi cuenta"; `OpcionMenu` gana `grupo`, `icono`, `etiquetaCorta` y `disponible`. "Mis incidencias" del
+    Vigilante queda preparada (`disponible: false`) hasta que exista su pantalla.
+  - Encabezado con el título de la pantalla actual; botón "Menú" con ícono, `aria-expanded` y `aria-controls`.
+  - Panel deslizable (tablet y celular): foco al primer enlace al abrir, Tab dentro del panel, Escape para cerrar y
+    foco de vuelta al botón; "Cerrar sesión" dentro de "Mi cuenta". Escritorio: barra lateral con los mismos íconos y grupos.
+  - Vigilante en el celular (< 640 px): barra inferior fija con "Registrar" y "Mi cuenta" (hoja con "Cambiar mi
+    contraseña" y "Cerrar sesión"), opción activa con `aria-current`. El botón fijo "Registrar incidencia" se ubica
+    encima de la barra (variable CSS `--alto-barra-inferior`).
+  - En el celular, "Cerrar sesión" sale del encabezado y queda en "Mi cuenta". La lógica de acceso por rol no cambia.
+- Archivos clave: `frontend/src/lib/roles.ts`, `frontend/src/components/IconoMenu.tsx` (nuevo),
+  `BarraInferior.tsx` (nuevo), `MenuLateral.tsx`, `Encabezado.tsx`, `MarcoPrivado.tsx`,
+  `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx`, `frontend/e2e/navegacion.spec.ts` (nuevo),
+  `pruebas/casos.mjs`, `docs/plan_pruebas_integrales.md` (sección 5.14), `docs/ui_pantallas.md`, `docs/referencia_clases.md`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build`; con las variables `E2E_*`,
+  `npx playwright test e2e/navegacion.spec.ts` (CP-107 a CP-109) y el resto de la suite para descartar regresiones.
+- Pendientes: los casos CP-107 a CP-109 quedan "Pendiente" en el plan hasta la próxima corrida con evidencias
+  (`pruebas\ejecutar-todo.cmd`); la pantalla "Mis incidencias" no existe todavía.
+
 ## [2026-11-13] Fase 8 / RF-03 — el Vigilante solo registra en su zona asignada
 - Qué se hizo:
   - Backend: en `registrar()`, si el usuario es Vigilante se valida su zona antes de buscar la pedida: sin zona → 400
