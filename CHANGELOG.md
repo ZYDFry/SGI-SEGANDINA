@@ -12,6 +12,34 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 / RF-03 — Selector de zona con búsqueda accesible
+- Qué se hizo:
+  - `SelectorBuscable` como combobox accesible: cada opción muestra el nombre de la zona y, en una segunda línea más
+    pequeña, el distrito; busca por nombre, distrito, provincia o referencia (prop nueva `busqueda`, texto que se
+    busca sin mostrarse) sin distinguir mayúsculas ni tildes. Sin resultados: "Sin coincidencias".
+  - Opciones de 48 px de alto mínimo; con más de 8 zonas la lista se limita en altura (`28rem`) y se desplaza.
+  - Teclado: ↑/↓, Inicio/Fin, Enter, Escape y Tab (cierran y devuelven el foco al botón). Para lectores de pantalla:
+    `aria-selected` en la opción activa, texto oculto "(elegida)" en la elegida y una región `aria-live` que anuncia
+    "N resultados" o "Sin coincidencias".
+  - `FormularioIncidencia`: solo zonas activas (`opcionesZona`), la del vigilante preseleccionada si está activa y
+    editable. Tipo de evento y gravedad siguen como botones. La zona obligatoria sigue saliendo de
+    `validarIncidencia` ("Elige una zona" bajo el botón, con foco en él).
+  - Sin dependencias nuevas ni cambios en el backend (`GET /api/catalogos/zonas` ya devuelve solo zonas activas).
+  - Playwright: dos pruebas CP-89 en `incidencia.spec.ts` con un catálogo ficticio de 10 zonas (se intercepta
+    `GET /api/catalogos/zonas`, no registran nada); CP-89 agregado a `pruebas/casos.mjs`.
+- Archivos clave: `frontend/src/components/SelectorBuscable.tsx`,
+  `frontend/src/app/(privado)/incidencias/nueva/FormularioIncidencia.tsx`, `frontend/e2e/incidencia.spec.ts`,
+  `pruebas/casos.mjs`, `docs/plan_pruebas_integrales.md` (CP-89), `docs/referencia_clases.md`,
+  `docs/evidencias/pruebas/capturas/CP-89_selector_zona_busqueda.png`, `CP-89_zona_obligatoria.png`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/incidencia.spec.ts`; a mano,
+  `/incidencias/nueva` en 360 px siguiendo CP-89 (incluido el paso con lector de pantalla).
+- Resultados (13/11/2026): lint y build sin errores; Playwright CP-89 (2 pruebas) y CP-33 aprobados.
+- Pendientes o problemas conocidos:
+  - CP-31 no se volvió a ejecutar (escribe una incidencia real en la base); su captura
+    `CP-31_formulario_movil_completo.png` se regenera en la próxima corrida completa.
+  - El paso con lector de pantalla (NVDA o TalkBack) de CP-89 es manual.
+  - `index.html` y `reporte_pruebas.pdf` de evidencias aún no incluyen CP-89: se regeneran con `npm run reporte`.
+
 ## [2026-11-13] Fase 8 — Pruebas automatizadas y evidencias visuales
 - Qué se hizo:
   - Backend: JaCoCo 0.8.13 (cobertura en `backend/target/site/jacoco/index.html`, sin umbral) y

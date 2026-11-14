@@ -825,8 +825,8 @@ al que corresponden. Hoy se aplica al login, al cambio de contraseña y al regis
 | `components/SelectorRapido.tsx` (modificado) | El grupo muestra su aviso debajo, contorno rojo, `aria-invalid` y `aria-describedby` en el `radiogroup`; avisa cuando el foco sale del grupo. | Props nuevas opcionales: `campo`, `error`, `onSalir`, `refPrimero` (ref del primer botón, para enfocarlo). |
 | `app/login/FormularioLogin.tsx` (modificado) | DNI que solo admite dígitos: bloquea al teclear lo que no sea dígito o pase del octavo (`onBeforeInput`) y limpia lo pegado con `limpiarDni` (`onChange`); `inputMode="numeric"` y `pattern="[0-9]*"` para el teclado numérico. Contraseña obligatoria. El 401 sigue en la alerta general. | — |
 | `app/cambiar-contrasena/FormularioCambioContrasena.tsx` (modificado) | Nueva de 8 a 72 caracteres (antes 16), distinta de la actual, y confirmación igual. "La contraseña actual no es correcta" y "debe ser distinta de la actual" del backend se muestran bajo su campo. | — |
-| `components/SelectorBuscable.tsx` (nuevo) | Desplegable con búsqueda para listas que crecen. Un botón grande (`id` = campo) muestra la opción elegida y su detalle; al tocarlo abre una hoja inferior en el celular o un desplegable desde `sm`, con buscador (por etiqueta y detalle, sin tildes ni mayúsculas) y lista desplazable. Teclado: ↑/↓, Enter, Escape; cierra al tocar fuera y devuelve el foco al botón. Aviso debajo con `MensajeCampo` y `aria-describedby`. | Props `titulo`, `campo`, `opciones` (`{ valor, etiqueta, detalle? }`), `valor`, `onCambio`, `placeholder`, `error?`, `onSalir?` (al cerrar el panel o salir del botón), `refPrimero?`, `destacado?` (opción mostrada primero con la marca "Tu zona"). |
-| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | La zona se elige con `SelectorBuscable` (detalle: distrito y provincia; la zona asignada al vigilante aparece primero y preseleccionada). El tipo de evento usa botones con hasta 8 tipos y `SelectorBuscable` si hay más (`MAX_TIPOS_EN_BOTONES`). Avisos bajo zona, tipo, gravedad, descripción (con contador `n/2000`) y fecha. Los 400 de catálogo inactivo, descripción corta de "Otro" y fecha futura se muestran bajo su campo. Tras registrar, el formulario queda sin avisos. | — |
+| `components/SelectorBuscable.tsx` (nuevo) | Desplegable con búsqueda para listas que crecen (zonas y, con más de 8, tipos de evento). Un botón grande muestra la opción elegida y su detalle; al tocarlo abre una hoja inferior en el celular o un desplegable desde `sm`, con buscador y lista desplazable. Detalle actualizado en la sección "Frontend — selector de zona con búsqueda en el registro de incidencias". | Props `titulo`, `opciones`, `valor`, `onCambio`, `placeholder`, `campo`, `error`, `onSalir`, `refPrimero`, `destacado`. |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | La zona se elige con `SelectorBuscable` (detalle: distrito; la zona asignada al vigilante aparece primero y preseleccionada). El tipo de evento usa botones con hasta 8 tipos y `SelectorBuscable` si hay más (`MAX_TIPOS_EN_BOTONES`). Avisos bajo zona, tipo, gravedad, descripción (con contador `n/2000`) y fecha. Los 400 de catálogo inactivo, descripción corta de "Otro" y fecha futura se muestran bajo su campo. Tras registrar, el formulario queda sin avisos. | — |
 
 ### Reglas por formulario
 
@@ -1088,7 +1088,7 @@ toman capturas `CP-xx_*.png`, y un índice HTML con su PDF que junta todos los r
 | `login.spec.ts` | RF-01. | CP-70, CP-72, CP-77, CP-84 y CP-03 (sin sesión) y CP-13 (login de cada rol, destino y menú). |
 | `acceso-roles.spec.ts` | Rutas de otro rol. | CP-13 / CP-103 con Vigilante y Supervisor. |
 | `validaciones.spec.ts` | Avisos sin envío. | CP-75, CP-76 (`/mi-contrasena`), CP-77, CP-78, CP-79 (incidencias), CP-74, CP-90 (personal), CP-96, CP-99, CP-101 (catálogos). |
-| `incidencia.spec.ts` | RF-03 en 360 × 740. | CP-33 (sin desplazamiento horizontal, botón fijo visible) y CP-31 / CP-86 (registro real con confirmación y descripción recortada en el `POST`). |
+| `incidencia.spec.ts` | RF-03 en 360 × 740. | CP-33 (sin desplazamiento horizontal, botón fijo visible), CP-31 / CP-86 (registro real con confirmación y descripción recortada en el `POST`) y CP-89 (selector de zona con un catálogo ficticio interceptado: búsqueda, teclado, alto de opciones, lista limitada, solo zonas activas y zona obligatoria). |
 | `paneles.spec.ts` | Pantallas de gerencia. | CP-45 (dashboard, periodo, agrupación y tipo de gráfico), CP-38 (historial y detalle), CP-51 (descarga Excel y PDF), CP-63 (auditoría como Administrador y sin pestaña como Supervisor), CP-25 (personal) y CP-69 (catálogos). |
 
 ### Flujo de una corrida
@@ -1111,3 +1111,36 @@ cd .. && pruebas\ejecutar-todo.cmd
 
 Abrir `docs/evidencias/pruebas/index.html` y `reporte_pruebas.pdf`. Sin variables `E2E_*`, las pruebas con sesión
 aparecen omitidas y Newman como "No ejecutado". Requisitos y variables: `docs/evidencias/pruebas/README.md`.
+
+## Frontend — selector de zona con búsqueda en el registro de incidencias (RF-03)
+
+En `/incidencias/nueva` la zona se elige con un desplegable con búsqueda (combobox accesible) en lugar de un botón
+por zona. Cada opción muestra el nombre y, debajo, el distrito; se busca por nombre, distrito, provincia o referencia
+sin distinguir mayúsculas ni tildes. Solo se listan zonas activas y la del vigilante viene preseleccionada. Tipo de
+evento y nivel de gravedad siguen como botones. No hay cambios en el backend ni dependencias nuevas.
+
+### Componentes y páginas (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `components/SelectorBuscable.tsx` (modificado) | Combobox con disparador: un botón (`id` = campo) muestra la opción elegida con su detalle; al tocarlo abre una hoja inferior en el celular o un desplegable desde `sm` con un buscador enfocado (`role="combobox"`, `aria-activedescendant`) y una lista (`role="listbox"`). Opciones de 48 px de alto mínimo; con más de `MAX_OPCIONES_VISIBLES` (8) opciones la lista se limita a `28rem` y se desplaza. Sin resultados muestra "Sin coincidencias". Una región `aria-live` anuncia "N resultados" o "Sin coincidencias"; la opción activa lleva `aria-selected` y la elegida un ✓ con el texto oculto "(elegida)". | Props: `titulo`, `opciones: OpcionBuscable[]`, `valor`, `onCambio(valor)`, `placeholder`, `campo`, `error?`, `onSalir?`, `refPrimero?`, `destacado?` (opción que va primero con la marca `etiquetaDestacado`, "Tu zona" por defecto), `placeholderBusqueda?`. `OpcionBuscable`: `valor`, `etiqueta`, `detalle?` (segunda línea, se busca), `busqueda?` (texto que se busca sin mostrarse). `normalizar(texto)` → minúsculas sin tildes. Teclado: ↑/↓, Inicio/Fin, Enter elige, Escape y Tab cierran y devuelven el foco al botón. |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Arma las opciones de zona con `opcionesZona(zonas)`: filtra `estadoActivo`, `detalle` = distrito y `busqueda` = provincia + referencia. Preselecciona la zona del vigilante solo si está activa. La validación sigue en `validarIncidencia` (`lib/validaciones.ts`): sin zona, "Elige una zona" bajo el botón, borde rojo y foco en él. | — |
+
+### Flujo: elegir una zona buscando por referencia
+
+1. `FormularioIncidencia` llama a `cargarCatalogos()` → `GET /api/catalogos/zonas` (`CatalogoController.zonas` →
+   `CatalogoServiceImpl.listarZonasActivas` → `ZonaDao.findByEstadoActivoTrueOrderByNombreZonaAsc`).
+2. `opcionesZona` convierte cada zona activa en `{ valor, etiqueta: nombreZona, detalle: distrito, busqueda: "provincia referencia" }`.
+3. El vigilante toca el botón: `SelectorBuscable` abre la lista con su zona primero ("Tu zona") y enfoca el buscador.
+4. Escribe `kennedy`: `normalizar` compara contra `etiqueta + detalle + busqueda` y queda la zona cuya referencia es
+   "Frente al parque Kennedy"; el lector de pantalla anuncia "1 resultado".
+5. Enter llama a `onCambio(idZona)`, cierra la lista, devuelve el foco al botón y `useValidacion.alCambiar("idZona")`
+   borra el aviso del campo.
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- `npx playwright test e2e/incidencia.spec.ts -g CP-89` (con la sesión de Vigilante; ver `docs/evidencias/pruebas/README.md`):
+  usa un catálogo ficticio de 10 zonas y deja `CP-89_selector_zona_busqueda.png` y `CP-89_zona_obligatoria.png`.
+- A mano: `npm run dev`, `/incidencias/nueva` en 360 px y seguir CP-89 del plan de pruebas, incluido el paso con
+  lector de pantalla.
