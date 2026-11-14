@@ -39,6 +39,7 @@ backend/    API REST en Spring Boot (controller, service, dao, model, dto, confi
 frontend/   Aplicación Next.js: pantallas en src/app, componentes en src/components, cliente de la API en src/lib
 docs/       Documentación del sistema
 postman/    Colección Postman de la API (postman/collections/SGI-SEGANDINA)
+pruebas/    Ejecución de la colección con Newman, generación del reporte de evidencias y ejecutar-todo.cmd
 ```
 
 Documentos en `docs/`:
@@ -51,6 +52,8 @@ Documentos en `docs/`:
 | `procesos_negocio.md` | Procesos AS-IS y TO-BE |
 | `ui_pantallas.md` | Diseño de pantallas y rutas por rol |
 | `referencia_clases.md` | Clases del backend y del frontend por fase, con su flujo y cómo probarlas |
+| `plan_pruebas_integrales.md` | Casos de prueba `CP-xx`, criterios y resultados |
+| `evidencias/pruebas/` | Reporte de la última corrida de pruebas (`index.html`, `reporte_pruebas.pdf` y capturas) |
 
 El historial de cambios está en `CHANGELOG.md`.
 
@@ -120,21 +123,36 @@ Tras iniciar sesión, el Vigilante entra a `/incidencias/nueva`; el Administrado
 | 8 | Frontend: dashboard, historial, auditoría, personal y catálogos; plan de pruebas y evidencias | En curso |
 | 9 | Despliegue en Vercel, Render o Railway y Supabase | Pendiente |
 
-En la Fase 8 ya están el cambio obligatorio de contraseña, los ajustes del login y este README. El dashboard
-(`/dashboard`) aún es una pantalla provisional, y `/historial` y `/personal` todavía no existen.
+En la Fase 8 ya están todas las pantallas (dashboard, historial con exportación y auditoría, personal, catálogos y
+cambio de contraseña), el plan de pruebas integrales y la ejecución automática de pruebas con su reporte de
+evidencias.
 
 ## Pruebas
 
-Tests unitarios y de integración del backend:
+| Tipo | Herramienta | Dónde |
+|---|---|---|
+| Unitarias e integración del backend | JUnit 5, Mockito, MockMvc, H2 + Surefire y JaCoCo | `backend/src/test` |
+| Integración de la API | Newman con la colección Postman | `postman/collections/SGI-SEGANDINA`, `pruebas/` |
+| Extremo a extremo y validación de formularios | Playwright (Chromium) | `frontend/e2e` |
+
+Todo en orden (Windows, desde la raíz), con el backend y el frontend corriendo:
 
 ```
-cd backend
-./mvnw test
+set E2E_ADMIN_DNI=...           & set /p E2E_ADMIN_PASSWORD=Contraseña: 
+set E2E_SUPERVISOR_DNI=...      & set /p E2E_SUPERVISOR_PASSWORD=Contraseña: 
+set E2E_VIGILANTE_DNI=...       & set /p E2E_VIGILANTE_PASSWORD=Contraseña: 
+pruebas\ejecutar-todo.cmd
 ```
 
-La colección Postman de `postman/collections/SGI-SEGANDINA` prueba la API con variables de entorno y sin
-credenciales guardadas. Esta sección se completará con las pruebas extremo a extremo del frontend, la ejecución de
-la colección por línea de comandos y la generación del reporte de evidencias.
+El script corre los tests del backend (`.\mvnw.cmd verify surefire-report:report-only`), la colección con Newman
+(solo consultas; `--completo` agrega las escrituras y requiere una base de prueba y `PRUEBAS_CONTRASENA_TEMPORAL`),
+las pruebas de Playwright y genera `docs/evidencias/pruebas/index.html` y `docs/evidencias/pruebas/reporte_pruebas.pdf`
+con el resumen por tipo, los casos `CP-xx` y sus capturas. Si el backend o el frontend no responden, lo avisa y omite
+esos pasos. `BASE_URL` y `FRONTEND_URL` cambian las direcciones (por defecto `http://localhost:8080` y
+`http://localhost:3000`).
+
+Solo los tests del backend: `cd backend && ./mvnw test`. Requisitos, variables, datos que escribe cada paso y
+comandos por separado: `docs/evidencias/pruebas/README.md`.
 
 ## Despliegue
 

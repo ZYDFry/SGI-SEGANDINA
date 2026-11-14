@@ -12,6 +12,64 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-13] Fase 8 — Pruebas automatizadas y evidencias visuales
+- Qué se hizo:
+  - Backend: JaCoCo 0.8.13 (cobertura en `backend/target/site/jacoco/index.html`, sin umbral) y
+    `maven-surefire-report-plugin` 3.5.6 (`.\mvnw.cmd verify surefire-report:report-only` →
+    `backend/target/reports/surefire.html`). 210 tests aprobados, 89 % de cobertura de instrucciones.
+  - API: carpeta `pruebas/` con Newman 6.2.3 y newman-reporter-htmlextra 1.23.1. La colección local está en formato
+    v3 (YAML), así que `scripts/coleccion.mjs` la convierte en memoria al formato v2.1 de Newman sin modificarla.
+    `scripts/newman.mjs` arma el environment desde `BASE_URL`, `E2E_ADMIN_DNI` y `E2E_ADMIN_PASSWORD` y por defecto
+    ejecuta solo Login y las 24 consultas; `--completo` agrega las 12 escrituras (solo base de prueba, con
+    `PRUEBAS_CONTRASENA_TEMPORAL`). El reporte htmlextra no muestra variables, `Authorization` ni cuerpos con
+    contraseñas o el token.
+  - Frontend: Playwright 1.64.1 en `frontend/e2e` (29 pruebas y 3 de preparación de sesiones): login por rol y
+    redirección, DNI con letras, de 7 dígitos y credenciales incorrectas, avisos de validación en login, cambio de
+    contraseña, incidencias, personal y catálogos, registro de una incidencia en 360 × 740, acceso a rutas de otro
+    rol, dashboard, historial, exportación, auditoría, personal y catálogos. Cada prueba lleva el `CP-xx` en el
+    título y guarda capturas `CP-xx_*.png` con contraseñas, DNIs y búsquedas tapadas; los valores reales se escriben
+    con `escribirSecreto()` para que no queden en el reporte de Playwright.
+  - Evidencias: `pruebas/scripts/reporte.mjs` genera `docs/evidencias/pruebas/index.html` (portada, índice, resumen
+    por tipo, enlaces a Surefire, JaCoCo, Newman y Playwright, galería por tipo y caso con RF, descripción,
+    esperado, obtenido y estado) y `reporte_pruebas.pdf` (A4, marcadores, "Página X de Y", capturas sin cortar).
+    Lo que no se ejecutó aparece como "No ejecutado"; los fallos se muestran con su error. Antes del PDF busca
+    contraseñas, DNIs y tokens en lo generado.
+  - `pruebas\ejecutar-todo.cmd [--completo]`: backend → Newman → Playwright → índice y PDF; avisa y omite pasos si
+    el backend o el frontend no responden.
+  - `.gitignore` con los reportes temporales y las sesiones de Playwright; `.gitattributes` marca
+    `docs/evidencias/**` como `linguist-documentation` y los `.cmd` con CRLF.
+- Archivos clave: `backend/pom.xml`, `pruebas/{package.json,casos.mjs,ejecutar-todo.cmd}`,
+  `pruebas/scripts/{coleccion,newman,reporte}.mjs`, `frontend/playwright.config.ts`, `frontend/e2e/*.ts`,
+  `docs/evidencias/pruebas/{README.md,index.html,reporte_pruebas.pdf,capturas/}`, `docs/plan_pruebas_integrales.md`
+  (secciones 2, 3, 6.2 a 6.4, R-09 y resultados), `docs/referencia_clases.md`, `README.md`.
+- Cómo probarlo: con el backend (perfil `local`) y el frontend corriendo y las variables `E2E_*` definidas,
+  `pruebas\ejecutar-todo.cmd`; abrir `docs/evidencias/pruebas/index.html`. Detalle en
+  `docs/evidencias/pruebas/README.md`.
+- Correcciones tras las primeras corridas reales:
+  - Newman: cada script de la colección se envuelve en una función, porque el sandbox de Newman ya define la variable
+    global `data` y el `const data` del script de "Login" fallaba (el token no se guardaba y todo daba 401).
+  - Playwright: `esperarPantalla` solo considera un "Cargando…" visible (con `cacheComponents`, Next deja oculta la
+    ruta anterior en el DOM); las pruebas que fallan guardan `CP-xx_fallo.png`; las de CP-90, CP-96 y CP-99 fallan en
+    5 s con un mensaje claro.
+  - Reporte: las capturas se asocian por el nombre del adjunto (Playwright copia los adjuntos a su carpeta).
+  - Colección: "Auditoria Filtrar" usa `periodo=PERSONALIZADO`, porque la API solo acepta `desde` y `hasta` con ese
+    periodo (con `ULTIMOS_30_DIAS` respondía 400, que es lo correcto).
+- Resultados (corrida del 13/11/2026, 20:06): backend 210 aprobadas y 0 fallidas (cobertura 89,4 % de
+  instrucciones); API 25 y 0; extremo a extremo 13 y 0; validación 11 y 3 (CP-90, CP-96 y CP-99, por DEF-01);
+  seguridad 1 y 0; usabilidad 1 y 0. 38 de 41 casos automatizados aprobados. Detalle por caso en
+  `docs/plan_pruebas_integrales.md` y en `docs/evidencias/pruebas/index.html` (capturas `CP-90_fallo.png`,
+  `CP-96_fallo.png` y `CP-99_fallo.png` del defecto).
+- Pendientes o problemas conocidos:
+  - **DEF-01 (Media, abierto):** en los modales de alta de personal, zona y tipo de evento, pulsar el botón de crear
+    con el formulario vacío solo muestra el aviso del primer campo (ese campo pierde el foco, se valida y desactiva el
+    botón antes del clic). Corrección propuesta en la sección 8 del plan de pruebas.
+  - `npm audit` informa vulnerabilidades en dependencias de Newman (solo herramientas de desarrollo, no llegan al
+    sistema).
+  - El índice del PDF enlaza a cada sección y el PDF trae marcadores, pero no imprime números de página junto a cada
+    entrada.
+  - Los pasos manuales de cada caso (consultas SQL, celular real, red lenta, backend detenido) siguen fuera de la
+    automatización y se anotan en el plan.
+
 ## [2026-11-13] Fase 8 — Gestión de personal, catálogos y "Cambiar mi contraseña" en el frontend
 - Qué se hizo:
   - `/personal` (solo Administrador): tabla de usuarios con búsqueda por DNI o nombre, filtros de rol, zona y estado y

@@ -1059,3 +1059,55 @@ Con el backend en el perfil `local`:
 7. Como Supervisor y Vigilante: no aparecen Personal ni Catálogos y las rutas escritas en la barra redirigen.
 
 Los casos completos son CP-25, CP-69, CP-70 a CP-77 y CP-90 a CP-103 del plan de pruebas integrales.
+
+## Pruebas automatizadas y evidencias
+
+Ejecución automática de las pruebas y generación de evidencias: los tests del backend con reporte HTML de Surefire y
+cobertura JaCoCo, la colección Postman con Newman, pruebas de extremo a extremo y de validación con Playwright que
+toman capturas `CP-xx_*.png`, y un índice HTML con su PDF que junta todos los resultados. No hay clases Java nuevas: el
+`pom.xml` agrega `jacoco-maven-plugin` (agente en `test` y reporte en `target/site/jacoco`) y
+`maven-surefire-report-plugin` (`report-only` → `target/reports/surefire.html`).
+
+### Scripts de `pruebas/` (Node, módulos ES)
+
+| Archivo | Responsabilidad | Funciones y salida |
+|---|---|---|
+| `casos.mjs` | Catálogo de los casos automatizados con los textos del plan. | `TIPOS` (orden y nombre de los tipos del reporte), `CASOS` (`id` → `{rf, tipo, descripcion, esperado, automatiza, soloCompleto?}`), `CASO_POR_PETICION` (nombre de la petición de la colección → `CP-xx`). |
+| `scripts/coleccion.mjs` | Convierte la colección local (v3, un `*.request.yaml` por petición) al formato v2.1 de Newman, en memoria. | `cargarColeccion({completo})` → `{peticiones, incluidas, coleccion}`: ordena por `order`, normaliza `queryParams` (objeto o lista), pasa el cuerpo JSON, los scripts `afterResponse` como `test`, `auth: noauth` del Login y el Bearer `{{token}}` de `.resources/definition.yaml`. Sin `completo` solo incluye Login y GET; "Usuarios Mi Contrasena" siempre se excluye (`EXCLUIDAS`). `--listar` imprime cada petición y si corre. |
+| `scripts/newman.mjs` | Corre la colección con la API de Node de Newman. | Arma el environment desde `BASE_URL`, `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD` (y `PRUEBAS_CONTRASENA_TEMPORAL` con `--completo`), sin escribirlo en disco. Salidas: `reportes/newman/newman.html` (htmlextra sin variables, sin `Authorization` y sin los cuerpos de login y contraseñas) y `reportes/newman/resumen.json` (petición, caso, código, tiempo y aserciones). Código de salida 0 si todas pasan, 1 si alguna falla, 2 si faltan variables. |
+| `scripts/reporte.mjs` | Junta los resultados y genera las evidencias. | Lee `backend/target/surefire-reports/TEST-*.xml`, `jacoco.csv`, el resumen de Newman y `reportes/playwright/resultados.json`; asocia cada prueba a su caso (por el `CP-xx` del título del test o la anotación `caso`); un caso es Aprobado si todas sus pruebas ejecutadas pasan, Fallido si alguna falla y No ejecutado si todas se omitieron. Escribe `docs/evidencias/pruebas/index.html`, `reportes/resumen-casos.json` y, con el Chromium de Playwright, `reporte_pruebas.pdf` (A4, marcadores, pie "Página X de Y", sin cortar capturas). Antes del PDF busca contraseñas y DNIs de las variables `E2E_*` y tokens JWT; si aparecen en `index.html`, termina con código 3 sin generar el PDF. `--sin-pdf` omite el PDF. |
+| `ejecutar-todo.cmd` | Orquesta la corrida en Windows. | Comprueba Node, `curl` y `JAVA_HOME`; instala dependencias si faltan; prueba `GET {BASE_URL}/api/auth/yo` (espera 401) y `GET {FRONTEND_URL}/login` (200); borra `pruebas/reportes`; corre `mvnw.cmd verify surefire-report:report-only -Dmaven.test.failure.ignore=true`, Newman, Playwright (borra antes las capturas) y `reporte.mjs`. `--completo` pasa a Newman. Sale con 1 si algo falló u omitió por error. |
+
+### Pruebas de Playwright (`frontend/e2e/`)
+
+| Archivo | Responsabilidad | Contenido |
+|---|---|---|
+| `playwright.config.ts` | Configuración. | Chromium 1366 × 768, `locale` es-PE, zona `America/Lima`, un worker, sin servidor propio (`FRONTEND_URL`); proyecto `sesiones` antes de `chromium`; reportes `list`, `html` (`pruebas/reportes/playwright/html`) y `json` (`resultados.json`). |
+| `ayudas.ts` | Utilidades comunes. | `credenciales(rol)` → `{dni, contrasena}` o `null`; `exigirCredenciales(rol)` salta la prueba si faltan; `usarSesion(rol)` usa el `storageState` del rol (o salta la prueba si no existe); `caso(...ids)` anota el caso; `capturar(page, testInfo, nombre, {paginaCompleta, dniFicticio})` guarda `capturas/<nombre>.png`, tapa contraseñas, DNIs, búsquedas y textos de 8 dígitos y oculta el indicador de Next; `capturarAlFallar()` registra un `afterEach` que guarda `CP-xx_fallo.png` cuando la prueba falla; `escribirSecreto(campo, valor)` escribe con el setter nativo y un evento `input` para que el valor no quede en el reporte; `contarPeticionesApi(page, metodo?)` → función que devuelve cuántas peticiones a la API salieron; `esperarPantalla(page, ruta)` espera la URL y que no quede "Cargando…". |
+| `sesiones.setup.ts` | Sesión de cada rol. | `POST /api/auth/login` por la API, comprueba que no tenga contraseña temporal y guarda `sgi.sesion` en `localStorage` → `e2e/.auth/<rol>.json`. |
+| `login.spec.ts` | RF-01. | CP-70, CP-72, CP-77, CP-84 y CP-03 (sin sesión) y CP-13 (login de cada rol, destino y menú). |
+| `acceso-roles.spec.ts` | Rutas de otro rol. | CP-13 / CP-103 con Vigilante y Supervisor. |
+| `validaciones.spec.ts` | Avisos sin envío. | CP-75, CP-76 (`/mi-contrasena`), CP-77, CP-78, CP-79 (incidencias), CP-74, CP-90 (personal), CP-96, CP-99, CP-101 (catálogos). |
+| `incidencia.spec.ts` | RF-03 en 360 × 740. | CP-33 (sin desplazamiento horizontal, botón fijo visible) y CP-31 / CP-86 (registro real con confirmación y descripción recortada en el `POST`). |
+| `paneles.spec.ts` | Pantallas de gerencia. | CP-45 (dashboard, periodo, agrupación y tipo de gráfico), CP-38 (historial y detalle), CP-51 (descarga Excel y PDF), CP-63 (auditoría como Administrador y sin pestaña como Supervisor), CP-25 (personal) y CP-69 (catálogos). |
+
+### Flujo de una corrida
+
+1. `ejecutar-todo.cmd` comprueba que el backend responda 401 en `/api/auth/yo` y el frontend 200 en `/login`.
+2. Maven corre los 210 tests; Surefire deja `TEST-*.xml` y `surefire.html`, JaCoCo `jacoco.csv` e `index.html`.
+3. `newman.mjs` carga la colección con `cargarColeccion`, inicia sesión con el Administrador (la petición "Login"
+   guarda el token en el environment en memoria) y ejecuta las consultas; escribe `resumen.json`.
+4. Playwright corre `sesiones.setup.ts` (una sesión por rol) y luego las pruebas, que guardan capturas en
+   `docs/evidencias/pruebas/capturas` y las adjuntan al reporte.
+5. `reporte.mjs` consolida por caso, escribe `index.html`, revisa que no haya secretos y genera el PDF.
+
+### Cómo probar
+
+```
+cd pruebas && npm ci && npm run coleccion
+cd ..\frontend && npx playwright test --list
+cd .. && pruebas\ejecutar-todo.cmd
+```
+
+Abrir `docs/evidencias/pruebas/index.html` y `reporte_pruebas.pdf`. Sin variables `E2E_*`, las pruebas con sesión
+aparecen omitidas y Newman como "No ejecutado". Requisitos y variables: `docs/evidencias/pruebas/README.md`.

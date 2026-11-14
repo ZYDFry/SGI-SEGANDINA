@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reporte de pruebas — SGI-SEGANDINA</title>
+<style>
+:root{--azul-900:#1e3a8a;--azul-800:#1e40af;--azul-50:#eff6ff;--gris-900:#0f172a;--gris-700:#334155;--gris-500:#64748b;
+--gris-300:#cbd5e1;--gris-100:#f1f5f9;--gris-50:#f8fafc;--verde:#15803d;--verde-50:#f0fdf4;--rojo:#b91c1c;--rojo-50:#fef2f2;
+--ambar:#a16207;--ambar-50:#fefce8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--gris-100);color:var(--gris-900);font:14px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 48px}
+h1,h2,h3{color:var(--azul-900);line-height:1.25}
+h2{font-size:22px;margin:40px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--azul-900)}
+h3{font-size:17px;margin:0}
+a{color:var(--azul-800)}
+.portada{background:var(--azul-900);color:#fff;border-radius:16px;padding:40px 32px}
+.portada h1{color:#fff;font-size:30px;margin:12px 0 4px}
+.portada .logo{display:inline-flex;width:56px;height:56px;border-radius:14px;background:#fff;color:var(--azul-900);font-weight:700;font-size:22px;align-items:center;justify-content:center}
+.portada dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:24px 0 0}
+.portada dt{color:#bfdbfe}.portada dd{margin:0}
+.tarjeta{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px rgb(15 23 42/.08);margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--gris-300);vertical-align:top}
+th{background:var(--gris-50);color:var(--gris-700);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.estado{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.estado.Aprobado,.estado.aprobada{background:var(--verde-50);color:var(--verde);border:1px solid #bbf7d0}
+.estado.Fallido,.estado.fallida{background:var(--rojo-50);color:var(--rojo);border:1px solid #fecaca}
+.estado.omitida,.estado.no-ejecutado{background:var(--ambar-50);color:var(--ambar);border:1px solid #fde68a}
+.indice ol{margin:0;padding-left:20px}.indice li{margin:3px 0}
+.metricas{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.metrica{background:#fff;border-radius:12px;padding:14px;border-left:4px solid var(--azul-900)}
+.metrica b{display:block;font-size:26px;color:var(--azul-900)}.metrica.mal{border-left-color:var(--rojo)}.metrica.mal b{color:var(--rojo)}
+.caso header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin-bottom:8px}
+.caso .id{font-weight:700;color:var(--azul-900);font-size:16px}
+.caso .rf{color:var(--gris-500);font-size:12px}
+.caso dl{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;margin:0 0 8px}
+.caso dt{color:var(--gris-500);font-weight:600}.caso dd{margin:0}
+.caso.Fallido{border-left:4px solid var(--rojo)}
+.pruebas{font-size:12.5px;margin:6px 0 0;padding-left:18px}.pruebas li{margin:2px 0}
+.error{color:var(--rojo);font-size:12px;word-break:break-word}
+.capturas{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
+figure{margin:0;background:var(--gris-50);border:1px solid var(--gris-300);border-radius:8px;padding:8px}
+figure img{display:block;max-width:100%;height:auto;margin:0 auto;border-radius:4px}
+figure.movil img{max-width:280px}
+figcaption{font-size:12px;color:var(--gris-700);margin-top:6px;text-align:center;word-break:break-all}
+.nota{color:var(--gris-500);font-size:12.5px}
+.enlaces li{margin:4px 0}
+@media (max-width:640px){.caso dl{grid-template-columns:1fr}.portada{padding:28px 20px}}
+@media print{
+  @page{size:A4;margin:14mm 12mm 16mm}
+  body{background:#fff;font-size:11px}
+  main{max-width:none;padding:0}
+  .portada{border-radius:0;min-height:255mm;display:flex;flex-direction:column;justify-content:center;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .indice{break-after:page}
+  #reportes .tarjeta,#fallidos .tarjeta,.metricas{break-inside:avoid}
+  .seccion-tipo{break-before:page}
+  h2{margin-top:0}
+  .encabezado-seccion{margin:0 0 4px}
+  .tarjeta,.metrica{box-shadow:none;border:1px solid var(--gris-300)}
+  .caso header,.caso dl{break-inside:avoid}
+  .caso h3,.caso header{break-after:avoid}
+  figure{break-inside:avoid;page-break-inside:avoid}
+  figure img{max-height:200mm;width:auto}
+  figure.movil img{max-height:150mm}
+  tr{break-inside:avoid}
+  a{color:inherit;text-decoration:none}
+}</style>
+</head>
+<body>
+<main>
+<section class="portada">
+  <span class="logo">SA</span>
+  <h1>Reporte de pruebas integrales</h1>
+  <p>Sistema Web Interno de Gestión de Incidencias y Análisis de Seguridad — Seguridad Andina S.A.C.</p>
+  <dl>
+    <dt>Proyecto</dt><dd>SGI-SEGANDINA</dd>
+    <dt>Curso</dt><dd>Integrador I — Universidad Tecnológica del Perú (UTP)</dd>
+    <dt>Fecha de ejecución</dt><dd>13 de noviembre de 2026 a las 8:05 p. m. (hora de Lima)</dd>
+    <dt>Reporte generado</dt><dd>13 de noviembre de 2026 a las 8:06 p. m.</dd>
+    <dt>Rama y commit</dt><dd>feature/fase-8-frontend-paneles · 73a9abe</dd>
+    <dt>Resultado</dt><dd>261 pruebas aprobadas, 3 fallidas y 0 omitidas</dd>
+  </dl>
+</section>
+
+<nav class="tarjeta indice" aria-label="Índice">
+  <h2 style="margin-top:0">Índice</h2>
+  <ol>
+    <li><a href="#resumen">Resumen por tipo de prueba</a></li>
+    <li><a href="#reportes">Reportes detallados</a></li>
+    <li><a href="#fallidos">Casos fallidos</a></li>
+    <li><a href="#tipo-BACKEND">Backend (unitarias e integración)</a> — CP-01</li><li><a href="#tipo-API">Integración API</a> — CP-02, CP-19, CP-34, CP-35, CP-39, CP-40, CP-42, CP-46, CP-47, CP-52, CP-54, CP-55, CP-65, CP-67, CP-68</li><li><a href="#tipo-E2E">Extremo a extremo</a> — CP-13, CP-25, CP-31, CP-38, CP-45, CP-51, CP-63, CP-69, CP-86</li><li><a href="#tipo-VAL">Validación de formularios</a> — CP-70, CP-72, CP-74, CP-75, CP-76, CP-77, CP-78, CP-79, CP-84, CP-90, CP-96, CP-99, CP-101</li><li><a href="#tipo-SEG">Seguridad (acceso por rol)</a> — CP-03, CP-103</li><li><a href="#tipo-USA">Usabilidad</a> — CP-33</li>
+  </ol>
+</nav>
+
+<section id="resumen">
+  <p class="nota encabezado-seccion">Resultados de la corrida</p>
+  <h2>Resumen por tipo de prueba</h2>
+  <div class="metricas">
+    <div class="metrica"><b>261</b>pruebas aprobadas</div>
+    <div class="metrica mal"><b>3</b>pruebas fallidas</div>
+    <div class="metrica"><b>0</b>pruebas omitidas</div>
+    <div class="metrica"><b>38 / 41</b>casos aprobados</div>
+    <div class="metrica"><b>89.4 %</b>cobertura del backend (instrucciones)</div>
+  </div>
+  <div class="tarjeta">
+    <table>
+      <thead><tr><th>Tipo</th><th>Herramienta</th><th class="num">Aprobadas</th><th class="num">Fallidas</th><th class="num">Omitidas</th><th class="num">Casos aprobados</th><th class="num">Casos fallidos</th><th class="num">Casos sin ejecutar</th></tr></thead>
+      <tbody><tr><td>Backend (unitarias e integración)</td><td>JUnit 5 + Surefire + JaCoCo</td><td class="num">210</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">0</td></tr><tr><td>Integración API</td><td>Newman (colección Postman)</td><td class="num">25</td><td class="num">0</td><td class="num">0</td><td class="num">15</td><td class="num">0</td><td class="num">0</td></tr><tr><td>Extremo a extremo</td><td>Playwright</td><td class="num">13</td><td class="num">0</td><td class="num">0</td><td class="num">9</td><td class="num">0</td><td class="num">0</td></tr><tr><td>Validación de formularios</td><td>Playwright</td><td class="num">11</td><td class="num">3</td><td class="num">0</td><td class="num">10</td><td class="num">3</td><td class="num">0</td></tr><tr><td>Seguridad (acceso por rol)</td><td>Playwright</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">2</td><td class="num">0</td><td class="num">0</td></tr><tr><td>Usabilidad</td><td>Playwright</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">0</td></tr></tbody>
+    </table>
+    <p class="nota">"Pruebas" son tests individuales (JUnit, peticiones de la colección y tests de Playwright); un caso <code>CP-xx</code> del plan puede agrupar varias. Un caso queda Fallido si cualquiera de sus pruebas falla y "No ejecutado" si todas se omitieron. Los pasos manuales de cada caso (consultas SQL, celular real, red lenta) no forman parte de este reporte.</p>
+    
+  </div>
+</section>
+
+<section id="reportes">
+  <h2>Reportes detallados</h2>
+  <div class="tarjeta">
+    <ul class="enlaces">
+      <li><a href="../../../backend/target/reports/surefire.html">Surefire (backend)</a> — resultado de cada test JUnit <span class="nota">(../../../backend/target/reports/surefire.html)</span></li>
+      <li><a href="../../../backend/target/site/jacoco/index.html">JaCoCo (cobertura)</a> — cobertura por paquete y clase <span class="nota">(../../../backend/target/site/jacoco/index.html)</span></li>
+      <li><a href="../../../pruebas/reportes/newman/newman.html">Newman htmlextra (API)</a> — cada petición con sus aserciones <span class="nota">(../../../pruebas/reportes/newman/newman.html)</span></li>
+      <li><a href="../../../pruebas/reportes/playwright/html/index.html">Playwright (frontend)</a> — cada prueba con sus pasos y capturas <span class="nota">(../../../pruebas/reportes/playwright/html/index.html)</span></li>
+    </ul>
+    <p class="nota">Los reportes detallados se generan en cada máquina al correr las pruebas y no se versionan; este índice, las capturas y el PDF sí.</p>
+  </div>
+</section>
+
+<section id="fallidos"><h2>Casos fallidos</h2><div class="tarjeta"><table><thead><tr><th>Caso</th><th>RF</th><th>Descripción</th><th>Resultado obtenido</th></tr></thead><tbody><tr><td><a href="#CP-90">CP-90</a></td><td>RF-02</td><td>Vigilante sin zona en &quot;Agregar personal&quot;.</td><td class="error">0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Agregar personal&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear usuario&#39; })</td></tr><tr><td><a href="#CP-96">CP-96</a></td><td>RF-09</td><td>Validaciones del formulario de zona.</td><td class="error">0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nueva zona&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear zona&#39; })</td></tr><tr><td><a href="#CP-99">CP-99</a></td><td>RF-09, RF-03</td><td>Validaciones del formulario de tipo de evento.</td><td class="error">0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nuevo tipo de evento&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear tipo&#39; })</td></tr></tbody></table></div></section>
+
+<section class="seccion-tipo" id="tipo-BACKEND"><p class="nota encabezado-seccion">Sección 1 · JUnit 5 + Surefire + JaCoCo</p><h2>Backend (unitarias e integración)</h2><div class="tarjeta"><h3>Tests por clase</h3><table><thead><tr><th>Clase</th><th class="num">Tests</th><th class="num">Fallidos</th><th class="num">Omitidos</th></tr></thead><tbody><tr><td>config.AdminSeedRunnerTest</td><td class="num">3</td><td class="num">0</td><td class="num">0</td></tr><tr><td>config.CorsConfigTest</td><td class="num">3</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.AuditoriaControllerTest</td><td class="num">12</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.AuthControllerTest</td><td class="num">8</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.DashboardControllerTest</td><td class="num">10</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.ReporteControllerTest</td><td class="num">6</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.UsuarioControllerTest</td><td class="num">16</td><td class="num">0</td><td class="num">0</td></tr><tr><td>controller.ZonaControllerTest</td><td class="num">4</td><td class="num">0</td><td class="num">0</td></tr><tr><td>dao.AuditoriaDaoTest</td><td class="num">2</td><td class="num">0</td><td class="num">0</td></tr><tr><td>dao.IncidenciaDaoTest</td><td class="num">6</td><td class="num">0</td><td class="num">0</td></tr><tr><td>dto.request.RangoFechasTest</td><td class="num">13</td><td class="num">0</td><td class="num">0</td></tr><tr><td>export.ExcelExportadorTest</td><td class="num">3</td><td class="num">0</td><td class="num">0</td></tr><tr><td>export.PdfExportadorTest</td><td class="num">3</td><td class="num">0</td><td class="num">0</td></tr><tr><td>model.MapeoEntidadesTest</td><td class="num">8</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.AuditoriaServiceImplTest</td><td class="num">12</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.AuthServiceImplTest</td><td class="num">6</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.CatalogoServiceImplTest</td><td class="num">4</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.DashboardServiceImplTest</td><td class="num">9</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.IncidenciaServiceImplTest</td><td class="num">17</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.JwtTokenServiceImplTest</td><td class="num">4</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.NivelGravedadServiceImplTest</td><td class="num">5</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.ReporteServiceImplTest</td><td class="num">6</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.TipoEventoServiceImplTest</td><td class="num">7</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.UsuarioServiceImplTest</td><td class="num">21</td><td class="num">0</td><td class="num">0</td></tr><tr><td>service.impl.ZonaServiceImplTest</td><td class="num">22</td><td class="num">0</td><td class="num">0</td></tr></tbody></table></div><article class="tarjeta caso Aprobado" id="CP-01">
+  <header><span class="id">CP-01</span><span class="rf">RF-01 a RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Suite automatizada del backend (`./mvnw verify`).</dd>
+    <dt>Resultado esperado</dt><dd>Compila y pasan los 210 tests, sin fallos ni errores.</dd>
+    <dt>Resultado obtenido</dt><dd>210 de 210 tests aprobados, 0 con fallo o error, 0 omitidos. Cobertura: 89.4 % de instrucciones, 91.1 % de líneas, 73.4 % de ramas.</dd>
+    <dt>Alcance automatizado</dt><dd>Completo.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> 210 tests de JUnit en 25 clases</li></ul>
+  
+</article></section>
+<section class="seccion-tipo" id="tipo-API"><p class="nota encabezado-seccion">Sección 2 · Newman (colección Postman)</p><h2>Integración API</h2><p class="nota">Colección <code>postman/collections/SGI-SEGANDINA</code> contra http://localhost:8080, modo solo lectura (Login y consultas).</p><article class="tarjeta caso Aprobado" id="CP-02">
+  <header><span class="id">CP-02</span><span class="rf">RF-01</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Login válido del Administrador.</dd>
+    <dt>Resultado esperado</dt><dd>200 con token, sin campo contrasena; token guardado para el resto de peticiones.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 1 (la fila LOGIN_OK se verifica en SQL).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> POST /api/auth/login — «Login» → 200 (702 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-19">
+  <header><span class="id">CP-19</span><span class="rf">RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Listar y obtener usuarios.</dd>
+    <dt>Resultado esperado</dt><dd>Página de usuarios activos y detalle por id (200), sin contrasena.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 y 2 con los parámetros de la colección.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/usuarios — «Usuarios Listar» → 200 (188 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/usuarios/2 — «Usuarios Obtener» → 200 (346 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-34">
+  <header><span class="id">CP-34</span><span class="rf">RF-04</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Historial por defecto contra Supabase.</dd>
+    <dt>Resultado esperado</dt><dd>200 con la página del historial de los últimos 30 días.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 1 (la comparación con el conteo SQL es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/incidencias — «Historial Listar» → 200 (187 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-35">
+  <header><span class="id">CP-35</span><span class="rf">RF-04</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Historial con rango personalizado.</dd>
+    <dt>Resultado esperado</dt><dd>200 con las incidencias del rango desde–hasta.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Rango personalizado del mes actual; los filtros combinados se prueban a mano.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/incidencias — «Historial Personalizado» → 200 (178 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-39">
+  <header><span class="id">CP-39</span><span class="rf">RF-05</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>KPIs del dashboard.</dd>
+    <dt>Resultado esperado</dt><dd>200 con desde, hasta, incidenciasHoy, incidenciasPeriodo y porGravedad.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Código de estado (la comparación con el historial es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/kpis — «Dashboard KPIs» → 200 (438 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-40">
+  <header><span class="id">CP-40</span><span class="rf">RF-05</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Incidencias por zona y por tipo.</dd>
+    <dt>Resultado esperado</dt><dd>200 con listas {id, nombre, total}.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Código de estado (la comparación con SQL es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/incidencias-por-zona — «Dashboard Por Zona» → 200 (177 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/incidencias-por-tipo — «Dashboard Por Tipo» → 200 (175 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-42">
+  <header><span class="id">CP-42</span><span class="rf">RF-05</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Serie en el tiempo (por periodo y personalizada por semana).</dd>
+    <dt>Resultado esperado</dt><dd>200 con los tramos de la serie.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Código de estado con el periodo de la corrida (los tramos de borde se revisan a mano).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/incidencias-por-tiempo — «Dashboard Por Tiempo» → 200 (188 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/incidencias-por-tiempo — «Dashboard Por Tiempo Personalizado» → 200 (175 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-46">
+  <header><span class="id">CP-46</span><span class="rf">RF-06</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Reporte Excel.</dd>
+    <dt>Resultado esperado</dt><dd>200, Content-Type de Excel y Content-Disposition attachment.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Cabeceras (el contenido del archivo se revisa a mano).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/reportes/excel — «Reportes Excel» → 200 (500 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-47">
+  <header><span class="id">CP-47</span><span class="rf">RF-06</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Reporte PDF (periodo y personalizado).</dd>
+    <dt>Resultado esperado</dt><dd>200, Content-Type application/pdf y adjunto.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Cabeceras (el contenido del PDF se revisa a mano).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/reportes/pdf — «Reportes PDF» → 200 (463 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/reportes/pdf — «Reportes PDF Personalizado» → 200 (441 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-52">
+  <header><span class="id">CP-52</span><span class="rf">RF-07</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Despliegue de vigilantes por zona.</dd>
+    <dt>Resultado esperado</dt><dd>200 con [{idZona, nombreZona, vigilantesActivos}].</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Código de estado (la comparación con la vista es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/dashboard/despliegue — «Dashboard Despliegue» → 200 (199 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-54">
+  <header><span class="id">CP-54</span><span class="rf">RF-08</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Acciones de auditoría.</dd>
+    <dt>Resultado esperado</dt><dd>200 con los pares {valor, etiqueta}.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 1.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/auditoria/acciones — «Auditoria Acciones» → 200 (3 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-55">
+  <header><span class="id">CP-55</span><span class="rf">RF-08</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Consulta de auditoría con filtros.</dd>
+    <dt>Resultado esperado</dt><dd>200 con la página de auditoría filtrada (LOGIN_FALLIDO).</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Listado y filtro por acción.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/auditoria — «Auditoria Listar» → 200 (267 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/auditoria — «Auditoria Filtrar» → 200 (176 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-65">
+  <header><span class="id">CP-65</span><span class="rf">RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Búsqueda y detalle de zonas.</dd>
+    <dt>Resultado esperado</dt><dd>200 con la página de zonas y el detalle por id.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Búsqueda sin filtros y detalle.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/zonas — «Zonas Buscar» → 200 (178 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/zonas/1 — «Zonas Obtener» → 200 (176 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-67">
+  <header><span class="id">CP-67</span><span class="rf">RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Listado de tipos de evento y catálogos activos.</dd>
+    <dt>Resultado esperado</dt><dd>200 con los tipos de evento y los catálogos.</dd>
+    <dt>Resultado obtenido</dt><dd>5 de 5 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 4 (listados); las escrituras corren con --completo.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/catalogos/zonas — «Catalogo Zonas» → 200 (190 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/catalogos/roles — «Catalogo Roles» → 200 (179 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/catalogos/tipos-evento — «Catalogo Tipos» → 200 (180 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/catalogos/niveles-gravedad — «Catalogo Niveles» → 200 (176 ms)</li><li><span class="estado aprobada">aprobada</span> GET /api/tipos-evento — «Tipos Evento Listar» → 200 (178 ms)</li></ul>
+  
+</article>
+<article class="tarjeta caso Aprobado" id="CP-68">
+  <header><span class="id">CP-68</span><span class="rf">RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Listado de niveles de gravedad.</dd>
+    <dt>Resultado esperado</dt><dd>200 con los niveles ordenados.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 2 (listado); la edición corre con --completo.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> GET /api/niveles-gravedad — «Niveles Gravedad Listar» → 200 (173 ms)</li></ul>
+  
+</article></section>
+<section class="seccion-tipo" id="tipo-E2E"><p class="nota encabezado-seccion">Sección 3 · Playwright</p><h2>Extremo a extremo</h2><article class="tarjeta caso Aprobado" id="CP-13">
+  <header><span class="id">CP-13</span><span class="rf">RF-01</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Login por rol, redirección y menú.</dd>
+    <dt>Resultado esperado</dt><dd>Vigilante a /incidencias/nueva sin menú; Supervisor a /dashboard; Administrador con menú completo. Rutas ajenas redirigen al inicio del rol.</dd>
+    <dt>Resultado obtenido</dt><dd>5 de 5 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 a 4 en escritorio (el menú de tablet es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Vigilante en rutas de gerencia y de administración › CP-13 / CP-103 el Vigilante vuelve a su formulario</li><li><span class="estado aprobada">aprobada</span> Supervisor en rutas del Administrador › CP-13 / CP-103 el Supervisor vuelve al dashboard</li><li><span class="estado aprobada">aprobada</span> Login por rol y redirección (CP-13) › CP-13 login correcto de vigilante y su menú</li><li><span class="estado aprobada">aprobada</span> Login por rol y redirección (CP-13) › CP-13 login correcto de supervisor y su menú</li><li><span class="estado aprobada">aprobada</span> Login por rol y redirección (CP-13) › CP-13 login correcto de admin y su menú</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-103_vigilante_redirigido.png" alt="CP-103_vigilante_redirigido.png" loading="lazy"><figcaption>CP-103_vigilante_redirigido.png</figcaption></figure><figure class=""><img src="capturas/CP-103_supervisor_redirigido.png" alt="CP-103_supervisor_redirigido.png" loading="lazy"><figcaption>CP-103_supervisor_redirigido.png</figcaption></figure><figure class=""><img src="capturas/CP-13_login_vigilante.png" alt="CP-13_login_vigilante.png" loading="lazy"><figcaption>CP-13_login_vigilante.png</figcaption></figure><figure class=""><img src="capturas/CP-13_login_supervisor.png" alt="CP-13_login_supervisor.png" loading="lazy"><figcaption>CP-13_login_supervisor.png</figcaption></figure><figure class=""><img src="capturas/CP-13_login_administrador.png" alt="CP-13_login_administrador.png" loading="lazy"><figcaption>CP-13_login_administrador.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-25">
+  <header><span class="id">CP-25</span><span class="rf">RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Pantalla de personal: tabla y filtros.</dd>
+    <dt>Resultado esperado</dt><dd>Tabla con nombre, DNI, rol, zona y estado; los filtros reducen la tabla.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 y 6 (no se crean ni modifican usuarios).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Auditoría, personal y catálogos (Administrador) › CP-25 personal: tabla y filtros</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-25_personal_listado.png" alt="CP-25_personal_listado.png" loading="lazy"><figcaption>CP-25_personal_listado.png</figcaption></figure><figure class=""><img src="capturas/CP-25_personal_filtrado_activos.png" alt="CP-25_personal_filtrado_activos.png" loading="lazy"><figcaption>CP-25_personal_filtrado_activos.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-31">
+  <header><span class="id">CP-31</span><span class="rf">RF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Registro de una incidencia desde el celular (360 × 740).</dd>
+    <dt>Resultado esperado</dt><dd>Confirmación con el número de incidencia y formulario listo para otro registro.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Completo, contra el backend real.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Registro de incidencia en el celular › CP-31 / CP-86 registrar una incidencia con confirmación</li></ul>
+  <div class="capturas"><figure class="movil"><img src="capturas/CP-31_formulario_movil_completo.png" alt="CP-31_formulario_movil_completo.png" loading="lazy"><figcaption>CP-31_formulario_movil_completo.png</figcaption></figure><figure class=""><img src="capturas/CP-31_confirmacion_registro.png" alt="CP-31_confirmacion_registro.png" loading="lazy"><figcaption>CP-31_confirmacion_registro.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-38">
+  <header><span class="id">CP-38</span><span class="rf">RF-04</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Pantalla de historial con filtros y detalle.</dd>
+    <dt>Resultado esperado</dt><dd>Tabla con Fecha, Zona, Tipo, Gravedad y Usuario; filtros y detalle de la fila.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 a 3 (paginación y backend detenido son manuales).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Dashboard e historial (Supervisor) › CP-38 historial con filtros y detalle</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-38_historial_30_dias.png" alt="CP-38_historial_30_dias.png" loading="lazy"><figcaption>CP-38_historial_30_dias.png</figcaption></figure><figure class=""><img src="capturas/CP-38_historial_filtrado_detalle.png" alt="CP-38_historial_filtrado_detalle.png" loading="lazy"><figcaption>CP-38_historial_filtrado_detalle.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-45">
+  <header><span class="id">CP-45</span><span class="rf">RF-05, RF-07</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Dashboard con KPIs, gráficos y despliegue.</dd>
+    <dt>Resultado esperado</dt><dd>Tarjetas de KPIs, gráficos por zona, tipo y tiempo, y tabla de despliegue; cambia con el periodo.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 a 3 (refresco de 60 s y backend detenido son manuales).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Dashboard e historial (Supervisor) › CP-45 dashboard con KPIs, gráficos y despliegue</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-45_dashboard_30_dias.png" alt="CP-45_dashboard_30_dias.png" loading="lazy"><figcaption>CP-45_dashboard_30_dias.png</figcaption></figure><figure class=""><img src="capturas/CP-45_dashboard_7_dias_semana_barras.png" alt="CP-45_dashboard_7_dias_semana_barras.png" loading="lazy"><figcaption>CP-45_dashboard_7_dias_semana_barras.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-51">
+  <header><span class="id">CP-51</span><span class="rf">RF-06</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Exportar Excel y PDF desde el historial.</dd>
+    <dt>Resultado esperado</dt><dd>Se descargan incidencias_AAAA-MM-DD.xlsx y .pdf y aparece el aviso de descarga.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 a 3 (el caso de más de 10 000 incidencias es manual).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Dashboard e historial (Supervisor) › CP-51 exportar Excel y PDF desde el historial</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-51_exportar_desde_historial.png" alt="CP-51_exportar_desde_historial.png" loading="lazy"><figcaption>CP-51_exportar_desde_historial.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-63">
+  <header><span class="id">CP-63</span><span class="rf">RF-08</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Pestaña de auditoría con filtros.</dd>
+    <dt>Resultado esperado</dt><dd>Filtro por &quot;Inicio de sesión fallido&quot; y búsqueda por DNI; el Supervisor no ve la pestaña.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1, 2, 3 y 6.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Dashboard e historial (Supervisor) › CP-63 el Supervisor no ve la pestaña de auditoría</li><li><span class="estado aprobada">aprobada</span> Auditoría, personal y catálogos (Administrador) › CP-63 pestaña de auditoría con filtro por acción y DNI</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-63_supervisor_sin_auditoria.png" alt="CP-63_supervisor_sin_auditoria.png" loading="lazy"><figcaption>CP-63_supervisor_sin_auditoria.png</figcaption></figure><figure class=""><img src="capturas/CP-63_auditoria_login_fallido.png" alt="CP-63_auditoria_login_fallido.png" loading="lazy"><figcaption>CP-63_auditoria_login_fallido.png</figcaption></figure><figure class=""><img src="capturas/CP-63_auditoria_dni.png" alt="CP-63_auditoria_dni.png" loading="lazy"><figcaption>CP-63_auditoria_dni.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-69">
+  <header><span class="id">CP-69</span><span class="rf">RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Pantallas de catálogos.</dd>
+    <dt>Resultado esperado</dt><dd>Zonas, tipos de evento y niveles de gravedad se listan con sus acciones.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Navegación y listados (no se crean ni modifican catálogos).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Auditoría, personal y catálogos (Administrador) › CP-69 catálogos: zonas, tipos de evento y niveles de gravedad</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-69_catalogo_zonas.png" alt="CP-69_catalogo_zonas.png" loading="lazy"><figcaption>CP-69_catalogo_zonas.png</figcaption></figure><figure class=""><img src="capturas/CP-69_catalogo_tipos_evento.png" alt="CP-69_catalogo_tipos_evento.png" loading="lazy"><figcaption>CP-69_catalogo_tipos_evento.png</figcaption></figure><figure class=""><img src="capturas/CP-69_catalogo_niveles.png" alt="CP-69_catalogo_niveles.png" loading="lazy"><figcaption>CP-69_catalogo_niveles.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-86">
+  <header><span class="id">CP-86</span><span class="rf">—</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>(caso sin catálogo)</dd>
+    <dt>Resultado esperado</dt><dd>—</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>—</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Registro de incidencia en el celular › CP-31 / CP-86 registrar una incidencia con confirmación</li></ul>
+  <div class="capturas"><figure class="movil"><img src="capturas/CP-31_formulario_movil_completo.png" alt="CP-31_formulario_movil_completo.png" loading="lazy"><figcaption>CP-31_formulario_movil_completo.png</figcaption></figure><figure class=""><img src="capturas/CP-31_confirmacion_registro.png" alt="CP-31_confirmacion_registro.png" loading="lazy"><figcaption>CP-31_confirmacion_registro.png</figcaption></figure></div>
+</article></section>
+<section class="seccion-tipo" id="tipo-VAL"><p class="nota encabezado-seccion">Sección 4 · Playwright</p><h2>Validación de formularios</h2><article class="tarjeta caso Aprobado" id="CP-70">
+  <header><span class="id">CP-70</span><span class="rf">RF-01, RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>DNI con letras en el login.</dd>
+    <dt>Resultado esperado</dt><dd>El campo queda en 1234567 y al salir: &quot;El DNI debe tener 8 dígitos numéricos&quot;.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Login (el DNI de personal se prueba en CP-74).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Login: validaciones › CP-70 DNI con letras: solo se escriben dígitos</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-70_dni_con_letras.png" alt="CP-70_dni_con_letras.png" loading="lazy"><figcaption>CP-70_dni_con_letras.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-72">
+  <header><span class="id">CP-72</span><span class="rf">RF-01, RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>DNI de 7 dígitos en el login.</dd>
+    <dt>Resultado esperado</dt><dd>Aviso debajo del DNI, botón Ingresar desactivado; el aviso desaparece con el octavo dígito.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Login.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Login: validaciones › CP-72 DNI de 7 dígitos: aviso, botón desactivado y aviso que se va con el octavo</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-72_dni_7_digitos.png" alt="CP-72_dni_7_digitos.png" loading="lazy"><figcaption>CP-72_dni_7_digitos.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-74">
+  <header><span class="id">CP-74</span><span class="rf">RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Nombres con números en &quot;Agregar personal&quot;.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;Solo se permiten letras, espacios, apóstrofo y guion&quot; debajo de cada campo; no se envía.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Completo.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Personal y catálogos (Administrador) › CP-74 nombres con números en Agregar personal</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-74_nombres_con_numeros.png" alt="CP-74_nombres_con_numeros.png" loading="lazy"><figcaption>CP-74_nombres_con_numeros.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-75">
+  <header><span class="id">CP-75</span><span class="rf">RF-01, RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Longitud de la contraseña nueva en &quot;Cambiar mi contraseña&quot;.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;La contraseña debe tener entre 8 y 72 caracteres&quot; con 7 y 73; sin aviso con 8 y 72.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>/mi-contrasena.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Cambiar mi contraseña (Administrador) › CP-75 longitud de la contraseña nueva</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-75_contrasena_longitud.png" alt="CP-75_contrasena_longitud.png" loading="lazy"><figcaption>CP-75_contrasena_longitud.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-76">
+  <header><span class="id">CP-76</span><span class="rf">RF-01, RF-02</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Confirmación distinta y nueva igual a la actual.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;Las contraseñas no coinciden&quot; y &quot;La nueva contraseña debe ser distinta de la actual&quot;; no se envía.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>/mi-contrasena.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Cambiar mi contraseña (Administrador) › CP-76 confirmación distinta y nueva igual a la actual</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-76_confirmacion_distinta.png" alt="CP-76_confirmacion_distinta.png" loading="lazy"><figcaption>CP-76_confirmacion_distinta.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-77">
+  <header><span class="id">CP-77</span><span class="rf">RF-01, RF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Campos obligatorios vacíos en login e incidencias.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;Este campo es obligatorio&quot; y avisos de tipo y gravedad; foco en el primer error; sin peticiones.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Login y registro de incidencias.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Login: validaciones › CP-77 campos vacíos: avisos, foco en el DNI y sin petición</li><li><span class="estado aprobada">aprobada</span> Registro de incidencias (Vigilante) › CP-77 obligatorios vacíos: avisos y sin petición</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-77_obligatorios_login.png" alt="CP-77_obligatorios_login.png" loading="lazy"><figcaption>CP-77_obligatorios_login.png</figcaption></figure><figure class=""><img src="capturas/CP-77_obligatorios_incidencia.png" alt="CP-77_obligatorios_incidencia.png" loading="lazy"><figcaption>CP-77_obligatorios_incidencia.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-78">
+  <header><span class="id">CP-78</span><span class="rf">RF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Descripción corta con el tipo &quot;Otro&quot;.</dd>
+    <dt>Resultado esperado</dt><dd>Aviso de mínimo 20 caracteres para &quot;Otro&quot;; con 20 no hay aviso.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Completo.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Registro de incidencias (Vigilante) › CP-78 descripción corta con el tipo Otro</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-78_descripcion_otro_corta.png" alt="CP-78_descripcion_otro_corta.png" loading="lazy"><figcaption>CP-78_descripcion_otro_corta.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-79">
+  <header><span class="id">CP-79</span><span class="rf">RF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Fecha y hora futura en el registro.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;La fecha y hora no puede ser futura&quot; y botón desactivado.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Fecha + 10 min.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Registro de incidencias (Vigilante) › CP-79 fecha y hora futura</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-79_fecha_futura.png" alt="CP-79_fecha_futura.png" loading="lazy"><figcaption>CP-79_fecha_futura.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-84">
+  <header><span class="id">CP-84</span><span class="rf">RF-01, RF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Comportamiento de los avisos (aria-invalid, foco, borde).</dd>
+    <dt>Resultado esperado</dt><dd>Sin avisos al abrir; aviso al salir del campo; aria-invalid y aria-describedby en el campo inválido.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Login.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Login: validaciones › CP-84 comportamiento de los avisos: sin aviso al abrir, aria-invalid y aria-describedby</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-84_comportamiento_avisos.png" alt="CP-84_comportamiento_avisos.png" loading="lazy"><figcaption>CP-84_comportamiento_avisos.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Fallido" id="CP-90">
+  <header><span class="id">CP-90</span><span class="rf">RF-02</span><span class="estado Fallido">Fallido</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Vigilante sin zona en &quot;Agregar personal&quot;.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;El Vigilante debe tener una zona asignada&quot; y sin petición.</dd>
+    <dt>Resultado obtenido</dt><dd>0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Agregar personal&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear usuario&#39; })</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 y 2.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado fallida">fallida</span> Personal y catálogos (Administrador) › CP-90 Vigilante sin zona asignada<div class="error">TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Agregar personal&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear usuario&#39; })</div></li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-90_fallo.png" alt="CP-90_fallo.png" loading="lazy"><figcaption>CP-90_fallo.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Fallido" id="CP-96">
+  <header><span class="id">CP-96</span><span class="rf">RF-09</span><span class="estado Fallido">Fallido</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Validaciones del formulario de zona.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;Este campo es obligatorio&quot; en nombre, departamento, provincia y distrito; el nombre admite como máximo 80.</dd>
+    <dt>Resultado obtenido</dt><dd>0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nueva zona&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear zona&#39; })</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 y 2 (el 409 requiere crear datos).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado fallida">fallida</span> Personal y catálogos (Administrador) › CP-96 formulario de zona: obligatorios y máximo de 80<div class="error">TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nueva zona&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear zona&#39; })</div></li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-96_fallo.png" alt="CP-96_fallo.png" loading="lazy"><figcaption>CP-96_fallo.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Fallido" id="CP-99">
+  <header><span class="id">CP-99</span><span class="rf">RF-09, RF-03</span><span class="estado Fallido">Fallido</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Validaciones del formulario de tipo de evento.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;Este campo es obligatorio&quot;; el nombre admite como máximo 30.</dd>
+    <dt>Resultado obtenido</dt><dd>0 de 1 pruebas aprobadas. Fallos: TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nuevo tipo de evento&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear tipo&#39; })</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 1 (no se crea el tipo).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado fallida">fallida</span> Personal y catálogos (Administrador) › CP-99 formulario de tipo de evento: obligatorio y máximo de 30<div class="error">TimeoutError: locator.click: Timeout 5000ms exceeded. · Call log: ·   - waiting for getByRole(&#39;dialog&#39;, { name: &#39;Nuevo tipo de evento&#39; }).getByRole(&#39;button&#39;, { name: &#39;Crear tipo&#39; })</div></li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-99_fallo.png" alt="CP-99_fallo.png" loading="lazy"><figcaption>CP-99_fallo.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-101">
+  <header><span class="id">CP-101</span><span class="rf">RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Orden inválido de un nivel de gravedad.</dd>
+    <dt>Resultado esperado</dt><dd>&quot;El orden debe ser un número entero entre 1 y 32767&quot;; vacío: &quot;Este campo es obligatorio&quot;.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Paso 1 (no se guarda).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Personal y catálogos (Administrador) › CP-101 orden inválido de un nivel de gravedad</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-101_orden_niveles.png" alt="CP-101_orden_niveles.png" loading="lazy"><figcaption>CP-101_orden_niveles.png</figcaption></figure></div>
+</article></section>
+<section class="seccion-tipo" id="tipo-SEG"><p class="nota encabezado-seccion">Sección 5 · Playwright</p><h2>Seguridad (acceso por rol)</h2><article class="tarjeta caso Aprobado" id="CP-03">
+  <header><span class="id">CP-03</span><span class="rf">RF-01</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Login con credenciales incorrectas desde la pantalla.</dd>
+    <dt>Resultado esperado</dt><dd>Alerta &quot;DNI o contraseña incorrectos&quot; y la sesión no se abre.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Variante en el frontend del caso de API.</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Login: validaciones › CP-03 credenciales incorrectas: mensaje genérico y sin sesión</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-03_login_incorrecto_frontend.png" alt="CP-03_login_incorrecto_frontend.png" loading="lazy"><figcaption>CP-03_login_incorrecto_frontend.png</figcaption></figure></div>
+</article>
+<article class="tarjeta caso Aprobado" id="CP-103">
+  <header><span class="id">CP-103</span><span class="rf">RF-01, RF-02, RF-09</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Rutas de Administrador con Supervisor y Vigilante.</dd>
+    <dt>Resultado esperado</dt><dd>/personal y /catalogos redirigen al inicio del rol; el menú no muestra Personal ni Catálogos.</dd>
+    <dt>Resultado obtenido</dt><dd>2 de 2 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Pasos 1 y 2 (el 403 de la API se prueba en Postman).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Vigilante en rutas de gerencia y de administración › CP-13 / CP-103 el Vigilante vuelve a su formulario</li><li><span class="estado aprobada">aprobada</span> Supervisor en rutas del Administrador › CP-13 / CP-103 el Supervisor vuelve al dashboard</li></ul>
+  <div class="capturas"><figure class=""><img src="capturas/CP-103_vigilante_redirigido.png" alt="CP-103_vigilante_redirigido.png" loading="lazy"><figcaption>CP-103_vigilante_redirigido.png</figcaption></figure><figure class=""><img src="capturas/CP-103_supervisor_redirigido.png" alt="CP-103_supervisor_redirigido.png" loading="lazy"><figcaption>CP-103_supervisor_redirigido.png</figcaption></figure></div>
+</article></section>
+<section class="seccion-tipo" id="tipo-USA"><p class="nota encabezado-seccion">Sección 6 · Playwright</p><h2>Usabilidad</h2><article class="tarjeta caso Aprobado" id="CP-33">
+  <header><span class="id">CP-33</span><span class="rf">RNF-03</span><span class="estado Aprobado">Aprobado</span></header>
+  <dl>
+    <dt>Descripción</dt><dd>Vista móvil de 360 px del formulario de incidencias.</dd>
+    <dt>Resultado esperado</dt><dd>Sin desplazamiento horizontal y botón de registro visible.</dd>
+    <dt>Resultado obtenido</dt><dd>1 de 1 pruebas aprobadas.</dd>
+    <dt>Alcance automatizado</dt><dd>Ancho sin desplazamiento horizontal y botón fijo (el cronometraje y el celular real son manuales).</dd>
+  </dl>
+  <ul class="pruebas"><li><span class="estado aprobada">aprobada</span> Registro de incidencia en el celular › CP-33 vista móvil de 360 px sin desplazamiento horizontal</li></ul>
+  <div class="capturas"><figure class="movil"><img src="capturas/CP-33_vista_movil_360.png" alt="CP-33_vista_movil_360.png" loading="lazy"><figcaption>CP-33_vista_movil_360.png</figcaption></figure></div>
+</article></section>
+</main>
+</body>
+</html>
