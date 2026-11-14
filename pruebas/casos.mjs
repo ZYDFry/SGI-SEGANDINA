@@ -1,0 +1,114 @@
+// Catálogo de los casos de prueba que se ejecutan de forma automática. Los textos resumen las columnas
+// "Resultado esperado" de docs/plan_pruebas_integrales.md; `automatiza` indica qué parte del caso cubre la
+// automatización (el resto del caso se ejecuta a mano y se anota en el plan).
+
+/** Tipos de prueba en el orden en que aparecen en el reporte. */
+export const TIPOS = [
+  { id: "BACKEND", nombre: "Backend (unitarias e integración)", herramienta: "JUnit 5 + Surefire + JaCoCo" },
+  { id: "API", nombre: "Integración API", herramienta: "Newman (colección Postman)" },
+  { id: "E2E", nombre: "Extremo a extremo", herramienta: "Playwright" },
+  { id: "VAL", nombre: "Validación de formularios", herramienta: "Playwright" },
+  { id: "SEG", nombre: "Seguridad (acceso por rol)", herramienta: "Playwright" },
+  { id: "USA", nombre: "Usabilidad", herramienta: "Playwright" },
+];
+
+/** Casos automatizados: id → datos del plan. */
+export const CASOS = {
+  // Backend
+  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 210 tests, sin fallos ni errores.", automatiza: "Completo." },
+
+  // API (Newman, colección en modo solo lectura)
+  "CP-02": { rf: "RF-01", tipo: "API", descripcion: "Login válido del Administrador.", esperado: "200 con token, sin campo contrasena; token guardado para el resto de peticiones.", automatiza: "Paso 1 (la fila LOGIN_OK se verifica en SQL)." },
+  "CP-19": { rf: "RF-02", tipo: "API", descripcion: "Listar y obtener usuarios.", esperado: "Página de usuarios activos y detalle por id (200), sin contrasena.", automatiza: "Pasos 1 y 2 con los parámetros de la colección." },
+  "CP-34": { rf: "RF-04", tipo: "API", descripcion: "Historial por defecto contra Supabase.", esperado: "200 con la página del historial de los últimos 30 días.", automatiza: "Paso 1 (la comparación con el conteo SQL es manual)." },
+  "CP-35": { rf: "RF-04", tipo: "API", descripcion: "Historial con rango personalizado.", esperado: "200 con las incidencias del rango desde–hasta.", automatiza: "Rango personalizado del mes actual; los filtros combinados se prueban a mano." },
+  "CP-39": { rf: "RF-05", tipo: "API", descripcion: "KPIs del dashboard.", esperado: "200 con desde, hasta, incidenciasHoy, incidenciasPeriodo y porGravedad.", automatiza: "Código de estado (la comparación con el historial es manual)." },
+  "CP-40": { rf: "RF-05", tipo: "API", descripcion: "Incidencias por zona y por tipo.", esperado: "200 con listas {id, nombre, total}.", automatiza: "Código de estado (la comparación con SQL es manual)." },
+  "CP-42": { rf: "RF-05", tipo: "API", descripcion: "Serie en el tiempo (por periodo y personalizada por semana).", esperado: "200 con los tramos de la serie.", automatiza: "Código de estado con el periodo de la corrida (los tramos de borde se revisan a mano)." },
+  "CP-46": { rf: "RF-06", tipo: "API", descripcion: "Reporte Excel.", esperado: "200, Content-Type de Excel y Content-Disposition attachment.", automatiza: "Cabeceras (el contenido del archivo se revisa a mano)." },
+  "CP-47": { rf: "RF-06", tipo: "API", descripcion: "Reporte PDF (periodo y personalizado).", esperado: "200, Content-Type application/pdf y adjunto.", automatiza: "Cabeceras (el contenido del PDF se revisa a mano)." },
+  "CP-52": { rf: "RF-07", tipo: "API", descripcion: "Despliegue de vigilantes por zona.", esperado: "200 con [{idZona, nombreZona, vigilantesActivos}].", automatiza: "Código de estado (la comparación con la vista es manual)." },
+  "CP-54": { rf: "RF-08", tipo: "API", descripcion: "Acciones de auditoría.", esperado: "200 con los pares {valor, etiqueta}.", automatiza: "Paso 1." },
+  "CP-55": { rf: "RF-08", tipo: "API", descripcion: "Consulta de auditoría con filtros.", esperado: "200 con la página de auditoría filtrada (LOGIN_FALLIDO).", automatiza: "Listado y filtro por acción." },
+  "CP-65": { rf: "RF-09", tipo: "API", descripcion: "Búsqueda y detalle de zonas.", esperado: "200 con la página de zonas y el detalle por id.", automatiza: "Búsqueda sin filtros y detalle." },
+  "CP-67": { rf: "RF-09", tipo: "API", descripcion: "Listado de tipos de evento y catálogos activos.", esperado: "200 con los tipos de evento y los catálogos.", automatiza: "Paso 4 (listados); las escrituras corren con --completo." },
+  "CP-68": { rf: "RF-09", tipo: "API", descripcion: "Listado de niveles de gravedad.", esperado: "200 con los niveles ordenados.", automatiza: "Paso 2 (listado); la edición corre con --completo." },
+
+  // Frontend (Playwright)
+  "CP-03": { rf: "RF-01", tipo: "SEG", descripcion: "Login con credenciales incorrectas desde la pantalla.", esperado: "Alerta \"DNI o contraseña incorrectos\" y la sesión no se abre.", automatiza: "Variante en el frontend del caso de API." },
+  "CP-13": { rf: "RF-01", tipo: "E2E", descripcion: "Login por rol, redirección y menú.", esperado: "Vigilante a /incidencias/nueva sin menú; Supervisor a /dashboard; Administrador con menú completo. Rutas ajenas redirigen al inicio del rol.", automatiza: "Pasos 1 a 4 en escritorio (el menú de tablet es manual)." },
+  "CP-25": { rf: "RF-02", tipo: "E2E", descripcion: "Pantalla de personal: tabla y filtros.", esperado: "Tabla con nombre, DNI, rol, zona y estado; los filtros reducen la tabla.", automatiza: "Pasos 1 y 6 (no se crean ni modifican usuarios)." },
+  "CP-31": { rf: "RF-03", tipo: "E2E", descripcion: "Registro de una incidencia desde el celular (360 × 740).", esperado: "Confirmación con el número de incidencia y formulario listo para otro registro.", automatiza: "Completo, contra el backend real." },
+  "CP-33": { rf: "RNF-03", tipo: "USA", descripcion: "Vista móvil de 360 px del formulario de incidencias.", esperado: "Sin desplazamiento horizontal y botón de registro visible.", automatiza: "Ancho sin desplazamiento horizontal y botón fijo (el cronometraje y el celular real son manuales)." },
+  "CP-38": { rf: "RF-04", tipo: "E2E", descripcion: "Pantalla de historial con filtros y detalle.", esperado: "Tabla con Fecha, Zona, Tipo, Gravedad y Usuario; filtros y detalle de la fila.", automatiza: "Pasos 1 a 3 (paginación y backend detenido son manuales)." },
+  "CP-45": { rf: "RF-05, RF-07", tipo: "E2E", descripcion: "Dashboard con KPIs, gráficos y despliegue.", esperado: "Tarjetas de KPIs, gráficos por zona, tipo y tiempo, y tabla de despliegue; cambia con el periodo.", automatiza: "Pasos 1 a 3 (refresco de 60 s y backend detenido son manuales)." },
+  "CP-51": { rf: "RF-06", tipo: "E2E", descripcion: "Exportar Excel y PDF desde el historial.", esperado: "Se descargan incidencias_AAAA-MM-DD.xlsx y .pdf y aparece el aviso de descarga.", automatiza: "Pasos 1 a 3 (el caso de más de 10 000 incidencias es manual)." },
+  "CP-63": { rf: "RF-08", tipo: "E2E", descripcion: "Pestaña de auditoría con filtros.", esperado: "Filtro por \"Inicio de sesión fallido\" y búsqueda por DNI; el Supervisor no ve la pestaña.", automatiza: "Pasos 1, 2, 3 y 6." },
+  "CP-69": { rf: "RF-09", tipo: "E2E", descripcion: "Pantallas de catálogos.", esperado: "Zonas, tipos de evento y niveles de gravedad se listan con sus acciones.", automatiza: "Navegación y listados (no se crean ni modifican catálogos)." },
+  "CP-70": { rf: "RF-01, RF-02", tipo: "VAL", descripcion: "DNI con letras en el login.", esperado: "El campo queda en 1234567 y al salir: \"El DNI debe tener 8 dígitos numéricos\".", automatiza: "Login (el DNI de personal se prueba en CP-74)." },
+  "CP-72": { rf: "RF-01, RF-02", tipo: "VAL", descripcion: "DNI de 7 dígitos en el login.", esperado: "Aviso debajo del DNI, botón Ingresar desactivado; el aviso desaparece con el octavo dígito.", automatiza: "Login." },
+  "CP-74": { rf: "RF-02", tipo: "VAL", descripcion: "Nombres con números en \"Agregar personal\".", esperado: "\"Solo se permiten letras, espacios, apóstrofo y guion\" debajo de cada campo; no se envía.", automatiza: "Completo." },
+  "CP-75": { rf: "RF-01, RF-02", tipo: "VAL", descripcion: "Longitud de la contraseña nueva en \"Cambiar mi contraseña\".", esperado: "\"La contraseña debe tener entre 8 y 72 caracteres\" con 7 y 73; sin aviso con 8 y 72.", automatiza: "/mi-contrasena." },
+  "CP-76": { rf: "RF-01, RF-02", tipo: "VAL", descripcion: "Confirmación distinta y nueva igual a la actual.", esperado: "\"Las contraseñas no coinciden\" y \"La nueva contraseña debe ser distinta de la actual\"; no se envía.", automatiza: "/mi-contrasena." },
+  "CP-77": { rf: "RF-01, RF-03", tipo: "VAL", descripcion: "Campos obligatorios vacíos en login e incidencias.", esperado: "\"Este campo es obligatorio\" y avisos de tipo y gravedad; foco en el primer error; sin peticiones.", automatiza: "Login y registro de incidencias." },
+  "CP-78": { rf: "RF-03", tipo: "VAL", descripcion: "Descripción corta con el tipo \"Otro\".", esperado: "Aviso de mínimo 20 caracteres para \"Otro\"; con 20 no hay aviso.", automatiza: "Completo." },
+  "CP-79": { rf: "RF-03", tipo: "VAL", descripcion: "Fecha y hora futura en el registro.", esperado: "\"La fecha y hora no puede ser futura\" y botón desactivado.", automatiza: "Fecha + 10 min." },
+  "CP-84": { rf: "RF-01, RF-03", tipo: "VAL", descripcion: "Comportamiento de los avisos (aria-invalid, foco, borde).", esperado: "Sin avisos al abrir; aviso al salir del campo; aria-invalid y aria-describedby en el campo inválido.", automatiza: "Login." },
+  "CP-90": { rf: "RF-02", tipo: "VAL", descripcion: "Vigilante sin zona en \"Agregar personal\".", esperado: "\"El Vigilante debe tener una zona asignada\" y sin petición.", automatiza: "Pasos 1 y 2." },
+  "CP-96": { rf: "RF-09", tipo: "VAL", descripcion: "Validaciones del formulario de zona.", esperado: "\"Este campo es obligatorio\" en nombre, departamento, provincia y distrito; el nombre admite como máximo 80.", automatiza: "Pasos 1 y 2 (el 409 requiere crear datos)." },
+  "CP-99": { rf: "RF-09, RF-03", tipo: "VAL", descripcion: "Validaciones del formulario de tipo de evento.", esperado: "\"Este campo es obligatorio\"; el nombre admite como máximo 30.", automatiza: "Paso 1 (no se crea el tipo)." },
+  "CP-101": { rf: "RF-09", tipo: "VAL", descripcion: "Orden inválido de un nivel de gravedad.", esperado: "\"El orden debe ser un número entero entre 1 y 32767\"; vacío: \"Este campo es obligatorio\".", automatiza: "Paso 1 (no se guarda)." },
+  "CP-103": { rf: "RF-01, RF-02, RF-09", tipo: "SEG", descripcion: "Rutas de Administrador con Supervisor y Vigilante.", esperado: "/personal y /catalogos redirigen al inicio del rol; el menú no muestra Personal ni Catálogos.", automatiza: "Pasos 1 y 2 (el 403 de la API se prueba en Postman)." },
+};
+
+/** Petición de la colección → caso del plan. */
+export const CASO_POR_PETICION = {
+  "Login": "CP-02",
+  "Catalogo Zonas": "CP-67",
+  "Catalogo Roles": "CP-67",
+  "Catalogo Tipos": "CP-67",
+  "Catalogo Niveles": "CP-67",
+  "Registrar Incidencias": "CP-26",
+  "Usuarios Listar": "CP-19",
+  "Usuarios Obtener": "CP-19",
+  "Usuarios Crear": "CP-16",
+  "Usuarios Editar": "CP-20",
+  "Usuarios Cambiar Estado": "CP-21",
+  "Usuarios Restablecer Contrasena": "CP-22",
+  "Zonas Buscar": "CP-65",
+  "Zonas Obtener": "CP-65",
+  "Zonas Crear": "CP-64",
+  "Zonas Editar": "CP-64",
+  "Zonas Cambiar Estado": "CP-66",
+  "Tipos Evento Listar": "CP-67",
+  "Tipos Evento Crear": "CP-67",
+  "Tipos Evento Editar": "CP-67",
+  "Tipos Evento Cambiar Estado": "CP-67",
+  "Niveles Gravedad Listar": "CP-68",
+  "Niveles Gravedad Editar": "CP-68",
+  "Historial Listar": "CP-34",
+  "Historial Personalizado": "CP-35",
+  "Dashboard KPIs": "CP-39",
+  "Dashboard Por Zona": "CP-40",
+  "Dashboard Por Tipo": "CP-40",
+  "Dashboard Por Tiempo": "CP-42",
+  "Dashboard Por Tiempo Personalizado": "CP-42",
+  "Dashboard Despliegue": "CP-52",
+  "Reportes Excel": "CP-46",
+  "Reportes PDF": "CP-47",
+  "Reportes PDF Personalizado": "CP-47",
+  "Auditoria Listar": "CP-55",
+  "Auditoria Filtrar": "CP-55",
+  "Auditoria Acciones": "CP-54",
+};
+
+/** Casos que solo corren con --completo (escrituras): el reporte los muestra solo si tienen resultados. */
+Object.assign(CASOS, {
+  "CP-16": { rf: "RF-02", tipo: "API", descripcion: "Crear usuario (--completo).", esperado: "201 con el usuario, sin contrasena.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-20": { rf: "RF-02", tipo: "API", descripcion: "Editar usuario (--completo).", esperado: "200 con el usuario editado.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-21": { rf: "RF-02", tipo: "API", descripcion: "Baja lógica de usuario (--completo).", esperado: "200 con estadoActivo false.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-22": { rf: "RF-02", tipo: "API", descripcion: "Restablecer contraseña (--completo).", esperado: "204.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-26": { rf: "RF-03", tipo: "API", descripcion: "Registrar incidencia por API (--completo).", esperado: "201 con la incidencia.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-64": { rf: "RF-09", tipo: "API", descripcion: "Crear y editar zona (--completo).", esperado: "201 al crear y 200 al editar.", automatiza: "Pasos 1 y edición.", soloCompleto: true },
+  "CP-66": { rf: "RF-09", tipo: "API", descripcion: "Desactivar zona (--completo).", esperado: "200.", automatiza: "Paso 1.", soloCompleto: true },
+});

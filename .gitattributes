@@ -1,0 +1,9 @@
+# Evidencias de pruebas: documentación generada (no cuenta en las estadísticas de lenguajes de GitHub)
+docs/evidencias/** linguist-documentation
+
+# Scripts de Windows con fin de línea CRLF
+*.cmd text eol=crlf
+
+# Binarios de evidencias
+*.png binary
+*.pdf binary

@@ -1,0 +1,19 @@
+{
+  "name": "sgi-pruebas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ejecución de la colección Postman con Newman y generación del reporte de evidencias de SGI-SEGANDINA",
+  "type": "module",
+  "scripts": {
+    "coleccion": "node scripts/coleccion.mjs --listar",
+    "newman": "node scripts/newman.mjs",
+    "newman:completo": "node scripts/newman.mjs --completo",
+    "reporte": "node scripts/reporte.mjs"
+  },
+  "devDependencies": {
+    "newman": "6.2.3",
+    "newman-reporter-htmlextra": "1.23.1",
+    "playwright": "1.64.1",
+    "yaml": "2.9.1"
+  }
+}

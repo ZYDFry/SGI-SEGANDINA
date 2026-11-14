@@ -35,3 +35,11 @@ salida.txt
 .vscode/
 .DS_Store
 Thumbs.db
+# Pruebas: reportes temporales y sesiones de Playwright (se versionan solo docs/evidencias/pruebas:
+# capturas, index.html y reporte_pruebas.pdf)
+pruebas/node_modules/
+pruebas/reportes/
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
