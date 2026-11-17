@@ -1,0 +1,16 @@
+$kind: http-request
+description: "CP-121 (--completo): el Administrador mueve al Vigilante de prueba a otra zona activa (idZonaDestino). La petición siguiente lo devuelve a su zona."
+url: "{{baseUrl}}/api/usuarios/{{idVigilante}}/zona"
+method: PATCH
+body:
+  type: json
+  content: '{"idZona": {{idZonaDestino}}}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Queda en la zona destino', () => pm.expect(String(data.idZona)).to.eql(pm.environment.get('idZonaDestino')));
+      pm.test('La respuesta no trae la contraseña', () => pm.expect(data).to.not.have.property('contrasena'));
+    language: text/javascript
+order: 6350

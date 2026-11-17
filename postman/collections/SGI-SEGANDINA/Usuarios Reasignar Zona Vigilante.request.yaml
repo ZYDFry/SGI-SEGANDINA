@@ -1,0 +1,20 @@
+$kind: http-request
+description: "CP-124: un Vigilante intenta reasignar una zona; el backend responde 403 y no cambia nada."
+url: "{{baseUrl}}/api/usuarios/{{idVigilante}}/zona"
+method: PATCH
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenVigilante}}"
+body:
+  type: json
+  content: '{"idZona": 1}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 403', () => pm.response.to.have.status(403));
+      const data = pm.response.json();
+      pm.test('Mensaje sin permisos', () => pm.expect(data.mensaje).to.eql('No tiene permisos para esta operación'));
+    language: text/javascript
+order: 5200

@@ -5,5 +5,9 @@ scripts:
   - type: afterResponse
     code: |-
       pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      // Zona activa distinta de la del Vigilante de prueba, destino de la reasignación (CP-121, --completo)
+      const propia = pm.environment.get('idZonaVigilante');
+      const destino = pm.response.json().find((z) => String(z.idZona) !== propia);
+      if (destino) pm.environment.set('idZonaDestino', String(destino.idZona));
     language: text/javascript
 order: 2000

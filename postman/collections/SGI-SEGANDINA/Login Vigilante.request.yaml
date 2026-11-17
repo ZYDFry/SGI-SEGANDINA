@@ -1,5 +1,5 @@
 $kind: http-request
-description: "Inicia sesión como Vigilante para CP-104. Guarda tokenVigilante, idZonaVigilante e idZonaAjena (una zona que no es la suya)."
+description: "Inicia sesión como Vigilante para CP-104, CP-121 y CP-124. Guarda tokenVigilante, idVigilante, idZonaVigilante e idZonaAjena (una zona que no es la suya)."
 url: "{{baseUrl}}/api/auth/login"
 method: POST
 body:
@@ -20,6 +20,7 @@ scripts:
       pm.test('La respuesta no trae la contraseña', () => pm.expect(data.usuario).to.not.have.property('contrasena'));
       if (data.token) {
         pm.environment.set('tokenVigilante', data.token);
+        pm.environment.set('idVigilante', String(data.usuario.idUsuario));
         const idZona = data.usuario.idZona;
         pm.environment.set('idZonaVigilante', idZona === null ? '' : String(idZona));
         // Cualquier id distinto del suyo: la regla se aplica antes de buscar la zona

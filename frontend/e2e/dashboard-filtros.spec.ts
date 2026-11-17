@@ -95,6 +95,16 @@ async function simularApi(page: Page): Promise<Request[]> {
   await page.route("**/api/catalogos/niveles-gravedad", (r) =>
     r.fulfill({ json: NIVELES.map((n) => ({ ...n, estadoActivo: true })) }),
   );
+  // Filtros del dashboard y del historial: catálogos completos (aquí todos activos)
+  await page.route("**/api/catalogos/filtros", (r) =>
+    r.fulfill({
+      json: {
+        zonas: ZONAS.map(ZONA),
+        tiposEvento: TIPOS.map((t) => ({ ...t, estadoActivo: true })),
+        nivelesGravedad: NIVELES.map((n) => ({ ...n, estadoActivo: true })),
+      },
+    }),
+  );
   await page.route("**/api/dashboard/**", (ruta) => {
     const url = new URL(ruta.request().url());
     peticiones.push(ruta.request());
@@ -107,6 +117,9 @@ async function simularApi(page: Page): Promise<Request[]> {
             hasta: "2026-11-16",
             incidenciasHoy: Math.floor(suma(grupos) / 5),
             incidenciasPeriodo: suma(grupos),
+            desdeAnterior: "2026-09-18",
+            hastaAnterior: "2026-10-17",
+            incidenciasPeriodoAnterior: suma(grupos),
             porGravedad: NIVELES.map((n) => ({
               ...n,
               total: suma(grupos.filter((g) => g.idNivelGravedad === n.idNivelGravedad)),
@@ -130,6 +143,13 @@ async function simularApi(page: Page): Promise<Request[]> {
               { inicio: "2026-11-01", fin: "2026-11-16", total: Math.floor(suma(grupos) / 2) },
             ],
           },
+        });
+      case "/api/dashboard/carga-por-zona":
+        return ruta.fulfill({
+          json: ZONAS.map((z, i) => {
+            const incidencias = suma(grupos.filter((g) => g.idZona === z.idZona));
+            return { idZona: z.idZona, nombreZona: z.nombreZona, incidencias, vigilantesActivos: i + 1, incidenciasPorVigilante: incidencias / (i + 1) };
+          }),
         });
       case "/api/dashboard/despliegue":
         return ruta.fulfill({ json: ZONAS.map((z, i) => ({ idZona: z.idZona, nombreZona: z.nombreZona, vigilantesActivos: i + 1 })) });

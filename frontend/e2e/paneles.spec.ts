@@ -13,7 +13,7 @@ test.describe("Dashboard e historial (Supervisor)", () => {
     caso("CP-45");
     await page.goto("/dashboard");
     await esperarPantalla(page, /\/dashboard$/);
-    for (const texto of ["Incidencias de hoy", "Incidencias del periodo", "Vigilantes desplegados", "Incidencias por zona", "Incidencias por tipo de evento", "Incidencias en el tiempo", "Despliegue de vigilantes por zona"]) {
+    for (const texto of ["Incidencias de hoy", "Incidencias del periodo", "Vigilantes desplegados", "Incidencias por zona", "Incidencias por tipo de evento", "Incidencias en el tiempo", "Despliegue y carga por zona"]) {
       await expect(page.getByText(texto, { exact: true }).first()).toBeVisible();
     }
     await expect(page.locator("canvas").first()).toBeVisible();

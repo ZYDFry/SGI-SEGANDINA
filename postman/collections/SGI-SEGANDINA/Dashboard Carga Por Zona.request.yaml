@@ -1,0 +1,20 @@
+$kind: http-request
+description: "CP-117: carga por zona (incidencias del periodo, vigilantes activos e incidencias por vigilante)."
+url: "{{baseUrl}}/api/dashboard/carga-por-zona?periodo={{periodo}}&idNivelGravedad=&idTipoEvento="
+method: GET
+queryParams:
+  periodo: "{{periodo}}"
+  idNivelGravedad: ""
+  idTipoEvento: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Es una lista', () => pm.expect(data).to.be.an('array'));
+      pm.test('Cada fila trae la carga', () => data.forEach((fila) =>
+        pm.expect(fila).to.include.keys('idZona', 'nombreZona', 'incidencias', 'vigilantesActivos', 'incidenciasPorVigilante')));
+      pm.test('Incidencias por vigilante es null solo sin vigilantes', () => data.forEach((fila) =>
+        pm.expect(fila.incidenciasPorVigilante === null).to.eql(fila.vigilantesActivos === 0)));
+    language: text/javascript
+order: 11600

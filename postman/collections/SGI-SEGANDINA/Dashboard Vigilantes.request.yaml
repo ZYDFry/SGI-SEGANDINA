@@ -1,0 +1,19 @@
+$kind: http-request
+description: "CP-120: vigilantes de una zona con su estado, sin DNI ni contraseña."
+url: "{{baseUrl}}/api/dashboard/vigilantes?idZona=1"
+method: GET
+queryParams:
+  idZona: "1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Es una lista', () => pm.expect(data).to.be.an('array'));
+      pm.test('Sin DNI ni contraseña', () => data.forEach((v) => {
+        pm.expect(v).to.not.have.property('dni');
+        pm.expect(v).to.not.have.property('contrasena');
+      }));
+      pm.test('Todos son de la zona pedida', () => data.forEach((v) => pm.expect(v.idZona).to.eql(1)));
+    language: text/javascript
+order: 11800

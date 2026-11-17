@@ -1,0 +1,25 @@
+$kind: http-request
+description: "CP-118: KPI de los últimos 7 días con la comparación contra los 7 días anteriores."
+url: "{{baseUrl}}/api/dashboard/kpis?periodo=ULTIMOS_7_DIAS"
+method: GET
+queryParams:
+  periodo: ULTIMOS_7_DIAS
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      const dia = (texto) => new Date(texto + 'T00:00:00Z').getTime();
+      const DIA_MS = 24 * 60 * 60 * 1000;
+      pm.test('Trae el periodo anterior', () =>
+        pm.expect(data).to.include.keys('incidenciasPeriodoAnterior', 'desdeAnterior', 'hastaAnterior'));
+      pm.test('El periodo anterior termina el día antes de desde', () =>
+        pm.expect(dia(data.desde) - dia(data.hastaAnterior)).to.eql(DIA_MS));
+      pm.test('El periodo anterior tiene el mismo largo (7 días)', () => {
+        pm.expect((dia(data.hasta) - dia(data.desde)) / DIA_MS + 1).to.eql(7);
+        pm.expect((dia(data.hastaAnterior) - dia(data.desdeAnterior)) / DIA_MS + 1).to.eql(7);
+      });
+      pm.test('El total anterior es un número no negativo', () =>
+        pm.expect(data.incidenciasPeriodoAnterior).to.be.a('number').and.to.be.at.least(0));
+    language: text/javascript
+order: 11050

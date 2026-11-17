@@ -1,0 +1,14 @@
+$kind: http-request
+description: "CP-119: zonas, tipos y niveles para los filtros del historial y del dashboard, incluidos los inactivos."
+url: "{{baseUrl}}/api/catalogos/filtros"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Trae los tres catálogos', () => pm.expect(data).to.include.keys('zonas', 'tiposEvento', 'nivelesGravedad'));
+      pm.test('Cada zona trae su estadoActivo', () =>
+        data.zonas.forEach((z) => pm.expect(z).to.have.property('estadoActivo')));
+    language: text/javascript
+order: 4100

@@ -1,0 +1,13 @@
+$kind: http-request
+description: "CP-120: datos de una zona para la pantalla de despliegue (activa o no)."
+url: "{{baseUrl}}/api/dashboard/zonas/1"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Trae los datos de la zona', () =>
+        pm.expect(data).to.include.keys('idZona', 'nombreZona', 'distrito', 'estadoActivo'));
+    language: text/javascript
+order: 11700

@@ -15,14 +15,29 @@ export const DIR_COLECCION = join(RAIZ, "postman", "collections", "SGI-SEGANDINA
 export const EXCLUIDAS = new Set(["Usuarios Mi Contrasena"]);
 
 /**
- * Peticiones que necesitan la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omiten. No escriben:
- * "Registrar Incidencia Otra Zona" (CP-104) siempre la rechaza el backend con 400.
+ * Peticiones que necesitan la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omiten.
+ * "Registrar Incidencia Otra Zona" (CP-104) y "Usuarios Reasignar Zona Vigilante" (CP-124) no escriben: el backend
+ * siempre las rechaza (400 y 403). Las dos de reasignación del Administrador (CP-121) sí escriben y devuelven al
+ * Vigilante a su zona, así que además necesitan --completo.
  */
-export const PETICIONES_VIGILANTE = new Set(["Login Vigilante", "Registrar Incidencia Otra Zona"]);
+export const PETICIONES_VIGILANTE = new Set([
+  "Login Vigilante",
+  "Registrar Incidencia Otra Zona",
+  "Usuarios Reasignar Zona Vigilante",
+  "Usuarios Reasignar Zona",
+  "Usuarios Reasignar Zona Restaurar",
+]);
 
-/** Los login, los GET y las peticiones del Vigilante no modifican datos; el resto solo corre con --completo. */
+/** Peticiones que usan al Vigilante de prueba y modifican datos: solo con --completo. */
+const ESCRITURAS_VIGILANTE = new Set(["Usuarios Reasignar Zona", "Usuarios Reasignar Zona Restaurar"]);
+
+/** Los login, los GET y las peticiones rechazadas del Vigilante no modifican datos; el resto solo corre con --completo. */
 function esLectura(nombre, metodo) {
-  return metodo === "GET" || nombre === "Login" || PETICIONES_VIGILANTE.has(nombre);
+  return (
+    metodo === "GET" ||
+    nombre === "Login" ||
+    (PETICIONES_VIGILANTE.has(nombre) && !ESCRITURAS_VIGILANTE.has(nombre))
+  );
 }
 
 /** queryParams viene como objeto {clave: valor} o como lista [{key, value, disabled}]. */

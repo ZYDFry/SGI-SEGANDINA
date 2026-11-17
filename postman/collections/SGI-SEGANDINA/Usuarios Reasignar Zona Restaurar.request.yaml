@@ -1,0 +1,15 @@
+$kind: http-request
+description: "CP-121 (--completo): devuelve al Vigilante de prueba a su zona original (idZonaVigilante)."
+url: "{{baseUrl}}/api/usuarios/{{idVigilante}}/zona"
+method: PATCH
+body:
+  type: json
+  content: '{"idZona": {{idZonaVigilante}}}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Vuelve a su zona', () => pm.expect(String(data.idZona)).to.eql(pm.environment.get('idZonaVigilante')));
+    language: text/javascript
+order: 6360

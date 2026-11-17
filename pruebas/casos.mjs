@@ -15,7 +15,7 @@ export const TIPOS = [
 /** Casos automatizados: id → datos del plan. */
 export const CASOS = {
   // Backend
-  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 215 tests, sin fallos ni errores.", automatiza: "Completo." },
+  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 243 tests, sin fallos ni errores.", automatiza: "Completo." },
 
   // API (Newman, colección en modo solo lectura)
   "CP-02": { rf: "RF-01", tipo: "API", descripcion: "Login válido del Administrador.", esperado: "200 con token, sin campo contrasena; token guardado para el resto de peticiones.", automatiza: "Paso 1 (la fila LOGIN_OK se verifica en SQL)." },
@@ -33,6 +33,10 @@ export const CASOS = {
   "CP-55": { rf: "RF-08", tipo: "API", descripcion: "Consulta de auditoría con filtros.", esperado: "200 con la página de auditoría filtrada (LOGIN_FALLIDO).", automatiza: "Listado y filtro por acción." },
   "CP-65": { rf: "RF-09", tipo: "API", descripcion: "Búsqueda y detalle de zonas.", esperado: "200 con la página de zonas y el detalle por id.", automatiza: "Búsqueda sin filtros y detalle." },
   "CP-67": { rf: "RF-09", tipo: "API", descripcion: "Listado de tipos de evento y catálogos activos.", esperado: "200 con los tipos de evento y los catálogos.", automatiza: "Paso 4 (listados); las escrituras corren con --completo." },
+  "CP-117": { rf: "RF-07", tipo: "API", descripcion: "Carga por zona con los filtros comunes.", esperado: "200 con [{idZona, nombreZona, incidencias, vigilantesActivos, incidenciasPorVigilante}]; incidenciasPorVigilante es null solo si la zona no tiene vigilantes.", automatiza: "Forma de la respuesta con el periodo de la corrida (la comparación con SQL es manual)." },
+  "CP-118": { rf: "RF-05", tipo: "API", descripcion: "KPI con la comparación con el periodo anterior.", esperado: "200 con incidenciasPeriodoAnterior, desdeAnterior y hastaAnterior; con 7 días, el periodo anterior son los 7 días que terminan el día antes de desde.", automatiza: "Paso 1 con ULTIMOS_7_DIAS (el conteo contra el historial y la tarjeta se revisan a mano)." },
+  "CP-119": { rf: "RF-04, RF-05", tipo: "API", descripcion: "Catálogos para filtros con los inactivos.", esperado: "200 con zonas, tiposEvento y nivelesGravedad, cada uno con estadoActivo.", automatiza: "Paso 1 (filtrar el historial por una zona inactiva se prueba a mano)." },
+  "CP-124": { rf: "RF-07", tipo: "API", descripcion: "Un Vigilante intenta reasignar una zona.", esperado: "403 \"No tiene permisos para esta operación\"; no cambia nada.", automatiza: "Completo, con la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omite." },
   "CP-68": { rf: "RF-09", tipo: "API", descripcion: "Listado de niveles de gravedad.", esperado: "200 con los niveles ordenados.", automatiza: "Paso 2 (listado); la edición corre con --completo." },
 
   // Frontend (Playwright)
@@ -72,6 +76,8 @@ export const CASOS = {
   "CP-113": { rf: "RF-05, RF-04", tipo: "E2E", descripcion: "\"Ver en historial\" abre el historial con los mismos filtros.", esperado: "/historial con los mismos parámetros, los filtros elegidos y \"N registros\" igual al KPI del periodo; el historial también escribe sus filtros en la URL.", automatiza: "Completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
   "CP-114": { rf: "RF-05", tipo: "E2E", descripcion: "Una URL compartida reproduce los filtros.", esperado: "Periodo personalizado, zona y gravedad cargados en los selectores y en los chips; un parámetro no válido se ignora y las peticiones llevan solo los filtros válidos.", automatiza: "Completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
   "CP-115": { rf: "RF-05", tipo: "USA", descripcion: "Clic en una barra filtra, aviso \"Filtrado por … · Ver todo\" y quitar con clic en un espacio vacío.", esperado: "Chip, URL y anuncio aria-live con la zona; el anillo y la serie avisan \"Filtrado por Zona: …\"; \"Ver todo\", el clic junto a la barra y el clic en el centro del anillo quitan su filtro.", automatiza: "Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
+  "CP-120": { rf: "RF-07", tipo: "E2E", descripcion: "Pantalla de una zona desde la tabla de carga del dashboard.", esperado: "La tabla se ordena por encabezado y la zona sin vigilantes dice \"0 · Sin vigilantes\"; la zona abre /despliegue/{id} con el periodo; muestra ubicación, vigilantes con su estado (solo el activo se puede mover), carga y 5 de 6 incidencias, con \"Ver en historial\" filtrado por la zona.", automatiza: "Completo con catálogos, dashboard, vigilantes e incidencias simulados (datos ficticios); no escribe en la base." },
+  "CP-122": { rf: "RF-07", tipo: "E2E", descripcion: "El Supervisor mueve un vigilante a otra zona con confirmación.", esperado: "\"Elige una zona\" sin elección; solo zonas activas distintas; confirmación con origen, destino y aviso de incidencias; un PATCH /api/usuarios/{id}/zona con {idZona}; mensaje de éxito y la lista se actualiza.", automatiza: "Completo con la API simulada (el 200 real y la auditoría se prueban en el backend y con Postman --completo)." },
   "CP-116": { rf: "RF-05", tipo: "USA", descripcion: "Escape y \"Atrás\" quitan y restauran los filtros; la barra de filtros queda fija al desplazar.", esperado: "Escape en un selector no cambia nada; con el foco en el dashboard quita todo (\"Mostrando todo\"); \"Atrás\" restaura los dos filtros; los chips siguen visibles al bajar hasta la serie.", automatiza: "Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
 };
 
@@ -105,11 +111,19 @@ export const CASO_POR_PETICION = {
   "Historial Listar": "CP-34",
   "Historial Personalizado": "CP-35",
   "Dashboard KPIs": "CP-39",
+  "Dashboard KPIs Periodo Anterior": "CP-118",
   "Dashboard Por Zona": "CP-40",
   "Dashboard Por Tipo": "CP-40",
   "Dashboard Por Tiempo": "CP-42",
   "Dashboard Por Tiempo Personalizado": "CP-42",
   "Dashboard Despliegue": "CP-52",
+  "Dashboard Carga Por Zona": "CP-117",
+  "Dashboard Zona Obtener": "CP-120",
+  "Dashboard Vigilantes": "CP-120",
+  "Catalogo Filtros": "CP-119",
+  "Usuarios Reasignar Zona Vigilante": "CP-124",
+  "Usuarios Reasignar Zona": "CP-121",
+  "Usuarios Reasignar Zona Restaurar": "CP-121",
   "Reportes Excel": "CP-46",
   "Reportes PDF": "CP-47",
   "Reportes PDF Personalizado": "CP-47",
@@ -127,4 +141,5 @@ Object.assign(CASOS, {
   "CP-26": { rf: "RF-03", tipo: "API", descripcion: "Registrar incidencia por API (--completo).", esperado: "201 con la incidencia.", automatiza: "Paso 1.", soloCompleto: true },
   "CP-64": { rf: "RF-09", tipo: "API", descripcion: "Crear y editar zona (--completo).", esperado: "201 al crear y 200 al editar.", automatiza: "Pasos 1 y edición.", soloCompleto: true },
   "CP-66": { rf: "RF-09", tipo: "API", descripcion: "Desactivar zona (--completo).", esperado: "200.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-121": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Administrador reasigna la zona del Vigilante de prueba (--completo).", esperado: "200 con la zona destino y luego 200 al devolverlo a su zona; sin contrasena.", automatiza: "Mover y restaurar (la fila REASIGNAR_ZONA se revisa en la auditoría).", soloCompleto: true },
 });
