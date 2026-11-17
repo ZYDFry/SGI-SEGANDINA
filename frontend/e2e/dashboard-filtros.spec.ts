@@ -188,6 +188,34 @@ function filaAnillo(page: Page, tipo: string) {
 
 const chips = (page: Page) => page.getByRole("group", { name: "Filtros activos" });
 
+/** Región aria-live que anuncia los filtros vigentes. */
+const anuncio = (page: Page) => page.getByTestId("anuncio-filtros");
+
+/** Tarjeta de un gráfico por su título. */
+const tarjeta = (page: Page, titulo: string) => page.locator("section", { has: page.getByRole("heading", { name: titulo }) });
+
+/**
+ * Clic en el gráfico de barras por zona, en una fila (0 = la primera) y una parte: el inicio de la barra (justo a
+ * la derecha de los nombres de zona) o el espacio en blanco del extremo derecho (más allá de las barras cortas).
+ */
+async function clicEnBarras(page: Page, fila: number, parte: "barra" | "vacio") {
+  const lienzo = tarjeta(page, "Incidencias por zona").locator("canvas");
+  await lienzo.scrollIntoViewIfNeeded();
+  const caja = (await lienzo.boundingBox())!;
+  const altoFila = (caja.height - 30) / ZONAS.length; // descuenta el eje X de abajo
+  const y = caja.y + altoFila * (fila + 0.5);
+  await page.mouse.click(parte === "barra" ? caja.x + 130 : caja.x + caja.width - 20, y);
+}
+
+/** Clic en el centro del anillo (el hueco): un espacio vacío. */
+async function clicEnCentroDelAnillo(page: Page) {
+  const lienzo = tarjeta(page, "Incidencias por tipo de evento").locator("canvas");
+  await lienzo.scrollIntoViewIfNeeded();
+  const caja = (await lienzo.boundingBox())!;
+  const radio = (caja.height - 40) / 2; // descuenta la leyenda de abajo
+  await page.mouse.click(caja.x + caja.width / 2, caja.y + radio);
+}
+
 /** Control visible por id (con cacheComponents, Next deja la ruta anterior oculta en el DOM). */
 const visible = (page: Page, selector: string) => page.locator(selector).filter({ visible: true });
 
@@ -248,30 +276,28 @@ test.describe("Dashboard con filtros globales y filtrado cruzado (Supervisor)", 
     await expect(page.getByRole("button", { name: /Gravedad Media E2E/ })).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("CP-112 quitar un chip y quitar todo", async ({ page }, testInfo) => {
+  test("CP-112 quitar un chip, \"Quitar filtros\" y \"Mostrando todo\"", async ({ page }, testInfo) => {
     caso("CP-112");
     const peticiones = await simularApi(page);
     await page.goto("/dashboard?idZona=9102&idTipoEvento=9201");
     await esperarPantalla(page, /\/dashboard\?/);
     await expect(kpiPeriodo(page)).toHaveText("7");
     await expect(chips(page).getByText("Zona: Zona Sur E2E")).toBeVisible();
+    await expect(page.getByText("Haz clic en un gráfico para filtrar. Quita los filtros con × o con Quitar filtros.")).toBeVisible();
     await capturar(page, testInfo, "CP-112_chips_activos");
 
-    await page.getByRole("button", { name: "Quitar filtro Zona: Zona Sur E2E" }).click();
+    await page.getByRole("button", { name: "Quitar filtro Zona: Zona Sur E2E", exact: true }).click();
     await expect(page).not.toHaveURL(/idZona=/);
     await expect(chips(page).getByText("Zona: Zona Sur E2E")).toHaveCount(0);
     await expect(kpiPeriodo(page)).toHaveText("21");
     expect(ultimaPeticion(peticiones, "/api/dashboard/kpis").has("idZona")).toBe(false);
+    await expect(anuncio(page)).toHaveText("Filtros activos: Tipo de evento: Robo E2E");
 
-    // "Atrás" restaura el filtro quitado
-    await page.goBack();
-    await expect(page).toHaveURL(/[?&]idZona=9102(&|$)/);
-    await expect(chips(page).getByText("Zona: Zona Sur E2E")).toBeVisible();
-    await expect(kpiPeriodo(page)).toHaveText("7");
-
-    await page.getByRole("button", { name: "Quitar todo" }).click();
+    await page.getByRole("button", { name: "Quitar filtros" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(chips(page)).toHaveCount(0);
+    await expect(chips(page).getByText("Mostrando todo")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Quitar filtros" })).toHaveCount(0);
+    await expect(anuncio(page)).toHaveText("Mostrando todo");
     await expect(kpiPeriodo(page)).toHaveText("30");
     await capturar(page, testInfo, "CP-112_sin_filtros");
   });
@@ -331,5 +357,85 @@ test.describe("Dashboard con filtros globales y filtrado cruzado (Supervisor)", 
       idNivelGravedad: "9303",
     });
     await capturar(page, testInfo, "CP-114_url_compartida", { paginaCompleta: true });
+  });
+
+  test("CP-115 clic en una barra filtra, el aviso \"Filtrado por\" y quitar con clic en un espacio vacío", async ({ page }, testInfo) => {
+    caso("CP-115");
+    const peticiones = await simularApi(page);
+    await page.goto("/dashboard");
+    await esperarPantalla(page, /\/dashboard$/);
+    await expect(chips(page).getByText("Mostrando todo")).toBeVisible();
+    await expect(filaAnillo(page, "Robo E2E")).toContainText("21");
+
+    // Clic en la barra de "Zona Sur E2E" (segunda fila: las barras van de mayor a menor)
+    await clicEnBarras(page, 1, "barra");
+    await expect(page).toHaveURL(/[?&]idZona=9102(&|$)/);
+    await expect(chips(page).getByText("Zona: Zona Sur E2E")).toBeVisible();
+    await expect(anuncio(page)).toHaveText("Filtros activos: Zona: Zona Sur E2E");
+    await expect(filaAnillo(page, "Robo E2E")).toContainText("7");
+    const avisoAnillo = tarjeta(page, "Incidencias por tipo de evento").locator('[data-aviso="idZona"]');
+    await expect(avisoAnillo).toHaveText("Filtrado por Zona: Zona Sur E2E · Ver todo");
+    await expect(tarjeta(page, "Incidencias en el tiempo").locator('[data-aviso="idZona"]')).toBeVisible();
+    await expect(tarjeta(page, "Incidencias por zona").locator("[data-aviso]"), "las barras no avisan su propio filtro").toHaveCount(0);
+    await capturar(page, testInfo, "CP-115_aviso_filtrado_por", { paginaCompleta: true });
+
+    // "Ver todo" quita ese filtro
+    await avisoAnillo.getByRole("button", { name: "Ver todo: quitar filtro Zona: Zona Sur E2E" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(avisoAnillo).toHaveCount(0);
+    await expect(filaAnillo(page, "Robo E2E")).toContainText("21");
+
+    // Clic en el espacio en blanco junto a la barra más corta quita el filtro de zona
+    await clicEnBarras(page, 1, "barra");
+    await expect(page).toHaveURL(/[?&]idZona=9102(&|$)/);
+    await clicEnBarras(page, 2, "vacio");
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(kpiPeriodo(page)).toHaveText("30");
+    expect(ultimaPeticion(peticiones, "/api/dashboard/kpis").has("idZona")).toBe(false);
+
+    // Clic en el centro del anillo quita el filtro de tipo
+    await page.goto("/dashboard?idTipoEvento=9201");
+    await esperarPantalla(page, /\/dashboard\?/);
+    await expect(kpiPeriodo(page)).toHaveText("21");
+    await clicEnCentroDelAnillo(page);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(kpiPeriodo(page)).toHaveText("30");
+  });
+
+  test("CP-116 Escape y \"Atrás\" quitan y restauran los filtros; la barra de filtros queda fija", async ({ page }, testInfo) => {
+    caso("CP-116");
+    await simularApi(page);
+    await page.goto("/dashboard");
+    await esperarPantalla(page, /\/dashboard$/);
+    await page.goto("/dashboard?idZona=9101&idNivelGravedad=9302");
+    await esperarPantalla(page, /\/dashboard\?/);
+    await expect(kpiPeriodo(page)).toHaveText("4");
+
+    // Escape dentro de un selector no quita nada
+    await page.locator("#filtro-tipo").focus();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/idZona=9101/);
+
+    // La barra de filtros sigue a la vista al desplazar hasta la serie (pantalla grande)
+    await page.getByRole("heading", { name: "Incidencias en el tiempo" }).scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("barra-filtros")).toBeInViewport();
+    await expect(chips(page).getByText("Zona: Zona Norte E2E")).toBeInViewport();
+    await capturar(page, testInfo, "CP-116_chips_fijos_al_desplazar");
+
+    // Escape con el foco en el dashboard quita todos los filtros
+    await page.getByRole("heading", { name: "Dashboard gerencial" }).click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(chips(page).getByText("Mostrando todo")).toBeVisible();
+    await expect(anuncio(page)).toHaveText("Mostrando todo");
+    await expect(kpiPeriodo(page)).toHaveText("30");
+
+    // "Atrás" vuelve a los dos filtros
+    await page.goBack();
+    await expect(page).toHaveURL(/[?&]idZona=9101(&|$)/);
+    await expect(page).toHaveURL(/[?&]idNivelGravedad=9302(&|$)/);
+    await expect(chips(page).getByText("Zona: Zona Norte E2E")).toBeVisible();
+    await expect(chips(page).getByText("Gravedad: Media E2E")).toBeVisible();
+    await expect(kpiPeriodo(page)).toHaveText("4");
   });
 });
