@@ -61,8 +61,14 @@ Formato de cada entrada:
 - Tercera corrida (17/11, `npm run newman:reasignacion` y reporte): 35 de 35 peticiones aprobadas; CP-121 aprobado
   (el Vigilante de prueba se movió a otra zona y volvió a la suya). Reporte: backend 243, API 35 y Playwright 47
   (más 3 sesiones), sin fallos ni casos no ejecutados; índice y PDF regenerados sin DNIs reales.
-- Pendientes: revisar en la auditoría las dos filas `REASIGNAR_ZONA` de CP-121; pruebas manuales de CP-117 a CP-119
-  (pantalla), CP-123 y CP-125 contra Supabase.
+- CP-123 y CP-125 automatizados en Newman: "Login Supervisor" y tres peticiones del Supervisor que el backend rechaza
+  (reasignar a un Supervisor → 400; crear usuario y desactivar → 403), en el modo por defecto con `E2E_SUPERVISOR_*`;
+  e "Incidencias Por Zona Antes/Despues De Reasignar" alrededor de la reasignación de CP-121, en `--reasignacion`.
+  Archivos: `postman/collections/SGI-SEGANDINA/` (6 peticiones nuevas), `pruebas/scripts/{coleccion,newman}.mjs`,
+  `pruebas/casos.mjs`. Corrida del 17/11 con `npm run newman:reasignacion` y reporte: 41 de 41 peticiones; CP-121 a
+  CP-125 aprobados; reporte con backend 243, API 41 y Playwright 47 (más 3 sesiones), sin fallos.
+- Pendientes: revisar en la auditoría las dos filas `REASIGNAR_ZONA` por corrida de `--reasignacion`; pasos de pantalla
+  de CP-117 a CP-119 y CP-124; incidencia nueva en la zona nueva (CP-125, paso 4); DEF-01.
 
 ## [2026-11-17] Fase 8 / RF-05 — usabilidad del filtrado cruzado del dashboard
 - Qué se hizo:
