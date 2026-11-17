@@ -1373,3 +1373,74 @@ filtra ni quita nada.
   "Ver todo"; clic a la derecha de una barra y en el centro del anillo; Escape tras un clic en un gráfico; "Atrás";
   desplazar hasta la serie y comprobar que la barra de filtros queda arriba. Con NVDA, comprobar que cada cambio se
   anuncia.
+
+## RF-05 y RF-07 — periodo anterior, carga por zona, pantalla de zona y reasignación
+
+Los KPI comparan el periodo con el anterior del mismo largo; una tabla de carga por zona (incidencias frente a
+vigilantes activos) reemplaza a la de despliegue en el dashboard; los filtros del historial y del dashboard incluyen
+zonas, tipos y niveles inactivos; y una pantalla por zona (`/despliegue/{idZona}`) muestra su personal y permite al
+Administrador y al Supervisor mover vigilantes entre zonas con `PATCH /api/usuarios/{id}/zona`. No hay cambios en la
+base de datos: `REASIGNAR_ZONA` es un valor nuevo de `auditoria.accion_realizada` (texto libre).
+
+### Backend (`backend/src/main/java/com/segandina/sgi/`)
+
+| Clase | Responsabilidad | Métodos públicos principales |
+|---|---|---|
+| `dto/request/RangoFechas` (modificado) | Rango de días del filtro común. | `anterior()` → `RangoFechas` del mismo número de días que termina el día antes de `desde` (7 días del 10 al 16 → del 3 al 9). |
+| `dto/response/KpisResponse` (modificado) | Indicadores del dashboard. | Campos nuevos `desdeAnterior`, `hastaAnterior` e `incidenciasPeriodoAnterior`. |
+| `dto/response/CargaZonaResponse` (nuevo) | Fila de la carga por zona. | `de(idZona, nombreZona, incidencias, vigilantesActivos)` → la fila con `incidenciasPorVigilante` redondeado a 2 decimales, o `null` si no hay vigilantes. |
+| `service/DashboardService` / `impl/DashboardServiceImpl` (modificados) | Métricas del dashboard. | `kpis(filtro)` además cuenta `rango.anterior()` con los mismos filtros (`incidenciaDao.count(conFiltros(...))`). `cargaPorZona(filtro)` → `List<CargaZonaResponse>`: une `DespliegueZonaDao.findAll` (zonas activas y vigilantes) con `IncidenciaDao.contarPorZona` (incidencias del rango); agrega las zonas inactivas con incidencias (0 vigilantes); con `idZona`, solo esa; ordena con `ORDEN_CARGA` (sin vigilantes y con incidencias primero, luego por incidencias por vigilante descendente, luego por nombre). |
+| `controller/DashboardController` (modificado) | Endpoints del dashboard. | `GET /api/dashboard/carga-por-zona` → `cargaPorZona(IncidenciaFiltro)`. |
+| `dto/response/CatalogosFiltroResponse` (nuevo) | Catálogos completos para filtrar. | Record `{zonas, tiposEvento, nivelesGravedad}`. |
+| `service/CatalogoService` / `impl/CatalogoServiceImpl` (modificados) | Catálogos. | `listarParaFiltros()` → `CatalogosFiltroResponse` con activos e inactivos (zonas por nombre sin distinguir mayúsculas, tipos por nombre, niveles por orden). |
+| `controller/CatalogoController` (modificado) | Catálogos. | `GET /api/catalogos/filtros` → `listarParaFiltros()`. |
+| `dto/response/VigilanteZonaResponse` (nuevo) | Vigilante con su zona, sin DNI ni contraseña. | `desde(Usuario)` → DTO (dentro de una transacción: `zona` es LAZY). |
+| `service/DespliegueService` / `impl/DespliegueServiceImpl` (nuevos) | Consultas de la pantalla de una zona. | `obtenerZona(idZona)` → `ZonaResponse` (activa o no) o `RecursoNoEncontradoException` (404). `listarVigilantes(idZona, activo)` → `List<VigilanteZonaResponse>` de los usuarios con rol Vigilante (rol buscado con `RolDao.findByNombreRol`), con `UsuarioDao.conFiltros` y orden por apellidos y nombres; sin rol Vigilante, lista vacía. |
+| `controller/DespliegueController` (nuevo) | Endpoints de la pantalla de una zona, bajo `/api/dashboard` (Administrador y Supervisor). | `GET /api/dashboard/zonas/{idZona}` → `obtenerZona`. `GET /api/dashboard/vigilantes?idZona&activo` → `listarVigilantes`. |
+| `dao/UsuarioDao` (modificado) | DAO de usuarios. | `findAll(Specification, Sort)` con `@EntityGraph(rol, zona)`: lista sin paginar con rol y zona en una sola consulta. |
+| `dto/request/ReasignarZonaRequest` (nuevo) | Cuerpo de la reasignación. | Record `{ @NotNull idZona }` ("es obligatorio"). |
+| `service/UsuarioService` / `impl/UsuarioServiceImpl` (modificados) | Gestión de usuarios. | `reasignarZona(idUsuario, idZona, idActor)` → `UsuarioResponse`: valida que el usuario exista (404), sea Vigilante, esté activo y la zona sea distinta de la actual (400); la zona nueva la valida `resolverZona` (existe y está activa, si no 400). Solo hace `usuario.setZona(nueva)` y audita `REASIGNAR_ZONA` con `cambio("idUsuario", id, {idZona, nombreZona} antes, {idZona, nombreZona} después)` y el actor como autor. No toca `incidencia`. |
+| `controller/UsuarioController` (modificado) | Usuarios. | `PATCH /api/usuarios/{id}/zona` → `reasignarZona(id, request.idZona(), jwt.getSubject())`. |
+| `model/AccionAuditoria` (modificado) | Acciones auditadas. | Valor nuevo `REASIGNAR_ZONA` ("Reasignar zona de vigilante"), que aparece en el filtro de la auditoría. |
+| `config/SecurityConfig` (modificado) | Reglas por rol. | `PATCH /api/usuarios/*/zona` y `GET /api/catalogos/filtros` → Administrador y Supervisor, declaradas antes de `/api/usuarios/**` (solo Administrador) y de la regla general. |
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/tipos.ts` y `lib/servicios.ts` (modificados) | Tipos y llamadas nuevas. | Tipos `CargaZona`, `VigilanteZona` y campos del periodo anterior en `Kpis`. `cargarCatalogosFiltro()` → `Catalogos` desde `/api/catalogos/filtros` con los inactivos al final y marcados "(inactiva)" / "(inactivo)". `obtenerCargaPorZona(filtro)`, `obtenerZonaDespliegue(idZona)`, `listarVigilantes({idZona?, activo?})`, `reasignarZonaVigilante(idUsuario, idZona)`. |
+| `lib/comparacion.ts` (nuevo) | Texto de la comparación con el periodo anterior. | `compararConAnterior(actual, anterior)` → `{tendencia: "sube" \| "baja" \| "igual" \| "sinBase", texto}` (p. ej. "▲ 50 % vs. periodo anterior"). |
+| `lib/validaciones.ts` (modificado) | Validaciones de formularios. | `MENSAJES.vigilante` ("Elige un vigilante"); `validarReasignacion(campo, valor)` → `Errores<"idZona" \| "idUsuario">` ("Elige una zona" o "Elige un vigilante"). |
+| `lib/roles.ts` (modificado) | Menú por rol. | `opcionActiva` marca "Dashboard" en `/despliegue/...`. |
+| `components/Tarjeta.tsx` (modificado) | `TarjetaKpi`. | Props nuevas `extra?` (línea bajo el detalle) y `href?` (la tarjeta es un `Link`). |
+| `components/MarcoPrivado.tsx` (modificado) | Marco de las pantallas con sesión. | Encabezado, menú lateral y barra inferior dentro de `<Suspense fallback={null}>`: leen la ruta con `usePathname`, que en una ruta con parámetro desconocido al compilar (`/despliegue/[idZona]`) se suspende. |
+| `components/FiltrosIncidencia.tsx` y `ChipsFiltros.tsx` (comentarios) | Reciben los catálogos de `cargarCatalogosFiltro`, así las zonas inactivas se ven con su nombre. | Sin cambios de props. |
+| `app/(privado)/dashboard/PanelDashboard.tsx` (modificado) | Dashboard. | Usa `cargarCatalogosFiltro`; la tarjeta "Incidencias del periodo" muestra la comparación (`data-comparacion`); "Vigilantes desplegados" enlaza a la zona filtrada o a `#despliegue`. Componente interno `SeccionCarga` (reemplaza a `SeccionDespliegue`): tabla ordenable con `aria-sort` y enlaces a `rutaZona(idZona, filtro)`; consulta la carga sin su propio filtro de zona y resalta la elegida. |
+| `app/(privado)/historial/HistorialIncidencias.tsx` (modificado) | Historial. | Usa `cargarCatalogosFiltro`. |
+| `app/(privado)/despliegue/[idZona]/page.tsx` y `ZonaDeLaRuta.tsx` (nuevos) | Ruta de la pantalla de una zona (Administrador y Supervisor). | `RutaProtegida` + `Suspense`; `ZonaDeLaRuta` lee el id con `useParams` y avisa si no es un número. |
+| `app/(privado)/despliegue/[idZona]/PantallaZona.tsx` (nuevo) | Pantalla de una zona. | Props `idZona`. Lee periodo y filtros con `useFiltroUrl` (sin `idZona`, que va en la ruta); consulta zona, vigilantes, carga e incidencias recientes (5) con `useConsulta`; `SelectorPeriodo` y `ChipsFiltros`; botones "Mover a otra zona" (por vigilante activo) y "Asignar vigilante de otra zona" (desactivado si la zona está inactiva); "Ver en historial" a `/historial?…&idZona=`. Tras reasignar, recarga vigilantes y carga y muestra el mensaje. |
+| `app/(privado)/despliegue/[idZona]/ReasignarVigilante.tsx` (nuevo) | Diálogo de reasignación en dos pasos. | Props `reasignacion` (`{tipo: "mover", vigilante, zonas}` o `{tipo: "traer", zona, vigilantes}`), `onGuardado(mensaje)`, `onCerrar()`. Paso 1: `Modal` con `SelectorBuscable` y `useValidacion` + `validarReasignacion` (aviso bajo el campo). Paso 2: `DialogoConfirmacion` con origen, destino y aviso sobre las incidencias; llama a `reasignarZonaVigilante` y muestra el error de la API si lo hay. |
+
+### Flujo: el Supervisor mueve a un vigilante de la Zona Sur a la Zona Norte
+
+1. En `/despliegue/{idSur}`, "Mover a otra zona" carga `GET /api/catalogos/zonas` y abre `ReasignarVigilante`; el Supervisor elige "Zona Norte", pulsa "Continuar" y luego "Reasignar".
+2. `reasignarZonaVigilante` envía `PATCH /api/usuarios/{id}/zona` con `{"idZona": idNorte}` y el token del Supervisor.
+3. `SecurityConfig` deja pasar la petición por la regla `PATCH /api/usuarios/*/zona` (Administrador y Supervisor); `@Valid` comprueba `idZona`.
+4. `UsuarioController.reasignarZona` toma el actor de `jwt.getSubject()` y llama a `UsuarioServiceImpl.reasignarZona`: `actor()` (activo), `buscarExistente()`, comprueba rol Vigilante, estado activo y que la zona sea otra, `resolverZona()` valida que la Zona Norte exista y esté activa.
+5. Se hace `usuario.setZona(norte)`; al cerrar la transacción Hibernate ejecuta `UPDATE usuario SET id_zona = …`. Las filas de `incidencia` no se tocan: cada una conserva su `id_zona`.
+6. `AuditoriaService.registrar(REASIGNAR_ZONA, {idUsuario, antes: {idZona, nombreZona}, despues: {…}}, null, supervisor)` inserta en `auditoria`.
+7. La respuesta 200 (`UsuarioResponse`, sin contraseña) vuelve al frontend, que recarga los vigilantes (`GET /api/dashboard/vigilantes?idZona=…`) y la carga (`GET /api/dashboard/carga-por-zona?…&idZona=…`, que cuenta los vigilantes desde `v_despliegue_por_zona`).
+
+### Cómo probar
+
+- `cd backend && .\mvnw.cmd -q verify` (243 tests): `UsuarioServiceImplTest` (reglas y auditoría de la
+  reasignación), `UsuarioControllerTest` (200 Administrador y Supervisor, 400, 403, 401, 404),
+  `DashboardServiceImplTest` (periodo anterior y carga), `DashboardControllerTest` (carga, zona, vigilantes,
+  catálogos de filtros y 403 del Vigilante), `DespliegueServiceImplTest`, `CatalogoServiceImplTest` e
+  `IncidenciaDaoTest.moverAlVigilanteDeZonaNoCambiaSusIncidenciasPasadas` (H2).
+- `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/despliegue.spec.ts` (CP-120 y CP-122, con
+  la API simulada).
+- Postman / Newman: "Dashboard Carga Por Zona", "Dashboard Zona Obtener", "Dashboard Vigilantes", "Catalogo Filtros",
+  "Usuarios Reasignar Zona Vigilante" (403); con `--completo`, "Usuarios Reasignar Zona" y "Usuarios Reasignar Zona
+  Restaurar" (mueven al Vigilante de prueba y lo devuelven).
+- A mano: los pasos de CP-117 a CP-125 en `docs/plan_pruebas_integrales.md`.

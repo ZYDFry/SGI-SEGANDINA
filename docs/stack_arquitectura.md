@@ -117,12 +117,14 @@ Prefijo `/api`. Todo requiere JWT salvo el login.
 |---|---|---|
 | `POST /auth/login` | público | RF-01 |
 | `GET /catalogos/zonas`, `/tipos-evento`, `/niveles-gravedad`, `/roles` | autenticado | RF-02/03 |
+| `GET /catalogos/filtros` (zonas, tipos y niveles, incluidos los inactivos) | Administrador, Supervisor | RF-04/05 |
 | `GET /usuarios`, `POST /usuarios`, `PUT /usuarios/{id}`, `PATCH /usuarios/{id}/estado`, `PATCH /usuarios/{id}/contrasena` | Administrador | RF-02 |
+| `PATCH /usuarios/{id}/zona` (solo Vigilantes activos a una zona activa; regla declarada antes de `/usuarios/**`) | Administrador, Supervisor | RF-02/07 |
 | `PATCH /usuarios/me/contrasena`, `GET /auth/yo` | autenticado (también con cambio de contraseña pendiente) | RF-01/02 |
 | `POST /incidencias` | Vigilante, Administrador | RF-03 |
 | `GET /incidencias?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento&page&size` | Administrador, Supervisor | RF-04 |
-| `GET /dashboard/kpis`, `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |
-| `GET /dashboard/despliegue` | Administrador, Supervisor | RF-07 |
+| `GET /dashboard/kpis` (con el periodo anterior), `/dashboard/incidencias-por-zona`, `/dashboard/incidencias-por-tipo`, `/dashboard/incidencias-por-tiempo?agrupacion` (todos con los filtros de RF-04, sin paginación) | Administrador, Supervisor | RF-05 |
+| `GET /dashboard/despliegue`, `/dashboard/carga-por-zona` (filtros de RF-04), `/dashboard/zonas/{idZona}`, `/dashboard/vigilantes?idZona&activo` | Administrador, Supervisor | RF-07 |
 | `GET /reportes/excel?periodo&desde&hasta&idZona&idNivelGravedad&idTipoEvento` y `GET /reportes/pdf?...` (mismos filtros que RF-04, sin paginación; responden el archivo como adjunto) | Administrador, Supervisor | RF-06 |
 | `GET /auditoria?periodo&desde&hasta&accion&idUsuario&q&page&size` (rango común sobre `fecha_hora`, `size` de 1 a 100) | Administrador | RF-08 |
 | `GET /auditoria/acciones` (valor y etiqueta de cada acción, para el filtro) | Administrador | RF-08 |

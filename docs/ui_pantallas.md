@@ -18,6 +18,7 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 | `/login` | Login | público | RF-01 |
 | `/incidencias/nueva` | Formulario de registro (Mobile-First) | Vigilante, Administrador | RF-03 |
 | `/dashboard` | Dashboard gerencial (Desktop) | Administrador, Supervisor | RF-05, RF-07 |
+| `/despliegue/[idZona]` | Despliegue de una zona: personal, carga y reasignación (se llega desde el dashboard) | Administrador, Supervisor | RF-07, RF-02 |
 | `/historial` | Historial de incidencias con filtros y exportación | Administrador, Supervisor | RF-04, RF-06 |
 | `/historial/auditoria` | Pestaña de auditoría del historial | Administrador | RF-08 |
 | `/personal` | Gestión de personal | Administrador | RF-02 |
@@ -71,8 +72,9 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 ### 3. Dashboard gerencial (Desktop)
 - Barra lateral de navegación con íconos y grupos (en tablet y móvil se abre con el botón "Menú").
 - Barra de filtros global: selector de periodo común (Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado
-  con dos calendarios) y listas de zona, gravedad y tipo de evento. Afecta a los KPI, las barras, el anillo y la
-  serie; el despliegue por zona no usa filtros.
+  con dos calendarios) y listas de zona, gravedad y tipo de evento. Afecta a los KPI, las barras, el anillo, la
+  serie y la tabla de carga por zona; la tarjeta "Vigilantes desplegados" no usa filtros. Las listas incluyen las
+  zonas, tipos y niveles inactivos al final, marcados "(inactiva)" o "(inactivo)" (lo mismo en el historial).
 - Debajo del título, la indicación "Haz clic en un gráfico para filtrar. Quita los filtros con × o con Quitar
   filtros".
 - Barra de filtros activos justo encima de los KPI y los gráficos, siempre visible y fija arriba al desplazar en
@@ -80,9 +82,13 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
   "Quitar filtros" (vuelve a los últimos 30 días sin filtros) cuando hay al menos uno. Sin filtros dice "Mostrando
   todo". Cada cambio se anuncia a los lectores de pantalla con una región `aria-live`.
 - Botón "Ver en historial": abre `/historial` con los mismos filtros.
-- Tarjetas KPI arriba: incidencias de hoy, del periodo, vigilantes desplegados y una por nivel de gravedad con su color.
+- Tarjetas KPI arriba: incidencias de hoy, del periodo (con "▲ n % vs. periodo anterior" en rojo o "▼ n %" en
+  verde; el periodo anterior y su total aparecen al pasar el puntero), vigilantes desplegados (enlace a la zona
+  filtrada o a la tabla de carga) y una por nivel de gravedad con su color.
 - Gráfico de barras (incidencias por zona), anillo (por tipo de evento) y serie por tiempo (línea o barras, por día,
-  semana o mes); tabla de despliegue por zona con las zonas sin vigilantes en rojo.
+  semana o mes); tabla "Despliegue y carga por zona" (Zona · Vigilantes activos · Incidencias · Inc. por
+  vigilante), ordenable con un clic en cada encabezado, con las zonas sin vigilantes en rojo y cada zona como enlace
+  a su pantalla de despliegue.
 - Filtrado cruzado: clic en una barra de zona, un sector del anillo (o su leyenda) o una tarjeta de gravedad aplica
   ese filtro a todo el panel. Cada gráfico sigue mostrando todas sus opciones (no se filtra a sí mismo) con la
   elegida resaltada y las demás atenuadas; la tarjeta elegida queda con borde. Con el teclado, cada gráfico tiene
@@ -96,6 +102,20 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 - Los filtros viven en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`): un enlace copiado
   abre el panel con los mismos filtros y "Atrás" deshace el último cambio. Un valor no válido se ignora.
 - Estados de carga y error en cada gráfico; refresco automático cada 60 s.
+
+### 3.1 Despliegue de una zona (`/despliegue/[idZona]`, Desktop y tablet)
+- Encabezado con "← Volver al dashboard", nombre de la zona con su estado, ubicación, referencia y descripción; el
+  menú marca "Dashboard".
+- Selector de periodo y chips de los filtros llegados del dashboard (tipo y gravedad).
+- Tres KPI: incidencias del periodo, vigilantes activos (rojo si es 0) e incidencias por vigilante.
+- "Vigilantes asignados": nombre y estado (Activo / Inactivo) de cada vigilante. Cada activo tiene "Mover a otra
+  zona"; arriba, "Asignar vigilante de otra zona" (desactivado si la zona está inactiva, con un aviso).
+- Reasignación en dos pasos: diálogo con un selector con búsqueda (zonas activas distintas de la actual, o vigilantes
+  activos de otras zonas con su zona actual), aviso "Elige una zona" / "Elige un vigilante" debajo del campo si se
+  continúa sin elegir, y confirmación "¿Mover a … de … a …?" que avisa que las incidencias ya registradas se quedan
+  en la zona de origen. Al terminar, mensaje de éxito y lista y carga actualizadas.
+- "Incidencias recientes": las 5 más recientes del periodo (fecha y hora, tipo, gravedad, registrado por) y "Ver en
+  historial", que abre el historial filtrado por la zona y el periodo.
 
 ### 4. Historial de incidencias y auditoría
 - Tabla con columnas: Fecha, Zona, Tipo, Gravedad, Usuario.

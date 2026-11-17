@@ -8,6 +8,7 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 |---|---|---|---|
 | Iniciar sesión | Sí | Sí | Sí |
 | Gestionar usuarios (RF-02) | Sí | No | No |
+| Reasignar la zona de un Vigilante activo (RF-02, RF-07) | Sí | Sí | No |
 | Registrar incidencia (RF-03) | Sí | No (propuesto) | Sí |
 | Ver historial y filtrar (RF-04) | Sí | Sí | No (propuesto) |
 | Ver dashboard y despliegue (RF-05, RF-07) | Sí | Sí | No |
@@ -16,7 +17,9 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 | Gestionar zonas, tipos de evento y niveles de gravedad (RF-09) | Sí | No | No |
 | Cambiar su propia contraseña | Sí | Sí | Sí |
 
-El Supervisor tiene, según las decisiones técnicas, "visualización de dashboard y reportes". El Vigilante usa el formulario móvil.
+El Supervisor tiene, según las decisiones técnicas, "visualización de dashboard y reportes", y además puede mover
+vigilantes entre zonas desde la pantalla de despliegue de una zona (RF-07); no puede crear, editar ni desactivar
+usuarios. El Vigilante usa el formulario móvil.
 
 ---
 
@@ -46,7 +49,8 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
 
 ## RF-02 Gestión de usuarios (Prioridad: Media)
 
-- **Descripción:** módulo CRUD de trabajadores con rol y zona de patrullaje. Solo Administrador.
+- **Descripción:** módulo CRUD de trabajadores con rol y zona de patrullaje. Solo Administrador, salvo la
+  reasignación de zona de un Vigilante, que también puede hacer el Supervisor (ver "Reasignación de zona" más abajo).
 - **Entradas (alta):** `dni`, `nombres`, `apellido_paterno`, `apellido_materno` (opcional), `contrasena` inicial, `id_rol`, `id_zona` (opcional).
 - **Reglas:**
   - `dni` único y de 8 dígitos numéricos.
@@ -58,7 +62,8 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   - Administrador y Supervisor pueden no tener zona; para Vigilante la zona es obligatoria. Una zona nueva o
     distinta de la actual debe estar activa; la zona actual se conserva aunque se haya desactivado después.
   - No existe borrado físico: "eliminar" es desactivar (`estado_activo = false`) para conservar el historial.
-  - Reasignar zona = editar `id_zona`.
+  - Reasignar zona = editar `id_zona`: el Administrador lo hace con `PUT /api/usuarios/{id}` (cualquier rol) o, como el
+    Supervisor, con `PATCH /api/usuarios/{id}/zona` (solo Vigilantes activos).
   - El Administrador no puede desactivarse a sí mismo ni quitarse el rol Administrador (evita quedarse sin acceso).
   - Se audita: `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`, con valores antes y después en
     `detalle_cambio` (sin la contraseña; si se asignó una, solo `"contrasenaCambiada": true` y
@@ -92,7 +97,18 @@ El Supervisor tiene, según las decisiones técnicas, "visualización de dashboa
   - Responde 204 y audita `RESTABLECER_CONTRASENA` con
     `detalle_cambio = {"idUsuario": <id del afectado>, "debeCambiarContrasena": true}`; el autor es el
     Administrador. Nunca se guarda la contraseña ni el hash.
-- **Criterios de aceptación:** crear, listar (con rol, zona y estado), editar y activar/desactivar; DNI duplicado devuelve error claro; un Supervisor o Vigilante recibe 403.
+- **Reasignación de zona (Administrador y Supervisor):** `PATCH /api/usuarios/{id}/zona` con `{ idZona }`. Es la única
+  ruta de `/api/usuarios` que puede usar el Supervisor; el resto sigue siendo solo del Administrador.
+  - Solo cambia la zona de usuarios con rol Vigilante y activos. Otro rol, usuario inactivo, zona inexistente o
+    inactiva, o la misma zona que ya tiene → 400 con el motivo (p. ej. "Solo se puede reasignar la zona de un
+    Vigilante"). `idZona` vacío → 400 `idZona: es obligatorio`. Usuario inexistente → 404. Vigilante → 403; sin token → 401.
+  - Responde 200 con el usuario (sin contraseña) y audita `REASIGNAR_ZONA` con
+    `detalle_cambio = {"idUsuario": <id>, "antes": {"idZona", "nombreZona"}, "despues": {"idZona", "nombreZona"}}`; el
+    autor del registro es quien hizo el cambio (Administrador o Supervisor, tomado del token).
+  - Mover a un vigilante no cambia sus incidencias pasadas: cada incidencia guarda su propia `id_zona`, así que el
+    historial, el dashboard y los reportes siguen contándolas en la zona donde ocurrieron. Desde ese momento el
+    Vigilante solo puede registrar en su zona nueva (RF-03).
+- **Criterios de aceptación:** crear, listar (con rol, zona y estado), editar y activar/desactivar; DNI duplicado devuelve error claro; un Supervisor o Vigilante recibe 403 en esas operaciones; el Supervisor sí puede reasignar la zona de un Vigilante activo.
 
 ## RF-03 Registro de incidencias (Prioridad: Alta)
 
@@ -142,6 +158,11 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Validaciones (400):** `desde` posterior a `hasta`; rango personalizado de más de 366 días (un año bisiesto completo es el máximo); `PERSONALIZADO` sin alguna de las fechas; fechas enviadas sin `PERSONALIZADO`; `periodo` o fecha con formato no válido. La respuesta indica el campo en `detalles` (por ejemplo `"desde: La fecha desde no puede ser posterior a hasta"`; el rango excesivo y la fecha faltante se informan en `hasta` o `desde`, y las fechas sin `PERSONALIZADO` en `periodo`).
 - La consulta de auditoría (RF-08) usa el mismo filtro de rango, aplicado sobre `auditoria.fecha_hora`.
 - Un id de zona, nivel o tipo que no existe no es error: simplemente no devuelve resultados.
+- **Catálogos para filtrar:** `GET /api/catalogos/filtros` (Administrador y Supervisor; Vigilante → 403) devuelve
+  `{zonas, tiposEvento, nivelesGravedad}` con los registros activos **e inactivos**, cada uno con `estadoActivo`. Las
+  listas de filtros del historial y del dashboard los usan, con los inactivos al final y marcados "(inactiva)" o
+  "(inactivo)", para poder consultar incidencias de una zona, un tipo o un nivel ya dados de baja. Los formularios
+  (registro de incidencias, personal) siguen usando solo los activos (`/api/catalogos/zonas`, etc.).
 
 ## RF-04 Historial y filtros (Prioridad: Alta)
 
@@ -161,16 +182,21 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 
 | Endpoint | Contenido |
 |---|---|
-| `GET /api/dashboard/kpis` | `desde`, `hasta`, `incidenciasHoy` (hoy en Lima, con los mismos filtros de zona, nivel y tipo), `incidenciasPeriodo` y `porGravedad`: todos los niveles activos ordenados de menos a más grave, con 0 si no tienen incidencias (un nivel inactivo solo aparece si tiene incidencias en el rango). |
+| `GET /api/dashboard/kpis` | `desde`, `hasta`, `incidenciasHoy` (hoy en Lima, con los mismos filtros de zona, nivel y tipo), `incidenciasPeriodo`, el periodo anterior (`desdeAnterior`, `hastaAnterior`, `incidenciasPeriodoAnterior`: mismo número de días, terminando el día antes de `desde`, con los mismos filtros) y `porGravedad`: todos los niveles activos ordenados de menos a más grave, con 0 si no tienen incidencias (un nivel inactivo solo aparece si tiene incidencias en el rango). |
 | `GET /api/dashboard/incidencias-por-zona` | Lista `{id, nombre, total}` de las zonas con incidencias en el rango, de mayor a menor (gráfico de barras). |
 | `GET /api/dashboard/incidencias-por-tipo` | Igual, por tipo de evento (gráfico de anillo; en el diseño UI figura como "pastel"). |
 | `GET /api/dashboard/incidencias-por-tiempo` | Serie `{agrupacion, desde, hasta, puntos[{inicio, fin, total}]}`. |
 
 - **Serie por tiempo:** parámetro opcional `agrupacion` = `DIA`, `SEMANA` o `MES`. Sin valor: `DIA` si el rango tiene hasta 31 días, `SEMANA` hasta 180 y `MES` si es mayor. Se devuelven todos los tramos del rango, también los que no tienen incidencias (con `total` 0). Las semanas van de lunes a domingo y los meses son calendario; el primer y el último tramo se recortan a `desde` y `hasta` (por ejemplo, del jueves 1 al domingo 4).
-- **Despliegue por zona:** ver RF-07.
+- **Comparación con el periodo anterior:** la tarjeta "Incidencias del periodo" muestra "▲ n % vs. periodo anterior"
+  (rojo: más incidencias), "▼ n %" (verde: menos) o "= 0 %", con el porcentaje redondeado a entero. Si el periodo
+  anterior no tuvo incidencias y el actual sí, muestra "▲ Sin incidencias en el periodo anterior". Por ejemplo,
+  "Últimos 7 días" del 10 al 16 de noviembre se compara con el 3 al 9 de noviembre; un personalizado del 1 al 10 de
+  marzo, con el 19 al 28 de febrero.
+- **Despliegue y carga por zona:** ver RF-07.
 - **Reglas:** los datos salen de consultas agregadas en el backend; el conteo por día se hace con `fecha_hora AT TIME ZONE 'America/Lima'` y la agrupación en semanas o meses y el relleno con ceros se hacen en Java. El flujo TO-BE habla de métricas "en tiempo real": cargar al abrir y refrescar cada 30–60 s (propuesto).
 - **Filtros globales y filtrado cruzado (pantalla):**
-  - Una barra de filtros (periodo, zona, tipo de evento y gravedad) se aplica a los KPI, las barras, el anillo y la serie. El despliegue (RF-07) no se filtra.
+  - Una barra de filtros (periodo, zona, tipo de evento y gravedad) se aplica a los KPI, las barras, el anillo, la serie y la tabla de carga por zona (RF-07). La tarjeta "Vigilantes desplegados" no se filtra.
   - Clic en una barra de zona, en un sector del anillo o en una tarjeta de gravedad aplica ese filtro; otro clic sobre lo mismo lo quita. Alternativa con teclado: botones "Filtrar por …" en la tabla de datos de cada gráfico.
   - Cada gráfico se consulta sin su propio filtro, para seguir mostrando todas sus opciones: las barras sin `idZona`, el anillo sin `idTipoEvento` y las tarjetas de gravedad con un `GET /api/dashboard/kpis` sin `idNivelGravedad`. Lo elegido se resalta y el resto se atenúa. Los KPI de hoy y del periodo y la serie usan todos los filtros.
   - Barra de filtros activos encima de los gráficos (fija al desplazar en pantallas grandes): chips con "×", "Quitar
@@ -196,10 +222,43 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 
 ## RF-07 Control de despliegue (Prioridad: Alta)
 
-- **Descripción:** en el dashboard, cantidad de vigilantes activos por zona para decidir reasignaciones.
-- **Endpoint:** `GET /api/dashboard/despliegue` (Administrador y Supervisor). No usa filtros ni rango de fechas. Devuelve `[{idZona, nombreZona, vigilantesActivos}]` ordenado por nombre de zona.
-- **Reglas:** se obtiene de la vista `v_despliegue_por_zona` (cuenta usuarios con rol Vigilante y `estado_activo = true` por zona; las zonas sin vigilantes aparecen con 0).
-- **Criterios de aceptación:** al activar, desactivar o reasignar un vigilante, el conteo se actualiza en el siguiente refresco.
+- **Descripción:** en el dashboard, vigilantes activos por zona frente a la carga de incidencias, para decidir
+  reasignaciones; y una pantalla por zona desde la que el Administrador y el Supervisor mueven vigilantes.
+- **Endpoints** (Administrador y Supervisor; Vigilante → 403, sin token → 401):
+
+| Endpoint | Contenido |
+|---|---|
+| `GET /api/dashboard/despliegue` | Sin filtros. `[{idZona, nombreZona, vigilantesActivos}]` de las zonas activas, ordenado por nombre. |
+| `GET /api/dashboard/carga-por-zona` | Filtros comunes. `[{idZona, nombreZona, incidencias, vigilantesActivos, incidenciasPorVigilante}]`. |
+| `GET /api/dashboard/zonas/{idZona}` | Datos de una zona, activa o no (`{idZona, nombreZona, departamento, provincia, distrito, referencia, descripcion, estadoActivo}`); 404 si no existe. |
+| `GET /api/dashboard/vigilantes?idZona=&activo=` | Vigilantes con su zona: `[{idUsuario, nombres, apellidoPaterno, apellidoMaterno, idZona, nombreZona, estadoActivo}]`, ordenados por apellidos y nombres. Sin DNI ni contraseña. |
+| `PATCH /api/usuarios/{id}/zona` | Reasignación de zona de un Vigilante activo; reglas en RF-02. |
+
+- **Reglas:**
+  - Los vigilantes activos salen de la vista `v_despliegue_por_zona` (cuenta usuarios con rol Vigilante y
+    `estado_activo = true` por zona activa; las zonas sin vigilantes aparecen con 0). Es el despliegue de hoy: no
+    depende del periodo.
+  - **Carga por zona:** `incidencias` son las del periodo con los filtros de nivel y tipo; `incidenciasPorVigilante`
+    = incidencias / vigilantes activos, redondeado a 2 decimales, y `null` si la zona no tiene vigilantes. Aparecen
+    todas las zonas activas (con 0 incidencias si no tienen) y las inactivas que tengan incidencias en el periodo
+    (con 0 vigilantes). Con `idZona` solo viene esa zona. Orden: primero las zonas con incidencias y sin vigilantes,
+    luego de mayor a menor incidencias por vigilante y, a igualdad, por nombre.
+- **Pantalla del dashboard:** la tabla "Despliegue y carga por zona" (Zona · Vigilantes activos · Incidencias · Inc.
+  por vigilante) usa los filtros del dashboard salvo la zona (resalta la elegida) y se ordena con un clic en cada
+  encabezado. Cada zona enlaza a su pantalla `/despliegue/{idZona}` con el periodo y los filtros vigentes. La tarjeta
+  "Vigilantes desplegados" enlaza a la zona filtrada, o a la tabla si no hay zona elegida.
+- **Pantalla de una zona** (`/despliegue/{idZona}`): datos de la zona, su carga en el periodo, los vigilantes asignados
+  (nombre y estado) y las 5 incidencias más recientes con "Ver en historial" (abre `/historial` filtrado por la zona
+  y el periodo). Desde aquí:
+  - "Mover a otra zona" junto a cada vigilante activo: se elige la zona destino (solo zonas activas distintas de la
+    actual) y se confirma.
+  - "Asignar vigilante de otra zona": se elige un vigilante activo de otra zona (con su zona actual) y se confirma.
+    No está disponible si la zona está inactiva.
+  - La confirmación indica el origen, el destino y que las incidencias ya registradas se quedan en la zona de origen.
+- **Criterios de aceptación:** al activar, desactivar o reasignar un vigilante, el conteo se actualiza en el siguiente
+  refresco (en la pantalla de la zona, al momento); la carga cambia con el periodo y los filtros; el Supervisor puede
+  reasignar un Vigilante activo y recibe 400 si intenta mover a otro rol; las incidencias pasadas del vigilante no
+  cambian de zona.
 
 ## RF-08 Auditoría / logs (Prioridad: no definida en el SRS del Word)
 

@@ -24,8 +24,11 @@ Carriles: Vigilante/Operador, Sistema Web SGI-SEGANDINA, Supervisor/Gerencia.
 4. Sistema: actualiza las métricas del dashboard en tiempo real (RF-05, RF-07).
 5. Supervisor/Gerencia: visualiza el dashboard analítico.
 6. Decisión "¿Requiere asignar personal?":
-   - Sí: gestiona la reasignación de personal en el sistema (RF-02) y luego pasa al paso 7.
+   - Sí: gestiona la reasignación de personal en el sistema desde la pantalla de despliegue de la zona (RF-07,
+     `PATCH /api/usuarios/{id}/zona`) y luego pasa al paso 7.
    - No: pasa directo al paso 7.
 7. Supervisor/Gerencia: aplica filtros y exporta el reporte en PDF/Excel (RF-04, RF-06). Fin.
 
-Pendiente de definir: el paso 6 ubica la reasignación en el carril Supervisor/Gerencia, pero el CRUD de usuarios (RF-02) es del Administrador.
+Resuelto: la reasignación del paso 6 la hacen el Supervisor y el Administrador. Ambos mueven vigilantes activos entre
+zonas activas desde la pantalla de la zona; el resto del CRUD de usuarios (RF-02) sigue siendo solo del
+Administrador. Mover a un vigilante no cambia la zona de las incidencias que ya registró.

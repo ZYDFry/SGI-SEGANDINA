@@ -12,6 +12,52 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Fase 8 / RF-05 y RF-07 — periodo anterior, carga por zona y reasignación por Supervisor
+- Qué se hizo:
+  - `GET /api/dashboard/kpis` agrega el periodo anterior del mismo largo (`desdeAnterior`, `hastaAnterior`,
+    `incidenciasPeriodoAnterior`); la tarjeta "Incidencias del periodo" muestra "▲/▼ n % vs. periodo anterior".
+  - `GET /api/dashboard/carga-por-zona` (filtros comunes): incidencias del periodo, vigilantes activos e incidencias
+    por vigilante por zona. En el dashboard reemplaza a la tabla de despliegue: "Despliegue y carga por zona",
+    ordenable, con cada zona como enlace a su pantalla.
+  - `GET /api/catalogos/filtros` (Administrador y Supervisor): zonas, tipos y niveles incluidos los inactivos. El
+    historial y el dashboard los ofrecen al final, marcados "(inactiva)" / "(inactivo)".
+  - Pantalla `/despliegue/[idZona]` con datos de la zona, carga, vigilantes (nombre y estado) e incidencias
+    recientes con "Ver en historial". Endpoints `GET /api/dashboard/zonas/{idZona}` y `GET /api/dashboard/vigilantes`.
+  - Reasignación acotada `PATCH /api/usuarios/{id}/zona` para Administrador y Supervisor (regla en `SecurityConfig`
+    antes de `/api/usuarios/**`): solo Vigilantes activos a otra zona activa; otro rol, inactivo, zona inválida o la
+    misma → 400. El resto de `/api/usuarios` sigue siendo solo del Administrador. Auditoría `REASIGNAR_ZONA` con la
+    zona anterior, la nueva y el autor. Mover a un vigilante no cambia sus incidencias pasadas (cada una guarda su
+    `id_zona`; lo comprueba `IncidenciaDaoTest`).
+  - Desde la pantalla de zona: "Mover a otra zona" y "Asignar vigilante de otra zona", con validación bajo el campo
+    y confirmación.
+  - `MarcoPrivado` envuelve encabezado, menú y barra inferior en `Suspense` (necesario para compilar una ruta con
+    parámetro dinámico); el menú marca "Dashboard" en `/despliegue/...`.
+  - Documentación: tabla de roles, RF-02, RF-05 y RF-07; en procesos de negocio queda resuelto que reasignan el
+    Supervisor y el Administrador.
+- Archivos clave: `backend/.../service/impl/{DashboardServiceImpl,UsuarioServiceImpl,DespliegueServiceImpl}.java`,
+  `backend/.../controller/{DespliegueController,UsuarioController,DashboardController,CatalogoController}.java`,
+  `backend/.../config/SecurityConfig.java`, `backend/.../dto/response/{CargaZonaResponse,VigilanteZonaResponse,CatalogosFiltroResponse}.java`,
+  `frontend/src/app/(privado)/despliegue/[idZona]/`, `frontend/src/app/(privado)/dashboard/PanelDashboard.tsx`,
+  `frontend/src/lib/{servicios,comparacion,validaciones}.ts`, `frontend/e2e/despliegue.spec.ts`,
+  `postman/collections/SGI-SEGANDINA/` (5 peticiones nuevas y 3 ajustadas), `pruebas/scripts/coleccion.mjs`,
+  `pruebas/casos.mjs`, `docs/plan_pruebas_integrales.md` (sección 5.16, CP-117 a CP-125).
+- Cómo probarlo: `cd backend && .\mvnw.cmd -q verify` (243 tests, todos aprobados);
+  `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/despliegue.spec.ts e2e/dashboard-filtros.spec.ts`
+  (9 de 9 aprobadas el 17/11/2026 con la API simulada); Newman con las peticiones nuevas; a mano, CP-117 a CP-125.
+- Numeración: los casos nuevos van de CP-117 a CP-125 porque CP-115 y CP-116 ya eran los de usabilidad del
+  dashboard.
+- Corrida completa del 17/11 (12:54, solo lectura, backend reiniciado con el código nuevo): 325 pruebas aprobadas,
+  0 fallidas y 0 omitidas (backend 243 con 90,5 % de cobertura de instrucciones, Newman 32, Playwright 50 contando
+  las 3 sesiones); índice y PDF de evidencias regenerados. CP-117, CP-119 (API), CP-120, CP-122 y CP-124 aprobados.
+- Ajuste tras la corrida: CP-118 salía "No ejecutado" porque sus aserciones estaban dentro de "Dashboard KPIs"
+  (asociada a CP-39). Ahora tiene su propia petición, "Dashboard KPIs Periodo Anterior" (7 días). Se quitó una
+  definición duplicada de CP-120 en `pruebas/casos.mjs`.
+- Segunda corrida (13:03, Newman y reporte): 33 de 33 peticiones aprobadas; CP-118 aprobado (5 de 5 pruebas).
+  Reporte con backend 243, API 33 y Playwright 47 (más 3 sesiones), sin fallos ni casos no ejecutados; índice y PDF
+  regenerados a las 13:05.
+- Pendientes: CP-121 con `--completo` sobre una base de prueba; pruebas manuales de CP-117 a CP-119 (pantalla),
+  CP-123 y CP-125 contra Supabase.
+
 ## [2026-11-17] Fase 8 / RF-05 — usabilidad del filtrado cruzado del dashboard
 - Qué se hizo:
   - Barra de filtros activos siempre visible justo encima de los KPI y gráficos, fija al desplazar en pantallas
