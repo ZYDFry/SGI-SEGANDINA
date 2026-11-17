@@ -72,8 +72,12 @@ Formato de cada entrada:
   64 de 64 casos aprobados, CP-117 a CP-125 incluidos. Índice, PDF y capturas regenerados, sin DNIs reales.
 - `pruebas/ejecutar-todo.cmd` llama al Maven Wrapper con ruta explícita (`.\mvnw.cmd`): en terminales con
   `NoDefaultCurrentDirectoryInExePath` definido, `cmd` no lo encontraba y el paso del backend fallaba.
-- Pendientes: revisar en la auditoría las dos filas `REASIGNAR_ZONA` por corrida de `--reasignacion`; pasos de pantalla
-  de CP-117 a CP-119 y CP-124; incidencia nueva en la zona nueva (CP-125, paso 4); DEF-01.
+- Evidencias de pantalla: seis pruebas nuevas de Playwright en `frontend/e2e/despliegue.spec.ts`, con captura:
+  CP-117 (tabla de carga igual a las incidencias por zona y orden), CP-118 (texto ▲/▼ y total del historial del
+  periodo anterior), CP-121 (auditoría "Reasignar zona de vigilante") y CP-124 (el Vigilante no abre
+  `/despliegue/1`) con datos reales en modo lectura; CP-119 (zona "(inactiva)" en el filtro del historial) y CP-125
+  (el Vigilante registra en su zona nueva) con la API simulada. CP-123 queda solo con evidencia de API.
+- Pendientes: ninguno de las pruebas de RF-05/RF-07; cierre de la fase (push y merge a `develop`).
 
 ## [2026-11-17] Fase 8 / RF-05 — usabilidad del filtrado cruzado del dashboard
 - Qué se hizo:

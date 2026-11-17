@@ -1438,8 +1438,7 @@ base de datos: `REASIGNAR_ZONA` es un valor nuevo de `auditoria.accion_realizada
   `DashboardServiceImplTest` (periodo anterior y carga), `DashboardControllerTest` (carga, zona, vigilantes,
   catálogos de filtros y 403 del Vigilante), `DespliegueServiceImplTest`, `CatalogoServiceImplTest` e
   `IncidenciaDaoTest.moverAlVigilanteDeZonaNoCambiaSusIncidenciasPasadas` (H2).
-- `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/despliegue.spec.ts` (CP-120 y CP-122, con
-  la API simulada).
+- `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/despliegue.spec.ts` (CP-119, CP-120, CP-122 y CP-125 con la API simulada; CP-117, CP-118, CP-121 y CP-124 con datos reales en modo lectura).
 - Postman / Newman: "Dashboard Carga Por Zona", "Dashboard Zona Obtener", "Dashboard Vigilantes", "Catalogo Filtros",
   "Usuarios Reasignar Zona Vigilante" (403); con `--completo`, "Usuarios Reasignar Zona" y "Usuarios Reasignar Zona
   Restaurar" (mueven al Vigilante de prueba y lo devuelven).
