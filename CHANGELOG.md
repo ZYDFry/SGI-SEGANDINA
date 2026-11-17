@@ -55,8 +55,14 @@ Formato de cada entrada:
 - Segunda corrida (13:03, Newman y reporte): 33 de 33 peticiones aprobadas; CP-118 aprobado (5 de 5 pruebas).
   Reporte con backend 243, API 33 y Playwright 47 (más 3 sesiones), sin fallos ni casos no ejecutados; índice y PDF
   regenerados a las 13:05.
-- Pendientes: CP-121 con `--completo` sobre una base de prueba; pruebas manuales de CP-117 a CP-119 (pantalla),
-  CP-123 y CP-125 contra Supabase.
+- Modo nuevo de Newman `--reasignacion` (`npm run newman:reasignacion`, `pruebas\ejecutar-todo.cmd --reasignacion`):
+  la corrida de solo lectura más CP-121, que mueve al Vigilante de prueba a otra zona y lo devuelve. No requiere
+  `--completo` ni toca otros datos; deja dos filas `REASIGNAR_ZONA` en la auditoría.
+- Tercera corrida (17/11, `npm run newman:reasignacion` y reporte): 35 de 35 peticiones aprobadas; CP-121 aprobado
+  (el Vigilante de prueba se movió a otra zona y volvió a la suya). Reporte: backend 243, API 35 y Playwright 47
+  (más 3 sesiones), sin fallos ni casos no ejecutados; índice y PDF regenerados sin DNIs reales.
+- Pendientes: revisar en la auditoría las dos filas `REASIGNAR_ZONA` de CP-121; pruebas manuales de CP-117 a CP-119
+  (pantalla), CP-123 y CP-125 contra Supabase.
 
 ## [2026-11-17] Fase 8 / RF-05 — usabilidad del filtrado cruzado del dashboard
 - Qué se hizo:
