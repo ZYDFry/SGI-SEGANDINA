@@ -15,6 +15,9 @@ export const ROLES_TODOS: Rol[] = ["Administrador", "Supervisor", "Vigilante"];
 /** Cambio voluntario de la contraseña propia (cualquier rol, con sesión normal). */
 export const RUTA_MI_CONTRASENA = "/mi-contrasena";
 
+/** Incidencias registradas por el usuario de la sesión (Vigilante y Administrador). */
+export const RUTA_MIS_INCIDENCIAS = "/incidencias/mias";
+
 /** Íconos disponibles para el menú (se dibujan en `components/IconoMenu.tsx`). */
 export type NombreIcono =
   | "dashboard"
@@ -58,12 +61,11 @@ export const MENU: OpcionMenu[] = [
     icono: "registrar",
   },
   {
-    href: "/mis-incidencias",
+    href: RUTA_MIS_INCIDENCIAS,
     etiqueta: "Mis incidencias",
-    roles: ["Vigilante"],
+    roles: ROLES_REGISTRO,
     grupo: "Gestión",
     icono: "mis-incidencias",
-    disponible: false,
   },
   { href: "/historial/auditoria", etiqueta: "Auditoría", roles: ROLES_ADMIN, grupo: "Administración", icono: "auditoria" },
   { href: "/personal", etiqueta: "Personal", roles: ROLES_ADMIN, grupo: "Administración", icono: "personal" },

@@ -3,12 +3,12 @@
 import { Fragment, useCallback, useState } from "react";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
+import DetalleIncidencia, { InsigniaGravedad } from "@/components/DetalleIncidencia";
 import EstadoDatos from "@/components/EstadoDatos";
 import FiltrosIncidencia from "@/components/FiltrosIncidencia";
 import Paginacion from "@/components/Paginacion";
 import { errorDeApi } from "@/lib/api";
 import { formatearFechaHora } from "@/lib/fechas";
-import { coloresGravedad } from "@/lib/gravedad";
 import { buscarIncidencias, cargarCatalogosFiltro, exportarReporte, type FormatoReporte } from "@/lib/servicios";
 import type { FiltroIncidencias, IncidenciaHistorial } from "@/lib/tipos";
 import { useConsulta } from "@/lib/useConsulta";
@@ -155,11 +155,7 @@ function TablaIncidencias({ filas, abierta, onAlternar }: PropsTabla) {
                   <td className="py-2 pr-3 text-slate-800">{fila.zona.nombreZona}</td>
                   <td className="py-2 pr-3 text-slate-800">{fila.tipoEvento.nombreTipoEvento}</td>
                   <td className="py-2 pr-3">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${coloresGravedad(fila.nivelGravedad.orden).insignia}`}
-                    >
-                      {fila.nivelGravedad.nombreNivel}
-                    </span>
+                    <InsigniaGravedad nivel={fila.nivelGravedad} />
                   </td>
                   <td className="py-2 pr-3 text-slate-800">
                     {fila.usuario.nombreCompleto}
@@ -180,12 +176,7 @@ function TablaIncidencias({ filas, abierta, onAlternar }: PropsTabla) {
                 {expandida && (
                   <tr id={idDetalle} className="border-b border-slate-100 bg-slate-50">
                     <td colSpan={6} className="px-3 py-3">
-                      <p className="whitespace-pre-wrap text-slate-800">{fila.descripcion}</p>
-                      <p className="mt-2 text-xs text-slate-500">
-                        N.° {fila.idIncidencia} · Registrada en el sistema el {formatearFechaHora(fila.fechaRegistro)}
-                        {" · "}
-                        {fila.zona.distrito}, {fila.zona.provincia}
-                      </p>
+                      <DetalleIncidencia {...fila} />
                     </td>
                   </tr>
                 )}

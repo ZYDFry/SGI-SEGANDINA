@@ -18,6 +18,7 @@ import type {
   IncidenciaHistorial,
   IncidenciaRequest,
   Kpis,
+  MiIncidencia,
   Pagina,
   RolCatalogo,
   RegistroAuditoria,
@@ -138,6 +139,18 @@ export async function buscarIncidencias(
 ): Promise<Pagina<IncidenciaHistorial>> {
   const { data } = await api.get<Pagina<IncidenciaHistorial>>("/api/incidencias", {
     params: { ...parametrosIncidencias(filtro), page, size },
+  });
+  return data;
+}
+
+/** "Mis incidencias": las que registró el usuario de la sesión (el backend lo toma del token). */
+export async function buscarMisIncidencias(
+  periodo: FiltroPeriodo,
+  page: number,
+  size: number,
+): Promise<Pagina<MiIncidencia>> {
+  const { data } = await api.get<Pagina<MiIncidencia>>("/api/incidencias/mias", {
+    params: { ...parametrosPeriodo(periodo), page, size },
   });
   return data;
 }

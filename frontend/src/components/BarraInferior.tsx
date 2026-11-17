@@ -11,7 +11,7 @@ const ID_HOJA_CUENTA = "hoja-mi-cuenta";
 
 /**
  * Barra de navegación fija al pie, solo en el celular (`< sm`), para el Vigilante: un ítem con ícono y texto por
- * cada opción de trabajo ("Registrar" y, cuando exista, "Mis incidencias") y "Mi cuenta", que abre una hoja con las
+ * cada opción de trabajo ("Registrar" y "Mis incidencias") y "Mi cuenta", que abre una hoja con las
  * opciones de la cuenta y "Cerrar sesión". La opción de la pantalla actual se marca con `aria-current="page"`.
  * Su alto lo publica `MarcoPrivado` en `--alto-barra-inferior` para que los elementos fijos queden por encima.
  */

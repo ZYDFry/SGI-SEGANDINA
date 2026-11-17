@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
@@ -9,6 +10,7 @@ import MotivoDesactivado, { textoMotivo } from "@/components/MotivoDesactivado";
 import SelectorBuscable, { type OpcionBuscable } from "@/components/SelectorBuscable";
 import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido";
 import { errorDeApi } from "@/lib/api";
+import { RUTA_MIS_INCIDENCIAS } from "@/lib/roles";
 import { coloresGravedad } from "@/lib/gravedad";
 import { cargarCatalogos, refrescarUsuario, registrarIncidencia, type Catalogos } from "@/lib/servicios";
 import type { IncidenciaResponse, NivelGravedad, Usuario, Zona } from "@/lib/tipos";
@@ -233,6 +235,9 @@ export default function FormularioIncidencia() {
             {registrada.zona.nombreZona} · {registrada.tipoEvento.nombreTipoEvento} ·{" "}
             {registrada.nivelGravedad.nombreNivel} · {FORMATO_FECHA.format(new Date(registrada.fechaHora))}
           </p>
+          <Link href={RUTA_MIS_INCIDENCIAS} className="mt-1 inline-block font-semibold underline">
+            Ver mis incidencias
+          </Link>
         </Alerta>
       )}
 

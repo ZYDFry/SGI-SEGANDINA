@@ -197,6 +197,19 @@ export interface IncidenciaHistorial {
   usuario: Registrador;
 }
 
+/** Fila de "Mis incidencias" (`GET /api/incidencias/mias`): una incidencia propia, sin repetir quién la registró. */
+export interface MiIncidencia {
+  idIncidencia: number;
+  fechaHora: string;
+  fechaRegistro: string;
+  descripcion: string;
+  zona: Zona;
+  tipoEvento: TipoEvento;
+  nivelGravedad: NivelGravedad;
+  /** Hasta cuándo puede corregirla su autor; por ahora siempre `null` (la edición aún no existe). */
+  editableHasta: string | null;
+}
+
 export interface AccionAuditoria {
   valor: string;
   etiqueta: string;
