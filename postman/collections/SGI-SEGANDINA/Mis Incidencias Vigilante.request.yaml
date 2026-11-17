@@ -1,0 +1,34 @@
+$kind: http-request
+description: "CP-126: el Vigilante consulta sus incidencias. Todas son suyas: la respuesta no trae el campo usuario (es el dueño del token) y cada fila trae fechaRegistro y editableHasta (null hasta que exista la edición)."
+url: "{{baseUrl}}/api/incidencias/mias?periodo={{periodo}}&page=0&size=20"
+method: GET
+queryParams:
+  periodo: "{{periodo}}"
+  page: "0"
+  size: "20"
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenVigilante}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('Formato de página', () =>
+        pm.expect(data).to.include.keys('contenido', 'pagina', 'tamano', 'totalElementos', 'totalPaginas'));
+      pm.test('Cada fila trae fechaRegistro y editableHasta, sin usuario ni contraseña', () => {
+        data.contenido.forEach((fila) => {
+          pm.expect(fila).to.include.keys('idIncidencia', 'fechaHora', 'fechaRegistro', 'zona', 'tipoEvento', 'nivelGravedad', 'editableHasta');
+          pm.expect(fila.editableHasta).to.eql(null);
+          pm.expect(fila).to.not.have.property('usuario');
+          pm.expect(fila).to.not.have.property('contrasena');
+        });
+      });
+      pm.test('De la más reciente a la más antigua', () => {
+        const fechas = data.contenido.map((f) => Date.parse(f.fechaHora));
+        fechas.slice(1).forEach((f, i) => pm.expect(f).to.be.at.most(fechas[i]));
+      });
+    language: text/javascript
+order: 10200

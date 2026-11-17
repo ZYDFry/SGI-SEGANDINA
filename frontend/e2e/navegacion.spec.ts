@@ -22,7 +22,7 @@ test.describe("Vigilante en el celular", () => {
     const miCuenta = barra.getByRole("button", { name: "Mi cuenta" });
     await expect(registrar).toHaveAttribute("aria-current", "page");
     await expect(miCuenta).toBeVisible();
-    await expect(barra.getByText("Mis incidencias")).toHaveCount(0);
+    await expect(barra.getByRole("link", { name: "Mis incidencias", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Menú", exact: true })).toBeHidden();
     await expect(page.getByTestId("titulo-pantalla")).toHaveText("Registrar incidencia");
 

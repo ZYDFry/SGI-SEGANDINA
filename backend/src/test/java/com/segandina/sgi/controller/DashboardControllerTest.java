@@ -28,7 +28,9 @@ import com.segandina.sgi.config.SecurityConfig;
 import com.segandina.sgi.dto.request.Agrupacion;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.Periodo;
+import com.segandina.sgi.dto.request.PeriodoFiltro;
 import com.segandina.sgi.dto.response.CargaZonaResponse;
+import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 import com.segandina.sgi.dto.response.CatalogosFiltroResponse;
 import com.segandina.sgi.dto.response.DespliegueZonaResponse;
 import com.segandina.sgi.dto.response.KpisResponse;
@@ -141,6 +143,56 @@ class DashboardControllerTest {
 		mockMvc.perform(get("/api/incidencias").header("Authorization", bearer("Vigilante")))
 				.andExpect(status().isForbidden());
 		verifyNoInteractions(dashboardService, incidenciaService);
+	}
+
+	@Test
+	void misIncidenciasUsaElUsuarioDelTokenYElPeriodo() throws Exception {
+		PeriodoFiltro filtro = new PeriodoFiltro(Periodo.ULTIMOS_7_DIAS, null, null);
+		MiIncidenciaResponse fila = new MiIncidenciaResponse(5L, null, null, "Puerta forzada", null, null, null, null);
+		when(incidenciaService.buscarPropias(filtro, 1L, 0, 20))
+				.thenReturn(new PageImpl<>(List.of(fila), PageRequest.of(0, 20), 1));
+
+		mockMvc.perform(get("/api/incidencias/mias").param("periodo", "ULTIMOS_7_DIAS")
+				.header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contenido[0].idIncidencia").value(5))
+				.andExpect(jsonPath("$.contenido[0].editableHasta").isEmpty())
+				.andExpect(jsonPath("$.contenido[0].usuario").doesNotExist())
+				.andExpect(jsonPath("$.totalElementos").value(1));
+		verify(incidenciaService).buscarPropias(eq(filtro), eq(1L), eq(0), eq(20));
+	}
+
+	@Test
+	void administradorTambienVeSusIncidencias() throws Exception {
+		when(incidenciaService.buscarPropias(any(), eq(1L), eq(2), eq(5)))
+				.thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 5), 0));
+
+		mockMvc.perform(get("/api/incidencias/mias").param("page", "2").param("size", "5")
+				.header("Authorization", bearer("Administrador")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.pagina").value(2));
+	}
+
+	@Test
+	void supervisorNoTieneMisIncidencias() throws Exception {
+		mockMvc.perform(get("/api/incidencias/mias").header("Authorization", bearer("Supervisor")))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.mensaje").value("No tiene permisos para esta operación"));
+		verifyNoInteractions(incidenciaService);
+	}
+
+	@Test
+	void misIncidenciasSinTokenResponde401() throws Exception {
+		mockMvc.perform(get("/api/incidencias/mias")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void misIncidenciasConPeriodoDesconocidoResponde400() throws Exception {
+		mockMvc.perform(get("/api/incidencias/mias").param("periodo", "AYER")
+				.header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detalles[0]").value("periodo: valor no válido 'AYER'"));
+		verifyNoInteractions(incidenciaService);
 	}
 
 	@Test

@@ -1,0 +1,20 @@
+$kind: http-request
+description: "CP-127: el Supervisor no tiene \"Mis incidencias\" (no registra); el backend responde 403 con el formato uniforme de error."
+url: "{{baseUrl}}/api/incidencias/mias?periodo={{periodo}}"
+method: GET
+queryParams:
+  periodo: "{{periodo}}"
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenSupervisor}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 403', () => pm.response.to.have.status(403));
+      const data = pm.response.json();
+      pm.test('Sin permisos', () => pm.expect(data.mensaje).to.eql('No tiene permisos para esta operación'));
+      pm.test('Formato uniforme de error', () => pm.expect(data).to.include.keys('timestamp', 'status', 'mensaje'));
+    language: text/javascript
+order: 10300

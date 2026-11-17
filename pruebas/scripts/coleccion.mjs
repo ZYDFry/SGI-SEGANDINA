@@ -18,7 +18,7 @@ export const EXCLUIDAS = new Set(["Usuarios Mi Contrasena"]);
 /**
  * Peticiones que necesitan la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omiten.
  * "Registrar Incidencia Otra Zona" (CP-104) y "Usuarios Reasignar Zona Vigilante" (CP-124) no escriben: el backend
- * siempre las rechaza (400 y 403). Las dos de reasignación del Administrador (CP-121) sí escriben y devuelven al
+ * siempre las rechaza (400 y 403); "Mis Incidencias Vigilante" (CP-126) solo lee. Las dos de reasignación del Administrador (CP-121) sí escriben y devuelven al
  * Vigilante a su zona, así que además necesitan --completo.
  */
 export const PETICIONES_VIGILANTE = new Set([
@@ -29,6 +29,7 @@ export const PETICIONES_VIGILANTE = new Set([
   "Usuarios Reasignar Zona Restaurar",
   "Incidencias Por Zona Antes De Reasignar",
   "Incidencias Por Zona Despues De Reasignar",
+  "Mis Incidencias Vigilante",
 ]);
 
 /**
@@ -53,6 +54,7 @@ export const PETICIONES_SUPERVISOR = new Set([
   "Usuarios Reasignar Zona Supervisor",
   "Usuarios Crear Supervisor",
   "Usuarios Cambiar Estado Supervisor",
+  "Mis Incidencias Supervisor",
 ]);
 
 /**

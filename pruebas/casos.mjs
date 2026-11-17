@@ -15,7 +15,7 @@ export const TIPOS = [
 /** Casos automatizados: id → datos del plan. */
 export const CASOS = {
   // Backend
-  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 243 tests, sin fallos ni errores.", automatiza: "Completo." },
+  "CP-01": { rf: "RF-01 a RF-09", tipo: "BACKEND", descripcion: "Suite automatizada del backend (`./mvnw verify`).", esperado: "Compila y pasan los 251 tests, sin fallos ni errores.", automatiza: "Completo." },
 
   // API (Newman, colección en modo solo lectura)
   "CP-02": { rf: "RF-01", tipo: "API", descripcion: "Login válido del Administrador.", esperado: "200 con token, sin campo contrasena; token guardado para el resto de peticiones.", automatiza: "Paso 1 (la fila LOGIN_OK se verifica en SQL)." },
@@ -38,6 +38,8 @@ export const CASOS = {
   "CP-119": { rf: "RF-04, RF-05", tipo: "API", descripcion: "Catálogos para filtros con los inactivos.", esperado: "200 con zonas, tiposEvento y nivelesGravedad, cada uno con estadoActivo.", automatiza: "Newman: catálogos con estadoActivo. Playwright (catálogos e historial simulados): zona \"(inactiva)\" al final del filtro y el historial filtrado por ella, con captura." },
   "CP-123": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Supervisor intenta reasignar a quien no es Vigilante y gestionar usuarios.", esperado: "PATCH /api/usuarios/{id supervisor}/zona → 400 \"Solo se puede reasignar la zona de un Vigilante\"; POST /api/usuarios y PATCH /api/usuarios/{id}/estado → 403; nada cambia.", automatiza: "Pasos 1 y 3 con la sesión del Supervisor (E2E_SUPERVISOR_*); el Vigilante inactivo (paso 2) lo cubren los tests del backend." },
   "CP-124": { rf: "RF-07", tipo: "API", descripcion: "Un Vigilante intenta reasignar una zona.", esperado: "403 \"No tiene permisos para esta operación\"; no cambia nada.", automatiza: "Newman: 403 con la sesión del Vigilante. Playwright (datos reales): /despliegue/1 redirige a /incidencias/nueva, con captura." },
+  "CP-126": { rf: "RF-04", tipo: "API", descripcion: "El Vigilante consulta \"Mis incidencias\" (GET /api/incidencias/mias).", esperado: "200 con la página; solo sus incidencias (sin campo usuario), de la más reciente a la más antigua, cada una con fechaRegistro y editableHasta null; sin contrasena.", automatiza: "Newman: forma, orden y campos. Que sean solo las propias lo prueba el backend (DAO con H2 y controller con el sub del token)." },
+  "CP-127": { rf: "RF-04", tipo: "API", descripcion: "El Supervisor intenta consultar \"Mis incidencias\".", esperado: "403 \"No tiene permisos para esta operación\" con el formato uniforme de error.", automatiza: "Completo." },
   "CP-68": { rf: "RF-09", tipo: "API", descripcion: "Listado de niveles de gravedad.", esperado: "200 con los niveles ordenados.", automatiza: "Paso 2 (listado); la edición corre con --completo." },
 
   // Frontend (Playwright)
@@ -79,6 +81,7 @@ export const CASOS = {
   "CP-115": { rf: "RF-05", tipo: "USA", descripcion: "Clic en una barra filtra, aviso \"Filtrado por … · Ver todo\" y quitar con clic en un espacio vacío.", esperado: "Chip, URL y anuncio aria-live con la zona; el anillo y la serie avisan \"Filtrado por Zona: …\"; \"Ver todo\", el clic junto a la barra y el clic en el centro del anillo quitan su filtro.", automatiza: "Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
   "CP-120": { rf: "RF-07", tipo: "E2E", descripcion: "Pantalla de una zona desde la tabla de carga del dashboard.", esperado: "La tabla se ordena por encabezado y la zona sin vigilantes dice \"0 · Sin vigilantes\"; la zona abre /despliegue/{id} con el periodo; muestra ubicación, vigilantes con su estado (solo el activo se puede mover), carga y 5 de 6 incidencias, con \"Ver en historial\" filtrado por la zona.", automatiza: "Completo con catálogos, dashboard, vigilantes e incidencias simulados (datos ficticios); no escribe en la base." },
   "CP-122": { rf: "RF-07", tipo: "E2E", descripcion: "El Supervisor mueve un vigilante a otra zona con confirmación.", esperado: "\"Elige una zona\" sin elección; solo zonas activas distintas; confirmación con origen, destino y aviso de incidencias; un PATCH /api/usuarios/{id}/zona con {idZona}; mensaje de éxito y la lista se actualiza.", automatiza: "Completo con la API simulada (el 200 real y la auditoría se prueban en el backend y con Postman --completo)." },
+  "CP-128": { rf: "RF-04, RF-03", tipo: "E2E", descripcion: "Vigilante a 360 px: registra una incidencia y la ve en \"Mis incidencias\".", esperado: "La confirmación ofrece \"Ver mis incidencias\"; la pantalla muestra la incidencia recién registrada como primera tarjeta, con su descripción en el detalle, sin desplazamiento horizontal; \"Mis incidencias\" queda marcada en la barra inferior.", automatiza: "Completo (registro y consulta simulados con page.route: no escribe)." },
   "CP-116": { rf: "RF-05", tipo: "USA", descripcion: "Escape y \"Atrás\" quitan y restauran los filtros; la barra de filtros queda fija al desplazar.", esperado: "Escape en un selector no cambia nada; con el foco en el dashboard quita todo (\"Mostrando todo\"); \"Atrás\" restaura los dos filtros; los chips siguen visibles al bajar hasta la serie.", automatiza: "Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base." },
 };
 
@@ -131,6 +134,8 @@ export const CASO_POR_PETICION = {
   "Usuarios Cambiar Estado Supervisor": "CP-123",
   "Incidencias Por Zona Antes De Reasignar": "CP-125",
   "Incidencias Por Zona Despues De Reasignar": "CP-125",
+  "Mis Incidencias Vigilante": "CP-126",
+  "Mis Incidencias Supervisor": "CP-127",
   "Reportes Excel": "CP-46",
   "Reportes PDF": "CP-47",
   "Reportes PDF Personalizado": "CP-47",

@@ -1,6 +1,7 @@
 package com.segandina.sgi.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,8 +37,10 @@ import com.segandina.sgi.dao.ZonaDao;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
 import com.segandina.sgi.dto.request.Periodo;
+import com.segandina.sgi.dto.request.PeriodoFiltro;
 import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
+import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 import com.segandina.sgi.exception.CredencialesInvalidasException;
 import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.AccionAuditoria;
@@ -371,6 +374,44 @@ class IncidenciaServiceImplTest {
 				LocalDate.of(2026, 10, 1), null, null, null);
 
 		assertThrows(ReglaNegocioException.class, () -> incidenciaService.buscar(invertido, 0, 20));
+		verifyNoInteractions(incidenciaDao);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void misIncidenciasUsanElOrdenDelHistorialYNoSonEditablesTodavia() {
+		Incidencia incidencia = new Incidencia();
+		incidencia.setIdIncidencia(101L);
+		incidencia.setFechaHora(AHORA.minusHours(2));
+		incidencia.setDescripcion(DESCRIPCION);
+		incidencia.setZona(zona);
+		incidencia.setTipoEvento(robo);
+		incidencia.setNivelGravedad(nivel);
+		incidencia.setUsuario(usuario);
+		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(incidenciaDao.findAll(any(Specification.class), pageable.capture()))
+				.thenAnswer(invocacion -> new PageImpl<>(List.of(incidencia), invocacion.getArgument(1), 1));
+
+		Page<MiIncidenciaResponse> pagina = incidenciaService.buscarPropias(
+				new PeriodoFiltro(Periodo.ULTIMOS_7_DIAS, null, null), ID_USUARIO, -1, 0);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(1, pageable.getValue().getPageSize());
+		assertEquals(IncidenciaDao.ORDEN_HISTORIAL, pageable.getValue().getSort());
+		MiIncidenciaResponse fila = pagina.getContent().get(0);
+		assertEquals(101L, fila.idIncidencia());
+		assertEquals(AHORA.minusHours(2), fila.fechaHora());
+		assertEquals("Sede Miraflores", fila.zona().nombreZona());
+		assertNull(fila.editableHasta());
+		// Solo lectura: no consulta al usuario ni audita
+		verifyNoInteractions(usuarioDao, auditoriaService);
+	}
+
+	@Test
+	void misIncidenciasConRangoInvalidoNoConsultanLaBd() {
+		PeriodoFiltro sinHasta = new PeriodoFiltro(Periodo.PERSONALIZADO, LocalDate.of(2026, 10, 1), null);
+
+		assertThrows(ReglaNegocioException.class, () -> incidenciaService.buscarPropias(sinHasta, ID_USUARIO, 0, 20));
 		verifyNoInteractions(incidenciaDao);
 	}
 

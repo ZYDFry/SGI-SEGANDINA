@@ -144,6 +144,31 @@ class IncidenciaDaoTest {
 	}
 
 	@Test
+	void misIncidenciasSoloTraenLasDelUsuarioDentroDelRango() {
+		Usuario vigilante = usuarioDao.findByDni("22222222").orElseThrow();
+		Usuario otro = new Usuario();
+		otro.setDni("33333333");
+		otro.setNombres("Rosa");
+		otro.setApellidoPaterno("Díaz");
+		otro.setContrasena("hash");
+		otro.setRol(vigilante.getRol());
+		persistir(otro);
+		incidencia("2026-10-24T10:00:00-05:00", callao, robo, alta, otro);
+		entityManager.flush();
+		entityManager.clear();
+
+		List<Long> propias = incidenciaDao.findAll(
+				IncidenciaDao.conFiltros(DIA_24, null).and(IncidenciaDao.delUsuario(vigilante.getIdUsuario())),
+				PageRequest.of(0, 20, IncidenciaDao.ORDEN_HISTORIAL))
+				.map(i -> i.getUsuario().getIdUsuario()).getContent();
+		long delOtro = incidenciaDao.count(
+				IncidenciaDao.conFiltros(DIA_24, null).and(IncidenciaDao.delUsuario(otro.getIdUsuario())));
+
+		assertEquals(List.of(vigilante.getIdUsuario(), vigilante.getIdUsuario(), vigilante.getIdUsuario()), propias);
+		assertEquals(1, delOtro);
+	}
+
+	@Test
 	void historialCombinaZonaNivelYTipo() {
 		IncidenciaFiltro filtro = new IncidenciaFiltro(null, null, null, miraflores.getIdZona(),
 				alta.getIdNivelGravedad(), alerta.getIdTipoEvento());
