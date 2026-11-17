@@ -51,7 +51,8 @@ test.describe("Login: validaciones", () => {
 
   test("CP-84 comportamiento de los avisos: sin aviso al abrir, aria-invalid y aria-describedby", async ({ page }, testInfo) => {
     caso("CP-84");
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    // Solo dentro de <main>: Next agrega su anunciador de rutas (role="alert", vacío) fuera del contenido.
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
     await page.locator("#dni").focus();
     await page.locator("#contrasena").focus();
     await expect(page.locator("#error-dni")).toBeVisible();
