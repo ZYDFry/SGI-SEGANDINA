@@ -83,7 +83,8 @@ rem ---------------------------------------------------------------- 1. backend
 echo.
 echo === 1/4 Tests del backend (Surefire + JaCoCo) ===
 pushd "%RAIZ%\backend"
-call mvnw.cmd -q verify surefire-report:report-only -Dmaven.test.failure.ignore=true
+rem Ruta explícita (.\): con NoDefaultCurrentDirectoryInExePath definido, cmd no busca en la carpeta actual.
+call .\mvnw.cmd -q verify surefire-report:report-only -Dmaven.test.failure.ignore=true
 if errorlevel 1 (echo [ERROR] El build del backend fallo. & set "FALLOS=1")
 popd
 
