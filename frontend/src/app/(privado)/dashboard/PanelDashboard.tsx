@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
-import ChipsFiltros from "@/components/ChipsFiltros";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ChipsFiltros, { textoFiltro } from "@/components/ChipsFiltros";
 import EstadoDatos from "@/components/EstadoDatos";
 import FiltrosIncidencia from "@/components/FiltrosIncidencia";
 import GraficoAnillo from "@/components/graficos/GraficoAnillo";
@@ -10,9 +10,10 @@ import GraficoBarras from "@/components/graficos/GraficoBarras";
 import GraficoSerie, { type TipoSerie } from "@/components/graficos/GraficoSerie";
 import Tarjeta, { TarjetaKpi } from "@/components/Tarjeta";
 import { formatearDia, formatearHora } from "@/lib/fechas";
-import { alternarFiltro, sinFiltro, type ClaveDimension } from "@/lib/filtrosUrl";
+import { DIMENSIONES, FILTRO_INICIAL, alternarFiltro, sinFiltro, type ClaveDimension } from "@/lib/filtrosUrl";
 import { coloresGravedad } from "@/lib/gravedad";
 import {
+  type Catalogos,
   cargarCatalogos,
   obtenerDespliegue,
   obtenerKpis,
@@ -36,14 +37,20 @@ type Consulta<T> = ReturnType<typeof useConsulta<T>>;
 /** Aplica o quita el filtro de una dimensión (clic en una barra, un sector o una tarjeta). */
 type Alternar = (clave: ClaveDimension, id: number) => void;
 
+/** Quita un filtro de dimensión (aviso "Ver todo" o clic en un espacio vacío del gráfico). */
+type Quitar = (clave: ClaveDimension) => void;
+
 /**
- * Contenido del dashboard: filtros globales (periodo, zona, tipo y gravedad) guardados en la URL, chips de los
- * filtros activos, KPI, barras por zona, anillo por tipo, serie por tiempo y despliegue por zona.
+ * Contenido del dashboard: filtros globales (periodo, zona, tipo y gravedad) guardados en la URL, barra de filtros
+ * activos (fija al desplazar en pantallas grandes), KPI, barras por zona, anillo por tipo, serie por tiempo y
+ * despliegue por zona.
  *
  * Filtrado cruzado: un clic en una barra de zona, un sector del anillo o una tarjeta de gravedad aplica ese filtro
  * (o lo quita si ya estaba). Cada gráfico se consulta sin su propio filtro, para seguir mostrando todas sus
- * opciones con la elegida resaltada. Cada bloque consulta su endpoint por separado (un error no afecta a los demás)
- * y todo se refresca cada 60 s.
+ * opciones con la elegida resaltada, y avisa en su encabezado los filtros que lo afectan ("Filtrado por … · Ver
+ * todo"). Un filtro se quita con el "×" de su chip, con "Quitar filtros", con "Ver todo", con un clic en un espacio
+ * vacío del gráfico, con Escape (todos) o con "Atrás" del navegador. Cada bloque consulta su endpoint por separado
+ * (un error no afecta a los demás) y todo se refresca cada 60 s.
  */
 export default function PanelDashboard() {
   const { filtro, consulta, aplicar } = useFiltroUrl();
@@ -89,9 +96,26 @@ export default function PanelDashboard() {
   const actualizando = [kpisNiveles, kpisConNivel, porZona, porTipo, serie, despliegue].some((c) => c.actualizando);
 
   const alternar = useCallback<Alternar>((clave, id) => aplicar(alternarFiltro(filtro, clave, id)), [aplicar, filtro]);
+  const quitar = useCallback<Quitar>((clave) => aplicar(sinFiltro(filtro, clave)), [aplicar, filtro]);
+  const contenedor = useRef<HTMLDivElement>(null);
+
+  // Escape quita todos los filtros si el foco está en el dashboard (o en el body, donde queda tras un clic en un
+  // gráfico). No actúa dentro de campos y selectores, que usan Escape para lo suyo.
+  useEffect(() => {
+    if (!consulta) return;
+    const alPulsar = (evento: KeyboardEvent) => {
+      if (evento.key !== "Escape" || evento.defaultPrevented) return;
+      const foco = document.activeElement;
+      if (foco instanceof HTMLInputElement || foco instanceof HTMLSelectElement || foco instanceof HTMLTextAreaElement) return;
+      if (foco && foco !== document.body && !contenedor.current?.contains(foco)) return;
+      aplicar(FILTRO_INICIAL);
+    };
+    document.addEventListener("keydown", alPulsar);
+    return () => document.removeEventListener("keydown", alPulsar);
+  }, [aplicar, consulta]);
 
   return (
-    <div className="space-y-5">
+    <div ref={contenedor} className="space-y-5">
       <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -100,6 +124,9 @@ export default function PanelDashboard() {
               {kpis.datos
                 ? `Periodo: ${formatearDia(kpis.datos.desde)} al ${formatearDia(kpis.datos.hasta)}`
                 : "Periodo: —"}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              Haz clic en un gráfico para filtrar. Quita los filtros con × o con Quitar filtros.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -126,17 +153,23 @@ export default function PanelDashboard() {
           </div>
         </div>
         <FiltrosIncidencia valor={filtro} onCambio={aplicar} catalogos={catalogos} sinQuitar />
-        <ChipsFiltros filtro={filtro} catalogos={catalogos.datos} onCambio={aplicar} />
-        <p className="text-xs text-slate-500">
-          Haz clic en una barra de zona, un sector del anillo o una tarjeta de gravedad para filtrar todo el panel;
-          otro clic lo quita.
-        </p>
       </section>
+
+      {/* Barra de filtros activos justo encima de los gráficos; fija al desplazar en pantallas grandes. */}
+      <div
+        data-testid="barra-filtros"
+        className="rounded-2xl bg-white/95 px-4 py-2 shadow-sm ring-1 ring-slate-200 backdrop-blur lg:sticky lg:top-2 lg:z-20"
+      >
+        <ChipsFiltros filtro={filtro} catalogos={catalogos.datos} onCambio={aplicar} />
+      </div>
 
       <SeccionIndicadores kpis={kpis} kpisNiveles={kpisNiveles} despliegue={despliegue} filtro={filtro} alternar={alternar} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <Tarjeta titulo="Incidencias por zona">
+        <Tarjeta
+          titulo="Incidencias por zona"
+          acciones={<AvisoFiltro filtro={filtro} propia="idZona" catalogos={catalogos.datos} quitar={quitar} />}
+        >
           <EstadoDatos
             cargando={porZona.cargando}
             error={porZona.error}
@@ -149,12 +182,16 @@ export default function PanelDashboard() {
                 datos={porZona.datos}
                 seleccionado={filtro.idZona}
                 onElegir={(id) => alternar("idZona", id)}
+                onQuitar={() => quitar("idZona")}
               />
             )}
           </EstadoDatos>
         </Tarjeta>
 
-        <Tarjeta titulo="Incidencias por tipo de evento">
+        <Tarjeta
+          titulo="Incidencias por tipo de evento"
+          acciones={<AvisoFiltro filtro={filtro} propia="idTipoEvento" catalogos={catalogos.datos} quitar={quitar} />}
+        >
           <EstadoDatos
             cargando={porTipo.cargando}
             error={porTipo.error}
@@ -167,6 +204,7 @@ export default function PanelDashboard() {
                 datos={porTipo.datos}
                 seleccionado={filtro.idTipoEvento}
                 onElegir={(id) => alternar("idTipoEvento", id)}
+                onQuitar={() => quitar("idTipoEvento")}
               />
             )}
           </EstadoDatos>
@@ -176,7 +214,8 @@ export default function PanelDashboard() {
       <Tarjeta
         titulo="Incidencias en el tiempo"
         acciones={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <AvisoFiltro filtro={filtro} catalogos={catalogos.datos} quitar={quitar} />
             <Segmentado
               etiqueta="Agrupación"
               opciones={AGRUPACIONES}
@@ -209,6 +248,43 @@ export default function PanelDashboard() {
 
       <SeccionDespliegue despliegue={despliegue} />
     </div>
+  );
+}
+
+interface PropsAviso {
+  filtro: FiltroIncidencias;
+  /** Dimensión del propio gráfico: no se avisa porque el gráfico la ignora (la muestra resaltada). */
+  propia?: ClaveDimension;
+  catalogos: Catalogos | null;
+  quitar: Quitar;
+}
+
+/**
+ * Aviso en el encabezado de un gráfico con los filtros que cambian sus datos: "Filtrado por Zona: Sur · Ver todo",
+ * uno por filtro. "Ver todo" quita ese filtro. No muestra nada si el gráfico no está filtrado.
+ */
+function AvisoFiltro({ filtro, propia, catalogos, quitar }: PropsAviso) {
+  const activos = DIMENSIONES.filter(({ clave }) => clave !== propia && filtro[clave] !== null);
+  if (activos.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600" aria-label="Filtros de este gráfico">
+      {activos.map(({ clave }) => {
+        const texto = textoFiltro(clave, filtro[clave]!, catalogos);
+        return (
+          <li key={clave} data-aviso={clave} className="rounded-md bg-amber-50 px-2 py-0.5 ring-1 ring-amber-200">
+            Filtrado por <span className="font-semibold text-slate-800">{texto}</span> ·{" "}
+            <button
+              type="button"
+              onClick={() => quitar(clave)}
+              aria-label={`Ver todo: quitar filtro ${texto}`}
+              className="font-semibold text-blue-900 underline hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-900"
+            >
+              Ver todo
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

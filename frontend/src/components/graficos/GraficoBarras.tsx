@@ -2,7 +2,7 @@
 
 import { Bar } from "react-chartjs-2";
 import type { Conteo } from "@/lib/tipos";
-import { AZUL_MARINO, EJE_ENTERO, atenuar, cursorElegible, indiceElegido } from "./registro";
+import { AZUL_MARINO, EJE_ENTERO, atenuar, indiceBarraBajoPuntero } from "./registro";
 import TablaAccesible from "./TablaAccesible";
 
 interface Props {
@@ -12,10 +12,15 @@ interface Props {
   seleccionado?: number | null;
   /** Clic en una barra (o en su fila de la tabla accesible) con el id de esa zona. */
   onElegir?: (id: number) => void;
+  /** Clic en un espacio vacío del gráfico (junto a las barras o entre ellas): quita el filtro de este gráfico. */
+  onQuitar?: () => void;
 }
 
-/** Barras horizontales (incidencias por zona), de mayor a menor como las devuelve la API. */
-export default function GraficoBarras({ titulo, datos, seleccionado = null, onElegir }: Props) {
+/**
+ * Barras horizontales (incidencias por zona), de mayor a menor como las devuelve la API. El clic en una barra la elige;
+ * el clic en el espacio en blanco a su derecha llama a `onQuitar`.
+ */
+export default function GraficoBarras({ titulo, datos, seleccionado = null, onElegir, onQuitar }: Props) {
   // Alto según la cantidad de barras para que los nombres de zona se lean completos.
   const alto = Math.max(220, datos.length * 34 + 40);
   const elegido = seleccionado !== null ? datos.find((d) => d.id === seleccionado) : undefined;
@@ -46,17 +51,25 @@ export default function GraficoBarras({ titulo, datos, seleccionado = null, onEl
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
-            // Toda la fila de la zona responde al clic y al tooltip, no solo la barra.
+            // El tooltip responde en toda la fila; el clic, desde el inicio hasta el extremo de la barra.
             interaction: { mode: "index", axis: "y", intersect: false },
             plugins: { legend: { display: false } },
             scales: { x: EJE_ENTERO, y: { grid: { display: false } } },
             onClick: onElegir
-              ? (_evento, elementos) => {
-                  const i = indiceElegido(elementos);
+              ? (evento, elementos) => {
+                  const i = indiceBarraBajoPuntero(evento, elementos);
                   if (i !== null && datos[i]) onElegir(datos[i].id);
+                  else if (i === null && seleccionado !== null) onQuitar?.();
                 }
               : undefined,
-            onHover: onElegir ? cursorElegible : undefined,
+            onHover: onElegir
+              ? (evento, elementos) => {
+                  const destino = evento.native?.target;
+                  if (destino instanceof HTMLElement) {
+                    destino.style.cursor = indiceBarraBajoPuntero(evento, elementos) !== null ? "pointer" : "default";
+                  }
+                }
+              : undefined,
           }}
         />
       </div>

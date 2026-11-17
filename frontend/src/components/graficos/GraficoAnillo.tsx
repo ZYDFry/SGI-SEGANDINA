@@ -2,7 +2,7 @@
 
 import { Doughnut } from "react-chartjs-2";
 import type { Conteo } from "@/lib/tipos";
-import { PALETA_CATEGORIAS, atenuar, cursorElegible, indiceElegido } from "./registro";
+import { PALETA_CATEGORIAS, atenuar, cursorElegible, enAreaDeDibujo, indiceElegido } from "./registro";
 import TablaAccesible from "./TablaAccesible";
 
 interface Props {
@@ -12,10 +12,12 @@ interface Props {
   seleccionado?: number | null;
   /** Clic en un sector, en su leyenda o en su fila de la tabla accesible, con el id del tipo de evento. */
   onElegir?: (id: number) => void;
+  /** Clic en un espacio vacío del gráfico (el centro del anillo o las esquinas): quita el filtro de este gráfico. */
+  onQuitar?: () => void;
 }
 
 /** Anillo (incidencias por tipo de evento) con leyenda y porcentaje en el tooltip. */
-export default function GraficoAnillo({ titulo, datos, seleccionado = null, onElegir }: Props) {
+export default function GraficoAnillo({ titulo, datos, seleccionado = null, onElegir, onQuitar }: Props) {
   const total = datos.reduce((suma, d) => suma + d.total, 0);
   const colores = datos.map((d, i) => {
     const base = PALETA_CATEGORIAS[i % PALETA_CATEGORIAS.length];
@@ -50,9 +52,11 @@ export default function GraficoAnillo({ titulo, datos, seleccionado = null, onEl
             cutout: "60%",
             layout: { padding: 8 },
             onClick: onElegir
-              ? (_evento, elementos) => {
+              ? (evento, elementos, grafico) => {
                   const i = indiceElegido(elementos);
                   if (i !== null && datos[i]) onElegir(datos[i].id);
+                  // Vacío: centro o esquinas del área del anillo (la leyenda tiene su propio clic).
+                  else if (i === null && seleccionado !== null && enAreaDeDibujo(evento, grafico)) onQuitar?.();
                 }
               : undefined,
             onHover: onElegir ? cursorElegible : undefined,

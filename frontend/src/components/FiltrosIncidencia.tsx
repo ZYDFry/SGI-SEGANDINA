@@ -16,7 +16,7 @@ interface Props {
   onCambio: (filtro: FiltroIncidencias) => void;
   /** Zonas, tipos y niveles activos para las listas. */
   catalogos: ConsultaCatalogos;
-  /** Oculta el enlace "Quitar filtros" (el dashboard tiene sus propios chips con "Quitar todo"). */
+  /** Oculta el enlace "Quitar filtros" (el dashboard tiene su barra de filtros activos con "Quitar filtros"). */
   sinQuitar?: boolean;
 }
 

@@ -56,3 +56,29 @@ export function cursorElegible(evento: ChartEvent, elementos: ActiveElement[]) {
   const destino = evento.native?.target;
   if (destino instanceof HTMLElement) destino.style.cursor = elementos.length > 0 ? "pointer" : "default";
 }
+
+/** Si el evento cae dentro del área de dibujo del gráfico (sin ejes ni leyenda). */
+export function enAreaDeDibujo(evento: ChartEvent, grafico: Chart): boolean {
+  const { x, y } = evento;
+  const area = grafico.chartArea;
+  return x !== null && y !== null && x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
+}
+
+/** Ancho mínimo (px) que responde al clic en una barra horizontal, para que las barras cortas se puedan elegir. */
+const ANCHO_MINIMO_BARRA = 24;
+
+/**
+ * Índice de la barra horizontal bajo el puntero. Responde la fila de la barra desde su inicio hasta su extremo (al
+ * menos 24 px); el espacio en blanco a la derecha de la barra no es ninguna, y sirve para quitar el filtro con un
+ * clic en una zona vacía. Chart.js solo avisa clics dentro del área de dibujo (no en los nombres del eje).
+ *
+ * @param evento evento de Chart.js (clic o movimiento)
+ * @param elementos elementos activos de la fila (interacción `mode: "index", axis: "y"`)
+ * @return índice de la barra, o `null` si el puntero está en un espacio vacío
+ */
+export function indiceBarraBajoPuntero(evento: ChartEvent, elementos: ActiveElement[]): number | null {
+  if (elementos.length === 0 || evento.x === null) return null;
+  const { index, element } = elementos[0];
+  const { x: fin, base } = element.getProps(["x", "base"], true) as { x: number; base: number };
+  return evento.x <= Math.max(fin, base + ANCHO_MINIMO_BARRA) ? index : null;
+}
