@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,8 @@ import com.segandina.sgi.config.SecurityConfig;
 import com.segandina.sgi.dto.request.CambioContrasenaRequest;
 import com.segandina.sgi.dto.response.UsuarioResponse;
 import com.segandina.sgi.exception.DatoDuplicadoException;
+import com.segandina.sgi.exception.RecursoNoEncontradoException;
+import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.Rol;
 import com.segandina.sgi.model.Usuario;
 import com.segandina.sgi.service.UsuarioService;
@@ -218,6 +221,87 @@ class UsuarioControllerTest {
 		mockMvc.perform(get(USUARIOS).header("Authorization", bearer("Vigilante", 7L)))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.mensaje").value("No tiene permisos para esta operación"));
+	}
+
+	// --- Reasignación acotada de zona (RF-07) ---
+
+	@Test
+	void administradorReasignaLaZonaDeUnVigilante() throws Exception {
+		when(usuarioService.reasignarZona(50L, 2, 1L)).thenReturn(new UsuarioResponse(50L, "33333333", "Luis",
+				"Rojas", null, (short) 3, "Vigilante", 2, "Almacén Callao", true));
+
+		mockMvc.perform(patch(USUARIOS + "/50/zona").header("Authorization", bearer("Administrador", 1L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.idZona").value(2))
+				.andExpect(jsonPath("$.nombreZona").value("Almacén Callao"))
+				.andExpect(jsonPath("$.contrasena").doesNotExist());
+	}
+
+	@Test
+	void supervisorReasignaConSuIdComoActor() throws Exception {
+		when(usuarioService.reasignarZona(50L, 2, 2L)).thenReturn(luis);
+
+		mockMvc.perform(patch(USUARIOS + "/50/zona").header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isOk());
+
+		verify(usuarioService).reasignarZona(50L, 2, 2L);
+	}
+
+	@Test
+	void supervisorIntentaMoverAUnSupervisorRecibe400() throws Exception {
+		when(usuarioService.reasignarZona(eq(9L), eq(2), eq(2L)))
+				.thenThrow(new ReglaNegocioException("Solo se puede reasignar la zona de un Vigilante"));
+
+		mockMvc.perform(patch(USUARIOS + "/9/zona").header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.mensaje").value("Solo se puede reasignar la zona de un Vigilante"));
+	}
+
+	@Test
+	void reasignarUnUsuarioInexistenteResponde404() throws Exception {
+		when(usuarioService.reasignarZona(eq(999L), eq(2), eq(1L)))
+				.thenThrow(new RecursoNoEncontradoException("El usuario no existe"));
+
+		mockMvc.perform(patch(USUARIOS + "/999/zona").header("Authorization", bearer("Administrador", 1L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void reasignarSinZonaResponde400SinLlamarAlServicio() throws Exception {
+		mockMvc.perform(patch(USUARIOS + "/50/zona").header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detalles[0]").value("idZona: es obligatorio"));
+		verifyNoInteractions(usuarioService);
+	}
+
+	@Test
+	void vigilanteNoPuedeReasignarYSinTokenResponde401() throws Exception {
+		mockMvc.perform(patch(USUARIOS + "/50/zona").header("Authorization", bearer("Vigilante", 7L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(patch(USUARIOS + "/50/zona")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"idZona\":2}"))
+				.andExpect(status().isUnauthorized());
+		verifyNoInteractions(usuarioService);
+	}
+
+	@Test
+	void supervisorSigueSinPoderCrearNiEditarUsuarios() throws Exception {
+		mockMvc.perform(post(USUARIOS).header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content(CUERPO_ALTA))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(put(USUARIOS + "/50").header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content(CUERPO_ALTA))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(patch(USUARIOS + "/50/estado").header("Authorization", bearer("Supervisor", 2L))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"activo\":false}"))
+				.andExpect(status().isForbidden());
+		verifyNoInteractions(usuarioService);
 	}
 
 	private String bearer(String nombreRol, long idUsuario) {

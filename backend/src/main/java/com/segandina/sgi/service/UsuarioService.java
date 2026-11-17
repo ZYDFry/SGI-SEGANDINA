@@ -114,4 +114,20 @@ public interface UsuarioService {
 	 */
 	void restablecerContrasena(Long idUsuario, String contrasenaNueva, Long idActor);
 
+	/**
+	 * Mueve a un vigilante activo a otra zona activa (RF-07). Lo usan el Administrador y el Supervisor desde la
+	 * pantalla de despliegue; solo cambia {@code usuario.id_zona}. Las incidencias que el vigilante ya registró
+	 * conservan su propia zona ({@code incidencia.id_zona}), así que el historial y el dashboard no cambian. Audita
+	 * {@code REASIGNAR_ZONA} con la zona anterior y la nueva; el actor queda como autor del registro.
+	 *
+	 * @param idUsuario vigilante a mover
+	 * @param idZona    zona nueva
+	 * @param idActor   id del Administrador o Supervisor que hace el cambio (del token)
+	 * @return el usuario con su zona nueva
+	 * @throws com.segandina.sgi.exception.RecursoNoEncontradoException si el usuario no existe
+	 * @throws com.segandina.sgi.exception.ReglaNegocioException si no es Vigilante, está inactivo, la zona no existe
+	 *         o está inactiva, o ya está en esa zona
+	 */
+	UsuarioResponse reasignarZona(Long idUsuario, Integer idZona, Long idActor);
+
 }

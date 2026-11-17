@@ -15,6 +15,7 @@ public enum AccionAuditoria {
 	CAMBIAR_ESTADO_USUARIO("Activar o desactivar usuario"),
 	CAMBIAR_CONTRASENA("Cambiar contraseña propia"),
 	RESTABLECER_CONTRASENA("Restablecer contraseña"),
+	REASIGNAR_ZONA("Reasignar zona de vigilante"),
 	REGISTRAR_INCIDENCIA("Registrar incidencia"),
 	EXPORTAR_REPORTE("Exportar reporte"),
 	CREAR_ZONA("Crear zona"),

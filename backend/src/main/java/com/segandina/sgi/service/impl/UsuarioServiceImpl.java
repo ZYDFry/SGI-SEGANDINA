@@ -192,6 +192,29 @@ public class UsuarioServiceImpl implements UsuarioService {
 				Map.of("idUsuario", idUsuario, DEBE_CAMBIAR_CONTRASENA, true), null, admin);
 	}
 
+	@Override
+	@Transactional
+	public UsuarioResponse reasignarZona(Long idUsuario, Integer idZona, Long idActor) {
+		Usuario actor = actor(usuarioDao, idActor);
+		Usuario usuario = buscarExistente(idUsuario);
+		if (!ROL_VIGILANTE.equals(usuario.getRol().getNombreRol())) {
+			throw new ReglaNegocioException("Solo se puede reasignar la zona de un " + ROL_VIGILANTE);
+		}
+		if (!Boolean.TRUE.equals(usuario.getEstadoActivo())) {
+			throw new ReglaNegocioException("El " + ROL_VIGILANTE + " está inactivo");
+		}
+		Zona anterior = usuario.getZona();
+		if (anterior != null && idZona.equals(anterior.getIdZona())) {
+			throw new ReglaNegocioException("El " + ROL_VIGILANTE + " ya está asignado a esa zona");
+		}
+		Zona nueva = resolverZona(usuario.getRol(), idZona, null);
+		// Solo cambia la zona del usuario; sus incidencias guardan su propia id_zona y no se tocan
+		usuario.setZona(nueva);
+		auditoriaService.registrar(AccionAuditoria.REASIGNAR_ZONA,
+				cambio("idUsuario", idUsuario, zonaAuditoria(anterior), zonaAuditoria(nueva)), null, actor);
+		return UsuarioResponse.desde(usuario);
+	}
+
 	private Usuario buscarExistente(Long idUsuario) {
 		return usuarioDao.findById(idUsuario)
 				.orElseThrow(() -> new RecursoNoEncontradoException("El usuario no existe"));
@@ -218,6 +241,14 @@ public class UsuarioServiceImpl implements UsuarioService {
 		return zonaDao.findById(idZona)
 				.filter(z -> Boolean.TRUE.equals(z.getEstadoActivo()))
 				.orElseThrow(() -> new ReglaNegocioException("La zona seleccionada no existe o está inactiva"));
+	}
+
+	// Zona para el detalle de auditoría (id y nombre, para leerlo sin cruzar tablas)
+	private static Map<String, Object> zonaAuditoria(Zona zona) {
+		Map<String, Object> datos = new LinkedHashMap<>();
+		datos.put("idZona", zona != null ? zona.getIdZona() : null);
+		datos.put("nombreZona", zona != null ? zona.getNombreZona() : null);
+		return datos;
 	}
 
 	// Datos del usuario para la auditoría; nunca incluye la contraseña

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.segandina.sgi.dto.request.Agrupacion;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
+import com.segandina.sgi.dto.response.CargaZonaResponse;
 import com.segandina.sgi.dto.response.ConteoResponse;
 import com.segandina.sgi.dto.response.DespliegueZonaResponse;
 import com.segandina.sgi.dto.response.KpisResponse;
@@ -34,7 +35,7 @@ public class DashboardController {
 	}
 
 	/**
-	 * Indicadores: incidencias de hoy, del rango y por nivel de gravedad.
+	 * Indicadores: incidencias de hoy, del rango, del periodo anterior y por nivel de gravedad.
 	 *
 	 * @param filtro filtros tomados de los query params
 	 * @return 200 con los indicadores
@@ -88,6 +89,18 @@ public class DashboardController {
 	@GetMapping("/despliegue")
 	public List<DespliegueZonaResponse> despliegue() {
 		return dashboardService.despliegue();
+	}
+
+	/**
+	 * Carga por zona: incidencias del rango, vigilantes activos asignados e incidencias por vigilante, para
+	 * decidir reasignaciones (RF-07).
+	 *
+	 * @param filtro filtros tomados de los query params
+	 * @return 200 con una fila por zona, de la más cargada a la menos cargada
+	 */
+	@GetMapping("/carga-por-zona")
+	public List<CargaZonaResponse> cargaPorZona(IncidenciaFiltro filtro) {
+		return dashboardService.cargaPorZona(filtro);
 	}
 
 }

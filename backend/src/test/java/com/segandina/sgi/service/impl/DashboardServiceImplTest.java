@@ -29,6 +29,7 @@ import com.segandina.sgi.dto.request.Agrupacion;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.Periodo;
 import com.segandina.sgi.dto.request.RangoFechas;
+import com.segandina.sgi.dto.response.CargaZonaResponse;
 import com.segandina.sgi.dto.response.ConteoResponse;
 import com.segandina.sgi.dto.response.DespliegueZonaResponse;
 import com.segandina.sgi.dto.response.KpisResponse;
@@ -159,6 +160,64 @@ class DashboardServiceImplTest {
 				new KpisResponse.ConteoGravedad((short) 1, "Baja", (short) 1, 5),
 				new KpisResponse.ConteoGravedad((short) 2, "Media", (short) 2, 0),
 				new KpisResponse.ConteoGravedad((short) 3, "Alta", (short) 3, 10)), kpis.porGravedad());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void kpisComparanConElPeriodoAnteriorDelMismoLargo() {
+		RangoFechas semana = new RangoFechas(LocalDate.of(2026, 10, 18), LocalDate.of(2026, 10, 24));
+		RangoFechas anterior = new RangoFechas(LocalDate.of(2026, 10, 11), LocalDate.of(2026, 10, 17));
+		assertEquals(anterior, semana.anterior());
+		// Hoy, el rango y el anterior, en ese orden
+		when(incidenciaDao.count(any(Specification.class))).thenReturn(1L, 12L, 8L);
+		when(incidenciaDao.contarPorNivel(any(), any())).thenReturn(List.of());
+		when(nivelGravedadDao.findAll(any(Sort.class))).thenReturn(List.of());
+
+		KpisResponse kpis = dashboardService.kpis(filtro(Periodo.ULTIMOS_7_DIAS));
+
+		assertEquals(12, kpis.incidenciasPeriodo());
+		assertEquals(8, kpis.incidenciasPeriodoAnterior());
+		assertEquals(LocalDate.of(2026, 10, 11), kpis.desdeAnterior());
+		assertEquals(LocalDate.of(2026, 10, 17), kpis.hastaAnterior());
+	}
+
+	@Test
+	void periodoAnteriorDeUnRangoPersonalizadoCruzaElMes() {
+		RangoFechas rango = new RangoFechas(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 10));
+
+		assertEquals(new RangoFechas(LocalDate.of(2026, 2, 19), LocalDate.of(2026, 2, 28)), rango.anterior());
+	}
+
+	@Test
+	void cargaPorZonaCalculaIncidenciasPorVigilanteYOrdenaPorCarga() {
+		when(despliegueZonaDao.findAll(any(Sort.class))).thenReturn(List.of(
+				new DespliegueZona(2, "Almacén Callao", 0L), new DespliegueZona(1, "Sede Miraflores", 2L),
+				new DespliegueZona(4, "Planta Ate", 4L), new DespliegueZona(5, "Oficina Surco", 0L)));
+		// La zona 3 está inactiva (no está en la vista) pero tiene incidencias en el rango
+		when(incidenciaDao.contarPorZona(any(), any())).thenReturn(List.of(
+				new ConteoAgrupado(1L, "Sede Miraflores", 7), new ConteoAgrupado(2L, "Almacén Callao", 5),
+				new ConteoAgrupado(3L, "Zona Antigua", 2), new ConteoAgrupado(4L, "Planta Ate", 2)));
+
+		List<CargaZonaResponse> carga = dashboardService.cargaPorZona(filtro(Periodo.ULTIMOS_7_DIAS));
+
+		assertEquals(List.of(
+				new CargaZonaResponse(2, "Almacén Callao", 5, 0, null),
+				new CargaZonaResponse(3, "Zona Antigua", 2, 0, null),
+				new CargaZonaResponse(1, "Sede Miraflores", 7, 2, 3.5),
+				new CargaZonaResponse(4, "Planta Ate", 2, 4, 0.5),
+				new CargaZonaResponse(5, "Oficina Surco", 0, 0, null)), carga);
+	}
+
+	@Test
+	void cargaPorZonaConZonaFiltradaDevuelveSoloEsaZona() {
+		IncidenciaFiltro filtro = new IncidenciaFiltro(Periodo.HOY, null, null, 1, null, null);
+		when(despliegueZonaDao.findAll(any(Sort.class))).thenReturn(List.of(
+				new DespliegueZona(2, "Almacén Callao", 1L), new DespliegueZona(1, "Sede Miraflores", 3L)));
+		when(incidenciaDao.contarPorZona(any(), eq(filtro))).thenReturn(List.of(
+				new ConteoAgrupado(1L, "Sede Miraflores", 1)));
+
+		assertEquals(List.of(new CargaZonaResponse(1, "Sede Miraflores", 1, 3, 0.33)),
+				dashboardService.cargaPorZona(filtro));
 	}
 
 	@Test

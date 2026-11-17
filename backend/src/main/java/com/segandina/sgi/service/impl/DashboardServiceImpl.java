@@ -5,6 +5,8 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,10 +24,12 @@ import com.segandina.sgi.dto.request.Agrupacion;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.Periodo;
 import com.segandina.sgi.dto.request.RangoFechas;
+import com.segandina.sgi.dto.response.CargaZonaResponse;
 import com.segandina.sgi.dto.response.ConteoResponse;
 import com.segandina.sgi.dto.response.DespliegueZonaResponse;
 import com.segandina.sgi.dto.response.KpisResponse;
 import com.segandina.sgi.dto.response.SerieTiempoResponse;
+import com.segandina.sgi.model.DespliegueZona;
 import com.segandina.sgi.model.NivelGravedad;
 import com.segandina.sgi.service.DashboardService;
 
@@ -34,6 +38,13 @@ public class DashboardServiceImpl implements DashboardService {
 
 	private static final Sort ORDEN_GRAVEDAD = Sort.by("orden");
 	private static final Sort ORDEN_ZONA = Sort.by(Sort.Order.asc("nombreZona").ignoreCase());
+
+	// Zonas con incidencias y sin vigilantes primero; luego más incidencias por vigilante; luego por nombre
+	private static final Comparator<CargaZonaResponse> ORDEN_CARGA = Comparator
+			.comparing((CargaZonaResponse c) -> !(c.vigilantesActivos() == 0 && c.incidencias() > 0))
+			.thenComparing(c -> c.incidenciasPorVigilante() != null ? c.incidenciasPorVigilante() : 0.0,
+					Comparator.reverseOrder())
+			.thenComparing(c -> c.nombreZona().toLowerCase());
 
 	private final IncidenciaDao incidenciaDao;
 	private final NivelGravedadDao nivelGravedadDao;
@@ -55,6 +66,8 @@ public class DashboardServiceImpl implements DashboardService {
 		RangoFechas hoy = RangoFechas.resolver(Periodo.HOY, null, null, reloj);
 		long incidenciasHoy = incidenciaDao.count(IncidenciaDao.conFiltros(hoy, filtro));
 		long incidenciasPeriodo = incidenciaDao.count(IncidenciaDao.conFiltros(rango, filtro));
+		RangoFechas anterior = rango.anterior();
+		long incidenciasAnterior = incidenciaDao.count(IncidenciaDao.conFiltros(anterior, filtro));
 
 		Map<Long, Long> porNivel = incidenciaDao.contarPorNivel(rango, filtro).stream()
 				.collect(Collectors.toMap(ConteoAgrupado::id, ConteoAgrupado::total));
@@ -66,7 +79,8 @@ public class DashboardServiceImpl implements DashboardService {
 						nivel.getOrden(), total));
 			}
 		}
-		return new KpisResponse(rango.desde(), rango.hasta(), incidenciasHoy, incidenciasPeriodo, porGravedad);
+		return new KpisResponse(rango.desde(), rango.hasta(), incidenciasHoy, incidenciasPeriodo, anterior.desde(),
+				anterior.hasta(), incidenciasAnterior, porGravedad);
 	}
 
 	@Override
@@ -110,6 +124,29 @@ public class DashboardServiceImpl implements DashboardService {
 	@Transactional(readOnly = true)
 	public List<DespliegueZonaResponse> despliegue() {
 		return despliegueZonaDao.findAll(ORDEN_ZONA).stream().map(DespliegueZonaResponse::desde).toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CargaZonaResponse> cargaPorZona(IncidenciaFiltro filtro) {
+		List<ConteoAgrupado> conteos = incidenciaDao.contarPorZona(rango(filtro), filtro);
+		Integer idZona = filtro.idZona();
+		Map<Integer, CargaZonaResponse> filas = new LinkedHashMap<>();
+		Map<Integer, Long> porZona = conteos.stream()
+				.collect(Collectors.toMap(c -> c.id().intValue(), ConteoAgrupado::total));
+		for (DespliegueZona zona : despliegueZonaDao.findAll(ORDEN_ZONA)) {
+			if (idZona == null || idZona.equals(zona.getIdZona())) {
+				long vigilantes = zona.getVigilantesActivos() != null ? zona.getVigilantesActivos() : 0;
+				filas.put(zona.getIdZona(), CargaZonaResponse.de(zona.getIdZona(), zona.getNombreZona(),
+						porZona.getOrDefault(zona.getIdZona(), 0L), vigilantes));
+			}
+		}
+		// Zonas inactivas con incidencias en el rango: no están en la vista, se agregan con 0 vigilantes
+		for (ConteoAgrupado conteo : conteos) {
+			filas.putIfAbsent(conteo.id().intValue(),
+					CargaZonaResponse.de(conteo.id().intValue(), conteo.nombre(), conteo.total(), 0));
+		}
+		return filas.values().stream().sorted(ORDEN_CARGA).toList();
 	}
 
 	private RangoFechas rango(IncidenciaFiltro filtro) {

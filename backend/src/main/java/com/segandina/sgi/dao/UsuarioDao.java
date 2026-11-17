@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -60,6 +61,18 @@ public interface UsuarioDao extends JpaRepository<Usuario, Long>, JpaSpecificati
 	@Override
 	@EntityGraph(attributePaths = { "rol", "zona" })
 	Page<Usuario> findAll(Specification<Usuario> spec, Pageable pageable);
+
+	/**
+	 * Busca todos los usuarios que cumplen la condición, sin paginar, cargando su rol y su zona en la misma
+	 * consulta (vigilantes de una zona en el despliegue, RF-07).
+	 *
+	 * @param spec condición de búsqueda, normalmente {@link #conFiltros(UsuarioFiltro)}
+	 * @param sort orden del listado
+	 * @return los usuarios con rol y zona cargados
+	 */
+	@Override
+	@EntityGraph(attributePaths = { "rol", "zona" })
+	List<Usuario> findAll(Specification<Usuario> spec, Sort sort);
 
 	/**
 	 * Arma la condición de búsqueda de usuarios (RF-02). Solo se aplican los filtros con valor y se combinan

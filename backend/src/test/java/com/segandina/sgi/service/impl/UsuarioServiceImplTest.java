@@ -57,6 +57,7 @@ class UsuarioServiceImplTest {
 	private static final String CLAVE_VIGILANTE = "ClaveVigilante1";
 
 	private UsuarioDao usuarioDao;
+	private ZonaDao zonaDao;
 	private AuditoriaService auditoriaService;
 	private PasswordEncoder passwordEncoder;
 	private UsuarioServiceImpl usuarioService;
@@ -70,7 +71,7 @@ class UsuarioServiceImplTest {
 	void preparar() {
 		usuarioDao = mock(UsuarioDao.class);
 		RolDao rolDao = mock(RolDao.class);
-		ZonaDao zonaDao = mock(ZonaDao.class);
+		zonaDao = mock(ZonaDao.class);
 		auditoriaService = mock(AuditoriaService.class);
 		passwordEncoder = new BCryptPasswordEncoder(4);
 		usuarioService = new UsuarioServiceImpl(usuarioDao, rolDao, zonaDao, passwordEncoder, auditoriaService);
@@ -305,6 +306,86 @@ class UsuarioServiceImplTest {
 
 		assertEquals(hashAnterior, admin.getContrasena());
 		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	// --- Reasignación de zona (RF-07) ---
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void supervisorReasignaUnVigilanteYAuditaAntesYDespues() {
+		Usuario supervisor = usuario(2L, "44444444", rol(ID_ROL_SUPERVISOR, "Supervisor"), null, "ClaveSuper1");
+		when(usuarioDao.findById(2L)).thenReturn(Optional.of(supervisor));
+		Zona nueva = zona(3, true);
+		when(zonaDao.findById(3)).thenReturn(Optional.of(nueva));
+		String dniAntes = vigilante.getDni();
+
+		UsuarioResponse movido = usuarioService.reasignarZona(ID_VIGILANTE, 3, 2L);
+
+		assertEquals(Integer.valueOf(3), movido.idZona());
+		assertSame(nueva, vigilante.getZona());
+		// Solo cambia la zona: ni el rol, ni el DNI, ni el estado
+		assertEquals("Vigilante", vigilante.getRol().getNombreRol());
+		assertEquals(dniAntes, vigilante.getDni());
+		assertTrue(vigilante.getEstadoActivo());
+		ArgumentCaptor<Map<String, Object>> detalle = ArgumentCaptor.forClass(Map.class);
+		verify(auditoriaService).registrar(eq(AccionAuditoria.REASIGNAR_ZONA), detalle.capture(), isNull(),
+				eq(supervisor));
+		assertEquals(ID_VIGILANTE, detalle.getValue().get("idUsuario"));
+		Map<String, Object> antes = (Map<String, Object>) detalle.getValue().get("antes");
+		Map<String, Object> despues = (Map<String, Object>) detalle.getValue().get("despues");
+		assertEquals(ID_ZONA, antes.get("idZona"));
+		assertEquals("Zona 1", antes.get("nombreZona"));
+		assertEquals(3, despues.get("idZona"));
+		assertEquals("Zona 3", despues.get("nombreZona"));
+	}
+
+	@Test
+	void reasignarAUnUsuarioQueNoEsVigilanteDevuelveReglaNegocio() {
+		Usuario supervisor = usuario(9L, "55555555", rol(ID_ROL_SUPERVISOR, "Supervisor"), zona, "ClaveSuper1");
+		when(usuarioDao.findById(9L)).thenReturn(Optional.of(supervisor));
+		when(zonaDao.findById(3)).thenReturn(Optional.of(zona(3, true)));
+
+		ReglaNegocioException error = assertThrows(ReglaNegocioException.class,
+				() -> usuarioService.reasignarZona(9L, 3, ID_ADMIN));
+		assertEquals("Solo se puede reasignar la zona de un Vigilante", error.getMessage());
+		assertSame(zona, supervisor.getZona());
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void reasignarAUnVigilanteInactivoDevuelveReglaNegocio() {
+		vigilante.setEstadoActivo(false);
+		when(zonaDao.findById(3)).thenReturn(Optional.of(zona(3, true)));
+
+		assertThrows(ReglaNegocioException.class, () -> usuarioService.reasignarZona(ID_VIGILANTE, 3, ID_ADMIN));
+		assertSame(zona, vigilante.getZona());
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void reasignarAUnaZonaInactivaOInexistenteDevuelveReglaNegocio() {
+		when(zonaDao.findById(99)).thenReturn(Optional.empty());
+
+		assertThrows(ReglaNegocioException.class,
+				() -> usuarioService.reasignarZona(ID_VIGILANTE, ID_ZONA_INACTIVA, ID_ADMIN));
+		assertThrows(ReglaNegocioException.class, () -> usuarioService.reasignarZona(ID_VIGILANTE, 99, ID_ADMIN));
+		assertSame(zona, vigilante.getZona());
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void reasignarALaMismaZonaDevuelveReglaNegocio() {
+		ReglaNegocioException error = assertThrows(ReglaNegocioException.class,
+				() -> usuarioService.reasignarZona(ID_VIGILANTE, ID_ZONA, ID_ADMIN));
+		assertEquals("El Vigilante ya está asignado a esa zona", error.getMessage());
+		verify(auditoriaService, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	void reasignarUnUsuarioInexistenteDevuelveNoEncontrado() {
+		when(usuarioDao.findById(99L)).thenReturn(Optional.empty());
+
+		assertThrows(RecursoNoEncontradoException.class, () -> usuarioService.reasignarZona(99L, ID_ZONA, ID_ADMIN));
 	}
 
 	@Test

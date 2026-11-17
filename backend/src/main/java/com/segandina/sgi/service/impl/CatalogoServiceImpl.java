@@ -10,6 +10,7 @@ import com.segandina.sgi.dao.NivelGravedadDao;
 import com.segandina.sgi.dao.RolDao;
 import com.segandina.sgi.dao.TipoEventoDao;
 import com.segandina.sgi.dao.ZonaDao;
+import com.segandina.sgi.dto.response.CatalogosFiltroResponse;
 import com.segandina.sgi.dto.response.NivelGravedadResponse;
 import com.segandina.sgi.dto.response.RolResponse;
 import com.segandina.sgi.dto.response.TipoEventoResponse;
@@ -55,6 +56,15 @@ public class CatalogoServiceImpl implements CatalogoService {
 	@Override
 	public List<RolResponse> listarRoles() {
 		return rolDao.findAll(Sort.by("idRol")).stream().map(RolResponse::desde).toList();
+	}
+
+	@Override
+	public CatalogosFiltroResponse listarParaFiltros() {
+		return new CatalogosFiltroResponse(
+				zonaDao.findAll(Sort.by(Sort.Order.asc("nombreZona").ignoreCase())).stream()
+						.map(ZonaResponse::desde).toList(),
+				tipoEventoDao.findAllByOrderByNombreTipoEventoAsc().stream().map(TipoEventoResponse::desde).toList(),
+				nivelGravedadDao.findAllByOrderByOrdenAsc().stream().map(NivelGravedadResponse::desde).toList());
 	}
 
 }

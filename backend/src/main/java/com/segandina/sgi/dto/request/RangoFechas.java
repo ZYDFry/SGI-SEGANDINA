@@ -78,6 +78,18 @@ public record RangoFechas(LocalDate desde, LocalDate hasta) {
 		return hasta.plusDays(1).atStartOfDay(RelojConfig.ZONA_LIMA).toOffsetDateTime();
 	}
 
+	/**
+	 * Rango del mismo largo que termina justo antes de este (el día anterior a {@code desde}). Sirve para comparar
+	 * un periodo con el previo (RF-05): los últimos 7 días contra los 7 anteriores, un mes en curso de 17 días
+	 * contra los 17 días previos, etc.
+	 *
+	 * @return el rango anterior, con la misma cantidad de días
+	 */
+	public RangoFechas anterior() {
+		LocalDate hastaAnterior = desde.minusDays(1);
+		return new RangoFechas(hastaAnterior.minusDays(dias() - 1), hastaAnterior);
+	}
+
 	/** Cantidad de días del rango, contando ambos extremos. */
 	public long dias() {
 		return ChronoUnit.DAYS.between(desde, hasta) + 1;

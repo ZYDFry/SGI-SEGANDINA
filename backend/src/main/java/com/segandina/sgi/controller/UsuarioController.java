@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.segandina.sgi.dto.request.CambioContrasenaRequest;
 import com.segandina.sgi.dto.request.CambioEstadoRequest;
+import com.segandina.sgi.dto.request.ReasignarZonaRequest;
 import com.segandina.sgi.dto.request.RestablecerContrasenaRequest;
 import com.segandina.sgi.dto.request.UsuarioActualizarRequest;
 import com.segandina.sgi.dto.request.UsuarioCrearRequest;
@@ -27,8 +28,8 @@ import com.segandina.sgi.service.UsuarioService;
 import jakarta.validation.Valid;
 
 /**
- * Gestión de usuarios (RF-02), solo Administrador, y cambio de la contraseña propia (cualquier usuario con
- * token). No hay {@code DELETE}: la baja es lógica con {@code PATCH /{id}/estado}.
+ * Gestión de usuarios (RF-02), solo Administrador; reasignación de zona de vigilantes (RF-07), Administrador y
+ * Supervisor; y cambio de la contraseña propia (cualquier usuario con token). No hay {@code DELETE}: la baja es lógica con {@code PATCH /{id}/estado}.
  */
 @RestController
 @RequestMapping("/api/usuarios")
@@ -142,6 +143,22 @@ public class UsuarioController {
 	public void restablecerContrasena(@PathVariable Long id, @Valid @RequestBody RestablecerContrasenaRequest request,
 			@AuthenticationPrincipal Jwt jwt) {
 		usuarioService.restablecerContrasena(id, request.contrasenaNueva(), Long.valueOf(jwt.getSubject()));
+	}
+
+	/**
+	 * Mueve a un vigilante activo a otra zona activa. Disponible para el Administrador y el Supervisor; solo cambia
+	 * la zona (las incidencias pasadas conservan la suya).
+	 *
+	 * @param id      id del vigilante
+	 * @param request zona nueva
+	 * @param jwt     token del Administrador o Supervisor
+	 * @return 200 con el usuario; 400 si no es Vigilante, está inactivo, la zona no es válida o es la misma; 404 si
+	 *         no existe
+	 */
+	@PatchMapping("/{id}/zona")
+	public UsuarioResponse reasignarZona(@PathVariable Long id, @Valid @RequestBody ReasignarZonaRequest request,
+			@AuthenticationPrincipal Jwt jwt) {
+		return usuarioService.reasignarZona(id, request.idZona(), Long.valueOf(jwt.getSubject()));
 	}
 
 }

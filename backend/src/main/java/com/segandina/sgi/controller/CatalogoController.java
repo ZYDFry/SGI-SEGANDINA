@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.segandina.sgi.dto.response.CatalogosFiltroResponse;
 import com.segandina.sgi.dto.response.NivelGravedadResponse;
 import com.segandina.sgi.dto.response.RolResponse;
 import com.segandina.sgi.dto.response.TipoEventoResponse;
@@ -13,7 +14,8 @@ import com.segandina.sgi.dto.response.ZonaResponse;
 import com.segandina.sgi.service.CatalogoService;
 
 /**
- * Catálogos activos para los formularios. Requiere token (cualquier rol).
+ * Catálogos activos para los formularios (cualquier rol con token) y catálogos completos para los filtros
+ * ({@code /filtros}, solo Administrador y Supervisor).
  */
 @RestController
 @RequestMapping("/api/catalogos")
@@ -63,6 +65,17 @@ public class CatalogoController {
 	@GetMapping("/roles")
 	public List<RolResponse> roles() {
 		return catalogoService.listarRoles();
+	}
+
+	/**
+	 * Zonas, tipos y niveles incluidos los inactivos, para filtrar el historial y el dashboard. Solo Administrador
+	 * y Supervisor.
+	 *
+	 * @return 200 con los tres catálogos; cada registro trae {@code estadoActivo}
+	 */
+	@GetMapping("/filtros")
+	public CatalogosFiltroResponse filtros() {
+		return catalogoService.listarParaFiltros();
 	}
 
 }

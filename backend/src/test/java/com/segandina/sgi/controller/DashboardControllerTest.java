@@ -28,13 +28,20 @@ import com.segandina.sgi.config.SecurityConfig;
 import com.segandina.sgi.dto.request.Agrupacion;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.Periodo;
+import com.segandina.sgi.dto.response.CargaZonaResponse;
+import com.segandina.sgi.dto.response.CatalogosFiltroResponse;
 import com.segandina.sgi.dto.response.DespliegueZonaResponse;
 import com.segandina.sgi.dto.response.KpisResponse;
 import com.segandina.sgi.dto.response.SerieTiempoResponse;
+import com.segandina.sgi.dto.response.VigilanteZonaResponse;
+import com.segandina.sgi.dto.response.ZonaResponse;
+import com.segandina.sgi.exception.RecursoNoEncontradoException;
 import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.Rol;
 import com.segandina.sgi.model.Usuario;
+import com.segandina.sgi.service.CatalogoService;
 import com.segandina.sgi.service.DashboardService;
+import com.segandina.sgi.service.DespliegueService;
 import com.segandina.sgi.service.IncidenciaService;
 import com.segandina.sgi.service.impl.JwtTokenServiceImpl;
 
@@ -42,7 +49,8 @@ import com.segandina.sgi.service.impl.JwtTokenServiceImpl;
  * Pruebas de los endpoints del historial (RF-04) y del dashboard (RF-05, RF-07) con la seguridad real y los
  * servicios simulados (sin BD).
  */
-@WebMvcTest({ DashboardController.class, IncidenciaController.class })
+@WebMvcTest({ DashboardController.class, DespliegueController.class, IncidenciaController.class,
+		CatalogoController.class })
 @Import(SecurityConfig.class)
 @TestPropertySource(properties = "jwt.secreto=secreto-de-pruebas-con-mas-de-32-bytes!")
 class DashboardControllerTest {
@@ -64,10 +72,17 @@ class DashboardControllerTest {
 	@MockitoBean
 	private IncidenciaService incidenciaService;
 
+	@MockitoBean
+	private DespliegueService despliegueService;
+
+	@MockitoBean
+	private CatalogoService catalogoService;
+
 	@Test
 	void kpisPasanLosFiltrosAlServicio() throws Exception {
 		IncidenciaFiltro filtro = new IncidenciaFiltro(Periodo.HOY, null, null, 1, (short) 3, null);
 		when(dashboardService.kpis(filtro)).thenReturn(new KpisResponse(HOY, HOY, 2, 2,
+				HOY.minusDays(1), HOY.minusDays(1), 4,
 				List.of(new KpisResponse.ConteoGravedad((short) 3, "Alta", (short) 3, 2))));
 
 		mockMvc.perform(get("/api/dashboard/kpis").param("periodo", "HOY").param("idZona", "1")
@@ -75,6 +90,8 @@ class DashboardControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.desde").value("2026-10-24"))
 				.andExpect(jsonPath("$.incidenciasHoy").value(2))
+				.andExpect(jsonPath("$.incidenciasPeriodoAnterior").value(4))
+				.andExpect(jsonPath("$.hastaAnterior").value("2026-10-23"))
 				.andExpect(jsonPath("$.porGravedad[0].nombreNivel").value("Alta"));
 	}
 
@@ -166,6 +183,71 @@ class DashboardControllerTest {
 				.header("Authorization", bearer("Supervisor")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.mensaje").value("La fecha desde no puede ser posterior a hasta"));
+	}
+
+	@Test
+	void cargaPorZonaPasaLosFiltrosYDevuelveLaRelacion() throws Exception {
+		IncidenciaFiltro filtro = new IncidenciaFiltro(Periodo.ULTIMOS_7_DIAS, null, null, null, null, (short) 2);
+		when(dashboardService.cargaPorZona(filtro)).thenReturn(List.of(
+				CargaZonaResponse.de(2, "Almacén Callao", 5, 0), CargaZonaResponse.de(1, "Sede Miraflores", 7, 2)));
+
+		mockMvc.perform(get("/api/dashboard/carga-por-zona").param("periodo", "ULTIMOS_7_DIAS")
+				.param("idTipoEvento", "2").header("Authorization", bearer("Supervisor")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].incidenciasPorVigilante").isEmpty())
+				.andExpect(jsonPath("$[1].vigilantesActivos").value(2))
+				.andExpect(jsonPath("$[1].incidenciasPorVigilante").value(3.5));
+	}
+
+	@Test
+	void vigilanteNoVeLaCargaNiLosVigilantesNiLosFiltros() throws Exception {
+		mockMvc.perform(get("/api/dashboard/carga-por-zona").header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/dashboard/vigilantes").header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/dashboard/zonas/1").header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/catalogos/filtros").header("Authorization", bearer("Vigilante")))
+				.andExpect(status().isForbidden());
+		verifyNoInteractions(dashboardService, despliegueService, catalogoService);
+	}
+
+	@Test
+	void supervisorVeLaZonaYSusVigilantesSinDni() throws Exception {
+		when(despliegueService.obtenerZona(1)).thenReturn(new ZonaResponse(1, "Sede Miraflores", "Lima", "Lima",
+				"Miraflores", null, null, true));
+		when(despliegueService.listarVigilantes(1, null)).thenReturn(List.of(
+				new VigilanteZonaResponse(50L, "Luis", "Rojas", null, 1, "Sede Miraflores", true)));
+
+		mockMvc.perform(get("/api/dashboard/zonas/1").header("Authorization", bearer("Supervisor")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.distrito").value("Miraflores"));
+		mockMvc.perform(get("/api/dashboard/vigilantes").param("idZona", "1")
+				.header("Authorization", bearer("Supervisor")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].nombres").value("Luis"))
+				.andExpect(jsonPath("$[0].dni").doesNotExist())
+				.andExpect(jsonPath("$[0].contrasena").doesNotExist());
+	}
+
+	@Test
+	void zonaInexistenteResponde404() throws Exception {
+		when(despliegueService.obtenerZona(999)).thenThrow(new RecursoNoEncontradoException("La zona no existe"));
+
+		mockMvc.perform(get("/api/dashboard/zonas/999").header("Authorization", bearer("Administrador")))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.mensaje").value("La zona no existe"));
+	}
+
+	@Test
+	void catalogosDeFiltrosIncluyenInactivosParaElSupervisor() throws Exception {
+		when(catalogoService.listarParaFiltros()).thenReturn(new CatalogosFiltroResponse(
+				List.of(new ZonaResponse(3, "Zona Antigua", "Lima", "Lima", "Ate", null, null, false)), List.of(),
+				List.of()));
+
+		mockMvc.perform(get("/api/catalogos/filtros").header("Authorization", bearer("Supervisor")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.zonas[0].estadoActivo").value(false));
 	}
 
 	private String bearer(String nombreRol) {

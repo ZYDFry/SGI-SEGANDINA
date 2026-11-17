@@ -48,6 +48,9 @@ class IncidenciaDaoTest {
 	@Autowired
 	private EntityManager entityManager;
 
+	@Autowired
+	private UsuarioDao usuarioDao;
+
 	private Zona miraflores;
 	private Zona callao;
 	private TipoEvento robo;
@@ -87,6 +90,26 @@ class IncidenciaDaoTest {
 		incidencia("2026-10-20T12:00:00-05:00", callao, robo, alta, vigilante);      // dentro de la semana
 		entityManager.flush();
 		entityManager.clear();
+	}
+
+	@Test
+	void moverAlVigilanteDeZonaNoCambiaSusIncidenciasPasadas() {
+		Usuario vigilante = usuarioDao.findByDni("22222222").orElseThrow();
+		vigilante.setZona(entityManager.find(Zona.class, miraflores.getIdZona()));
+		entityManager.flush();
+		entityManager.clear();
+		List<Integer> antes = zonasDeSusIncidencias();
+
+		// Reasignación (RF-07): solo cambia usuario.id_zona
+		Usuario movido = usuarioDao.findByDni("22222222").orElseThrow();
+		movido.setZona(entityManager.find(Zona.class, callao.getIdZona()));
+		entityManager.flush();
+		entityManager.clear();
+
+		assertEquals(callao.getIdZona(), usuarioDao.findByDni("22222222").orElseThrow().getZona().getIdZona());
+		assertEquals(antes, zonasDeSusIncidencias());
+		assertEquals(3, incidenciaDao.count(IncidenciaDao.conFiltros(SEMANA,
+				new IncidenciaFiltro(null, null, null, miraflores.getIdZona(), null, null))));
 	}
 
 	@Test
@@ -204,4 +227,9 @@ class IncidenciaDaoTest {
 		return entidad;
 	}
 
+	// Zona de cada incidencia del vigilante de prueba, en orden de id
+	private List<Integer> zonasDeSusIncidencias() {
+		return entityManager.createQuery("SELECT i.zona.idZona FROM Incidencia i WHERE i.usuario.dni = '22222222'"
+				+ " ORDER BY i.idIncidencia", Integer.class).getResultList();
+	}
 }

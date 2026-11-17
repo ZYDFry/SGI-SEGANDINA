@@ -1,6 +1,7 @@
 package com.segandina.sgi.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -8,11 +9,13 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Sort;
 
 import com.segandina.sgi.dao.NivelGravedadDao;
 import com.segandina.sgi.dao.RolDao;
 import com.segandina.sgi.dao.TipoEventoDao;
 import com.segandina.sgi.dao.ZonaDao;
+import com.segandina.sgi.dto.response.CatalogosFiltroResponse;
 import com.segandina.sgi.dto.response.NivelGravedadResponse;
 import com.segandina.sgi.dto.response.TipoEventoResponse;
 import com.segandina.sgi.dto.response.ZonaResponse;
@@ -80,6 +83,34 @@ class CatalogoServiceImplTest {
 		when(zonaDao.findByEstadoActivoTrueOrderByNombreZonaAsc()).thenReturn(List.of());
 
 		assertEquals(List.of(), catalogoService.listarZonasActivas());
+	}
+
+	@Test
+	void catalogosDeFiltrosIncluyenLosInactivos() {
+		Zona activa = new Zona();
+		activa.setIdZona(1);
+		activa.setNombreZona("Sede Miraflores");
+		Zona inactiva = new Zona();
+		inactiva.setIdZona(2);
+		inactiva.setNombreZona("Zona Antigua");
+		inactiva.setEstadoActivo(false);
+		TipoEvento tipoInactivo = new TipoEvento();
+		tipoInactivo.setIdTipoEvento((short) 5);
+		tipoInactivo.setNombreTipoEvento("Ronda");
+		tipoInactivo.setEstadoActivo(false);
+		NivelGravedad nivelInactivo = nivel(4, "Crítica", 4);
+		nivelInactivo.setEstadoActivo(false);
+		when(zonaDao.findAll(any(Sort.class))).thenReturn(List.of(activa, inactiva));
+		when(tipoEventoDao.findAllByOrderByNombreTipoEventoAsc()).thenReturn(List.of(tipoInactivo));
+		when(nivelGravedadDao.findAllByOrderByOrdenAsc()).thenReturn(List.of(nivel(1, "Baja", 1), nivelInactivo));
+
+		CatalogosFiltroResponse filtros = catalogoService.listarParaFiltros();
+
+		assertEquals(List.of(true, false), filtros.zonas().stream().map(ZonaResponse::estadoActivo).toList());
+		assertEquals(List.of(new TipoEventoResponse((short) 5, "Ronda", false)), filtros.tiposEvento());
+		assertEquals(List.of(
+				new NivelGravedadResponse((short) 1, "Baja", (short) 1, true),
+				new NivelGravedadResponse((short) 4, "Crítica", (short) 4, false)), filtros.nivelesGravedad());
 	}
 
 	private static NivelGravedad nivel(int id, String nombre, int orden) {
