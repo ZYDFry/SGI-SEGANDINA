@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
+import com.segandina.sgi.dto.request.PeriodoFiltro;
 import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
+import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 import com.segandina.sgi.dto.response.PaginaResponse;
 import com.segandina.sgi.service.IncidenciaService;
 
@@ -65,6 +67,25 @@ public class IncidenciaController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		return PaginaResponse.desde(incidenciaService.buscar(filtro, page, size));
+	}
+
+	/**
+	 * "Mis incidencias": las que registró el dueño del token, de la más reciente a la más antigua. Roles: Vigilante
+	 * y Administrador (el Supervisor recibe 403).
+	 * <p>
+	 * Query params: {@code periodo}, {@code desde} y {@code hasta}, con los mismos valores que el historial.
+	 *
+	 * @param filtro periodo o fechas tomados de los query params
+	 * @param jwt    token ya validado; su {@code sub} es el id del usuario cuyas incidencias se listan
+	 * @param page   página desde 0
+	 * @param size   tamaño de página (1 a 100)
+	 * @return 200 con la página; 400 si el periodo o las fechas no son válidos
+	 */
+	@GetMapping("/mias")
+	public PaginaResponse<MiIncidenciaResponse> buscarPropias(PeriodoFiltro filtro, @AuthenticationPrincipal Jwt jwt,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return PaginaResponse.desde(incidenciaService.buscarPropias(filtro, Long.valueOf(jwt.getSubject()), page, size));
 	}
 
 }

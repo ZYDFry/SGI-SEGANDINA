@@ -81,4 +81,15 @@ public interface IncidenciaDao extends JpaRepository<Incidencia, Long>, JpaSpeci
 		};
 	}
 
+	/**
+	 * Condición "registrada por este usuario" ({@code incidencia.id_usuario}), para "Mis incidencias" (RF-04). Se
+	 * combina con {@link #conFiltros(RangoFechas, IncidenciaFiltro)} mediante {@code and}.
+	 *
+	 * @param idUsuario id del usuario que registró las incidencias
+	 * @return la especificación para la consulta
+	 */
+	static Specification<Incidencia> delUsuario(Long idUsuario) {
+		return (root, query, cb) -> cb.equal(root.get("usuario").get("idUsuario"), idUsuario);
+	}
+
 }

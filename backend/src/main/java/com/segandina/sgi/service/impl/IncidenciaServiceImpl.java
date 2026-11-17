@@ -9,6 +9,7 @@ import java.util.function.Function;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +20,11 @@ import com.segandina.sgi.dao.UsuarioDao;
 import com.segandina.sgi.dao.ZonaDao;
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
+import com.segandina.sgi.dto.request.PeriodoFiltro;
 import com.segandina.sgi.dto.request.RangoFechas;
 import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
+import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 import com.segandina.sgi.exception.CredencialesInvalidasException;
 import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.AccionAuditoria;
@@ -110,10 +113,21 @@ public class IncidenciaServiceImpl implements IncidenciaService {
 	@Transactional(readOnly = true)
 	public Page<IncidenciaHistorialResponse> buscar(IncidenciaFiltro filtro, int pagina, int tamano) {
 		RangoFechas rango = RangoFechas.resolver(filtro.periodo(), filtro.desde(), filtro.hasta(), reloj);
-		Pageable pageable = PageRequest.of(Math.max(pagina, 0), Math.clamp(tamano, 1, TAMANO_MAXIMO),
-				IncidenciaDao.ORDEN_HISTORIAL);
-		return incidenciaDao.findAll(IncidenciaDao.conFiltros(rango, filtro), pageable)
+		return incidenciaDao.findAll(IncidenciaDao.conFiltros(rango, filtro), paginaHistorial(pagina, tamano))
 				.map(IncidenciaHistorialResponse::desde);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Page<MiIncidenciaResponse> buscarPropias(PeriodoFiltro filtro, Long idUsuario, int pagina, int tamano) {
+		RangoFechas rango = RangoFechas.resolver(filtro.periodo(), filtro.desde(), filtro.hasta(), reloj);
+		Specification<Incidencia> spec = IncidenciaDao.conFiltros(rango, null).and(IncidenciaDao.delUsuario(idUsuario));
+		return incidenciaDao.findAll(spec, paginaHistorial(pagina, tamano)).map(MiIncidenciaResponse::desde);
+	}
+
+	// Página del historial: número no negativo, tamaño entre 1 y el máximo, más reciente primero
+	private static Pageable paginaHistorial(int pagina, int tamano) {
+		return PageRequest.of(Math.max(pagina, 0), Math.clamp(tamano, 1, TAMANO_MAXIMO), IncidenciaDao.ORDEN_HISTORIAL);
 	}
 
 	// El Vigilante solo registra en su zona asignada y activa. Se valida antes de buscar la zona pedida, así que

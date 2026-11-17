@@ -68,7 +68,9 @@ public class SecurityConfig {
 	 * contraseña propia ({@code PATCH /api/usuarios/me/contrasena}) se evalúa antes que la regla de
 	 * {@code /api/usuarios/**} para que cualquier rol pueda usarlo; la reasignación de zona
 	 * ({@code PATCH /api/usuarios/{id}/zona}) también va antes, para el Administrador y el Supervisor. Junto con {@code GET /api/auth/yo}, son las
-	 * únicas rutas que acepta un token con cambio de contraseña pendiente.
+	 * únicas rutas que acepta un token con cambio de contraseña pendiente. "Mis incidencias"
+	 * ({@code GET /api/incidencias/mias}, Vigilante y Administrador) se evalúa antes que el historial
+	 * ({@code GET /api/incidencias/**}, Administrador y Supervisor).
 	 *
 	 * @param http       configurador de Spring Security
 	 * @param jsonMapper serializador para las respuestas 401/403
@@ -95,6 +97,8 @@ public class SecurityConfig {
 								.hasRole(ADMINISTRADOR)
 						.requestMatchers("/api/dashboard/**", "/api/reportes/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
 						.requestMatchers(HttpMethod.POST, "/api/incidencias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
+						// "Mis incidencias" (RF-04): antes de GET /api/incidencias/**, que es de Administrador y Supervisor
+						.requestMatchers(HttpMethod.GET, "/api/incidencias/mias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
 						.requestMatchers(HttpMethod.GET, "/api/incidencias/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
 						.requestMatchers("/error").permitAll()
 						// Exige un rol (no solo token) para que un token con cambio pendiente no pase

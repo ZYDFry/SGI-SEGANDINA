@@ -6,8 +6,10 @@ import org.springframework.data.domain.Page;
 
 import com.segandina.sgi.dto.request.IncidenciaFiltro;
 import com.segandina.sgi.dto.request.IncidenciaRequest;
+import com.segandina.sgi.dto.request.PeriodoFiltro;
 import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
+import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 
 /**
  * Lógica de negocio de incidencias: registro (RF-03) e historial (RF-04).
@@ -61,5 +63,18 @@ public interface IncidenciaService {
 	 * @throws com.segandina.sgi.exception.ReglaNegocioException si el rango de fechas no es válido
 	 */
 	Page<IncidenciaHistorialResponse> buscar(IncidenciaFiltro filtro, int pagina, int tamano);
+
+	/**
+	 * "Mis incidencias" (RF-04): las que registró el usuario autenticado dentro del rango, con el mismo orden
+	 * ({@code fecha_hora} descendente, luego id) y la misma paginación que el historial.
+	 *
+	 * @param filtro    periodo o fechas (opcionales; sin valor, últimos 30 días)
+	 * @param idUsuario id del usuario, tomado del token (nunca de los parámetros)
+	 * @param pagina    número de página desde 0 (un valor negativo se toma como 0)
+	 * @param tamano    elementos por página; se acota entre 1 y {@link #TAMANO_MAXIMO}
+	 * @return la página de incidencias propias
+	 * @throws com.segandina.sgi.exception.ReglaNegocioException si el rango de fechas no es válido
+	 */
+	Page<MiIncidenciaResponse> buscarPropias(PeriodoFiltro filtro, Long idUsuario, int pagina, int tamano);
 
 }
