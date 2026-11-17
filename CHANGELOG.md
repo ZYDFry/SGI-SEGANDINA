@@ -12,6 +12,19 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Mantenimiento — Next.js 16.4.6 por aviso de seguridad
+- Qué se hizo:
+  - `next` y `eslint-config-next` pasan de 16.4.3 a 16.4.6 (versión exacta), porque 16.4.3 está afectada por un
+    aviso de seguridad publicado. Es una actualización dentro de la misma versión mayor: sin codemods ni cambios
+    en el código de la aplicación.
+  - `next.config.ts`: se agrega `experimental.agentUpgrade: "security"`; el resto de la configuración no cambia.
+- Archivos clave: `frontend/package.json`, `frontend/package-lock.json`, `frontend/next.config.ts`.
+- Cómo probarlo: `cd frontend && npm install && npx next --version` (debe decir 16.4.6), `npm run lint` y
+  `npm run build`; luego `npm run dev` y revisar el login y el dashboard.
+- Pendientes o problemas conocidos: `next build` falla en `/_global-error` ("Cannot read properties of null
+  (reading 'useContext')") si la terminal tiene `NODE_ENV=development`; con `NODE_ENV=production` o sin la variable
+  compila bien. Conviene revisarlo antes del despliegue (Fase 9).
+
 ## [2026-11-14] Fase 8 — revisión de la corrida de Playwright: DEF-01 cerrado y CP-106
 - Qué se hizo:
   - Corrida del 14/11: 37 de 41 aprobadas; CP-107 a CP-109 (menú por rol) aprobadas. Fallaban CP-90, CP-96, CP-99
