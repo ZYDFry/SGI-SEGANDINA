@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+import Cargando from "@/components/Cargando";
 import RutaProtegida from "@/components/RutaProtegida";
 import { ROLES_GERENCIA } from "@/lib/roles";
 import PanelDashboard from "./PanelDashboard";
@@ -8,7 +10,10 @@ import PanelDashboard from "./PanelDashboard";
 export default function PaginaDashboard() {
   return (
     <RutaProtegida roles={ROLES_GERENCIA}>
-      <PanelDashboard />
+      {/* Lee los filtros de la URL con useSearchParams: Next exige un Suspense alrededor. */}
+      <Suspense fallback={<Cargando />}>
+        <PanelDashboard />
+      </Suspense>
     </RutaProtegida>
   );
 }

@@ -30,17 +30,54 @@ interface PropsKpi {
   /** Resalta la tarjeta como alerta (texto rojo). */
   alerta?: boolean;
   cargando?: boolean;
+  /** Con esta función la tarjeta es un botón que aplica o quita un filtro (`aria-pressed`). */
+  onElegir?: () => void;
+  /** Filtro aplicado con esta tarjeta: borde marcado. */
+  seleccionada?: boolean;
+  /** Hay otra tarjeta elegida: esta se atenúa. */
+  atenuada?: boolean;
 }
 
-/** Indicador grande del dashboard. */
-export function TarjetaKpi({ etiqueta, valor, detalle, color = "#1c398e", alerta = false, cargando = false }: PropsKpi) {
-  return (
-    <div className="min-w-0 rounded-2xl border-l-4 bg-white p-4 shadow-sm" style={{ borderLeftColor: color }}>
+/** Indicador grande del dashboard; con `onElegir`, también sirve para filtrar. */
+export function TarjetaKpi({
+  etiqueta,
+  valor,
+  detalle,
+  color = "#1c398e",
+  alerta = false,
+  cargando = false,
+  onElegir,
+  seleccionada = false,
+  atenuada = false,
+}: PropsKpi) {
+  const contenido = (
+    <>
       <p className="truncate text-sm font-medium text-slate-500">{etiqueta}</p>
       <p className={`mt-1 text-3xl font-bold ${alerta ? "text-red-600" : "text-slate-900"}`} aria-live="polite">
         {cargando || valor === null ? <span className="text-slate-300">—</span> : valor}
       </p>
       {detalle && <p className="mt-1 truncate text-xs text-slate-500">{detalle}</p>}
-    </div>
+    </>
+  );
+  const clases = `min-w-0 rounded-2xl border-l-4 bg-white p-4 shadow-sm ${atenuada ? "opacity-45" : ""}`;
+  if (!onElegir) {
+    return (
+      <div className={clases} style={{ borderLeftColor: color }}>
+        {contenido}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onElegir}
+      aria-pressed={seleccionada}
+      className={`${clases} block w-full text-left transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900 ${
+        seleccionada ? "ring-2 ring-blue-900" : ""
+      }`}
+      style={{ borderLeftColor: color }}
+    >
+      {contenido}
+    </button>
   );
 }

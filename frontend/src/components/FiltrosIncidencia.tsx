@@ -1,47 +1,64 @@
 "use client";
 
-import SelectorPeriodo, { PERIODO_INICIAL } from "@/components/SelectorPeriodo";
-import { cargarCatalogos } from "@/lib/servicios";
+import SelectorPeriodo from "@/components/SelectorPeriodo";
+import { FILTRO_INICIAL } from "@/lib/filtrosUrl";
+import type { Catalogos } from "@/lib/servicios";
 import type { FiltroIncidencias, FiltroPeriodo } from "@/lib/tipos";
-import { useConsulta } from "@/lib/useConsulta";
+import type { useConsulta } from "@/lib/useConsulta";
 
-/** Filtros comunes sin zona, gravedad ni tipo (últimos 30 días). */
-export const FILTRO_INICIAL: FiltroIncidencias = {
-  ...PERIODO_INICIAL,
-  idZona: null,
-  idNivelGravedad: null,
-  idTipoEvento: null,
-};
+export { FILTRO_INICIAL };
+
+/** Resultado de `useConsulta(cargarCatalogos)`: lo carga la pantalla para compartirlo con otros componentes. */
+export type ConsultaCatalogos = ReturnType<typeof useConsulta<Catalogos>>;
 
 interface Props {
   valor: FiltroIncidencias;
   onCambio: (filtro: FiltroIncidencias) => void;
+  /** Zonas, tipos y niveles activos para las listas. */
+  catalogos: ConsultaCatalogos;
+  /** Oculta el enlace "Quitar filtros" (el dashboard tiene sus propios chips con "Quitar todo"). */
+  sinQuitar?: boolean;
 }
 
 /**
- * Filtros del historial y la exportación: periodo, zona, gravedad y tipo de evento. Las listas salen de los
- * catálogos activos; cada cambio se aplica al momento.
+ * Filtros del historial, la exportación y el dashboard: periodo, zona, gravedad y tipo de evento. Las listas salen
+ * de los catálogos activos; cada cambio se aplica al momento.
  */
-export default function FiltrosIncidencia({ valor, onCambio }: Props) {
-  const catalogos = useConsulta(cargarCatalogos);
+export default function FiltrosIncidencia({ valor, onCambio, catalogos, sinQuitar = false }: Props) {
   const deshabilitado = catalogos.cargando || !!catalogos.error;
 
   function cambiarPeriodo(periodo: FiltroPeriodo) {
     onCambio({ ...valor, periodo: periodo.periodo, desde: periodo.desde, hasta: periodo.hasta });
   }
 
+  // Un id que no está entre las opciones (p. ej. una zona inactiva llegada por la URL) se muestra igual.
+  function conElegido(opciones: { valor: number; etiqueta: string }[], id: number | null, prefijo: string) {
+    return id === null || opciones.some((o) => o.valor === id) || !catalogos.datos
+      ? opciones
+      : [...opciones, { valor: id, etiqueta: `${prefijo} n.° ${id}` }];
+  }
+
   const hayFiltros = valor.idZona !== null || valor.idNivelGravedad !== null || valor.idTipoEvento !== null;
 
   return (
     <div className="space-y-3">
-      <SelectorPeriodo valor={valor} onCambio={cambiarPeriodo} />
+      {/* La clave lo reinicia cuando el periodo cambia desde fuera (p. ej. "Atrás" en el navegador). */}
+      <SelectorPeriodo
+        key={`${valor.periodo}|${valor.desde ?? ""}|${valor.hasta ?? ""}`}
+        valor={valor}
+        onCambio={cambiarPeriodo}
+      />
       <div className="flex flex-wrap items-end gap-3">
         <Seleccion
           id="filtro-zona"
           etiqueta="Zona"
           todos="Todas las zonas"
           valor={valor.idZona}
-          opciones={catalogos.datos?.zonas.map((z) => ({ valor: z.idZona, etiqueta: z.nombreZona })) ?? []}
+          opciones={conElegido(
+            catalogos.datos?.zonas.map((z) => ({ valor: z.idZona, etiqueta: z.nombreZona })) ?? [],
+            valor.idZona,
+            "Zona",
+          )}
           deshabilitado={deshabilitado}
           onCambio={(idZona) => onCambio({ ...valor, idZona })}
         />
@@ -50,9 +67,11 @@ export default function FiltrosIncidencia({ valor, onCambio }: Props) {
           etiqueta="Gravedad"
           todos="Todas"
           valor={valor.idNivelGravedad}
-          opciones={
-            catalogos.datos?.niveles.map((n) => ({ valor: n.idNivelGravedad, etiqueta: n.nombreNivel })) ?? []
-          }
+          opciones={conElegido(
+            catalogos.datos?.niveles.map((n) => ({ valor: n.idNivelGravedad, etiqueta: n.nombreNivel })) ?? [],
+            valor.idNivelGravedad,
+            "Nivel",
+          )}
           deshabilitado={deshabilitado}
           onCambio={(idNivelGravedad) => onCambio({ ...valor, idNivelGravedad })}
         />
@@ -61,13 +80,15 @@ export default function FiltrosIncidencia({ valor, onCambio }: Props) {
           etiqueta="Tipo de evento"
           todos="Todos los tipos"
           valor={valor.idTipoEvento}
-          opciones={
-            catalogos.datos?.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento })) ?? []
-          }
+          opciones={conElegido(
+            catalogos.datos?.tipos.map((t) => ({ valor: t.idTipoEvento, etiqueta: t.nombreTipoEvento })) ?? [],
+            valor.idTipoEvento,
+            "Tipo",
+          )}
           deshabilitado={deshabilitado}
           onCambio={(idTipoEvento) => onCambio({ ...valor, idTipoEvento })}
         />
-        {hayFiltros && (
+        {hayFiltros && !sinQuitar && (
           <button
             type="button"
             onClick={() => onCambio({ ...valor, idZona: null, idNivelGravedad: null, idTipoEvento: null })}

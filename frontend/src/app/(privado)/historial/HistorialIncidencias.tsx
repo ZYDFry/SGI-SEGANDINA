@@ -4,14 +4,15 @@ import { Fragment, useCallback, useState } from "react";
 import Alerta from "@/components/Alerta";
 import Boton from "@/components/Boton";
 import EstadoDatos from "@/components/EstadoDatos";
-import FiltrosIncidencia, { FILTRO_INICIAL } from "@/components/FiltrosIncidencia";
+import FiltrosIncidencia from "@/components/FiltrosIncidencia";
 import Paginacion from "@/components/Paginacion";
 import { errorDeApi } from "@/lib/api";
 import { formatearFechaHora } from "@/lib/fechas";
 import { coloresGravedad } from "@/lib/gravedad";
-import { buscarIncidencias, exportarReporte, type FormatoReporte } from "@/lib/servicios";
+import { buscarIncidencias, cargarCatalogos, exportarReporte, type FormatoReporte } from "@/lib/servicios";
 import type { FiltroIncidencias, IncidenciaHistorial } from "@/lib/tipos";
 import { useConsulta } from "@/lib/useConsulta";
+import { useFiltroUrl } from "@/lib/useFiltroUrl";
 
 type EstadoExportacion =
   | { tipo: "inactivo" }
@@ -20,22 +21,32 @@ type EstadoExportacion =
   | { tipo: "error"; mensaje: string };
 
 /**
- * Historial de incidencias: filtros (periodo, zona, gravedad, tipo), tabla paginada en el servidor con detalle por
- * fila y exportación a Excel o PDF con los mismos filtros vigentes.
+ * Historial de incidencias: filtros (periodo, zona, gravedad, tipo) guardados en la URL, tabla paginada en el
+ * servidor con detalle por fila y exportación a Excel o PDF con los mismos filtros vigentes. Un enlace con
+ * `?periodo=&idZona=…` (por ejemplo, "Ver en historial" del dashboard) abre el historial ya filtrado.
  */
 export default function HistorialIncidencias() {
-  const [filtro, setFiltro] = useState<FiltroIncidencias>(FILTRO_INICIAL);
-  const [pagina, setPagina] = useState(0);
+  const { filtro, consulta: claveFiltro, aplicar } = useFiltroUrl();
+  const catalogos = useConsulta(cargarCatalogos);
+  // La página y la fila abierta valen para la consulta en que se eligieron: si los filtros de la URL cambian
+  // (también con "Atrás"), se vuelve a la primera página.
+  const [posicion, setPosicion] = useState<{ clave: string; pagina: number; abierta: number | null }>({
+    clave: claveFiltro,
+    pagina: 0,
+    abierta: null,
+  });
+  const vigente = posicion.clave === claveFiltro;
+  const pagina = vigente ? posicion.pagina : 0;
+  const abierta = vigente ? posicion.abierta : null;
+  const irAPagina = (p: number) => setPosicion({ clave: claveFiltro, pagina: p, abierta: null });
+  const abrirDetalle = (id: number | null) => setPosicion({ clave: claveFiltro, pagina, abierta: id });
   const [tamano, setTamano] = useState(20);
-  const [abierta, setAbierta] = useState<number | null>(null);
   const [exportacion, setExportacion] = useState<EstadoExportacion>({ tipo: "inactivo" });
 
   const consulta = useConsulta(useCallback(() => buscarIncidencias(filtro, pagina, tamano), [filtro, pagina, tamano]));
 
   function cambiarFiltro(nuevo: FiltroIncidencias) {
-    setFiltro(nuevo);
-    setPagina(0);
-    setAbierta(null);
+    aplicar(nuevo);
   }
 
   async function exportar(formato: FormatoReporte) {
@@ -68,7 +79,7 @@ export default function HistorialIncidencias() {
             </Boton>
           </div>
         </div>
-        <FiltrosIncidencia valor={filtro} onCambio={cambiarFiltro} />
+        <FiltrosIncidencia valor={filtro} onCambio={cambiarFiltro} catalogos={catalogos} />
         {exportacion.tipo === "listo" && (
           <div className="mt-3">
             <Alerta tipo="exito">Se descargó {exportacion.nombre} con los filtros vigentes.</Alerta>
@@ -91,19 +102,16 @@ export default function HistorialIncidencias() {
         >
           {consulta.datos && (
             <>
-              <TablaIncidencias filas={consulta.datos.contenido} abierta={abierta} onAlternar={setAbierta} />
+              <TablaIncidencias filas={consulta.datos.contenido} abierta={abierta} onAlternar={abrirDetalle} />
               <Paginacion
                 pagina={consulta.datos.pagina}
                 totalPaginas={consulta.datos.totalPaginas}
                 totalElementos={consulta.datos.totalElementos}
                 tamano={tamano}
-                onPagina={(p) => {
-                  setPagina(p);
-                  setAbierta(null);
-                }}
+                onPagina={irAPagina}
                 onTamano={(t) => {
                   setTamano(t);
-                  setPagina(0);
+                  irAPagina(0);
                 }}
               />
             </>

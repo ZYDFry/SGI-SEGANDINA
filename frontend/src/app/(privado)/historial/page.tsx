@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+import Cargando from "@/components/Cargando";
 import RutaProtegida from "@/components/RutaProtegida";
 import { ROLES_GERENCIA } from "@/lib/roles";
 import HistorialIncidencias from "./HistorialIncidencias";
@@ -10,7 +12,10 @@ export default function PaginaHistorial() {
   return (
     <RutaProtegida roles={ROLES_GERENCIA}>
       <PestanasHistorial />
-      <HistorialIncidencias />
+      {/* Lee los filtros de la URL con useSearchParams: Next exige un Suspense alrededor. */}
+      <Suspense fallback={<Cargando />}>
+        <HistorialIncidencias />
+      </Suspense>
     </RutaProtegida>
   );
 }

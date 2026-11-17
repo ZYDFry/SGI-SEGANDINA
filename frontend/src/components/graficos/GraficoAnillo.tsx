@@ -2,29 +2,44 @@
 
 import { Doughnut } from "react-chartjs-2";
 import type { Conteo } from "@/lib/tipos";
-import { PALETA_CATEGORIAS } from "./registro";
+import { PALETA_CATEGORIAS, atenuar, cursorElegible, indiceElegido } from "./registro";
 import TablaAccesible from "./TablaAccesible";
 
 interface Props {
   titulo: string;
   datos: Conteo[];
+  /** Id del sector elegido: se resalta y los demás se atenúan. */
+  seleccionado?: number | null;
+  /** Clic en un sector, en su leyenda o en su fila de la tabla accesible, con el id del tipo de evento. */
+  onElegir?: (id: number) => void;
 }
 
 /** Anillo (incidencias por tipo de evento) con leyenda y porcentaje en el tooltip. */
-export default function GraficoAnillo({ titulo, datos }: Props) {
+export default function GraficoAnillo({ titulo, datos, seleccionado = null, onElegir }: Props) {
   const total = datos.reduce((suma, d) => suma + d.total, 0);
+  const colores = datos.map((d, i) => {
+    const base = PALETA_CATEGORIAS[i % PALETA_CATEGORIAS.length];
+    return seleccionado === null || d.id === seleccionado ? base : atenuar(base);
+  });
+  const elegido = seleccionado !== null ? datos.find((d) => d.id === seleccionado) : undefined;
   return (
     <div>
-      <div className="h-72" role="img" aria-label={`${titulo}: ${datos.map((d) => `${d.nombre} ${d.total}`).join(", ")}`}>
+      <div
+        className="h-72"
+        role="img"
+        aria-label={`${titulo}: ${datos.map((d) => `${d.nombre} ${d.total}`).join(", ")}${elegido ? `. Elegido: ${elegido.nombre}` : ""}`}
+      >
         <Doughnut
           data={{
             labels: datos.map((d) => d.nombre),
             datasets: [
               {
                 data: datos.map((d) => d.total),
-                backgroundColor: datos.map((_, i) => PALETA_CATEGORIAS[i % PALETA_CATEGORIAS.length]),
+                backgroundColor: colores,
                 borderColor: "#ffffff",
                 borderWidth: 2,
+                // El sector elegido sobresale un poco.
+                offset: datos.map((d) => (d.id === seleccionado ? 8 : 0)),
               },
             ],
           }}
@@ -33,8 +48,28 @@ export default function GraficoAnillo({ titulo, datos }: Props) {
             maintainAspectRatio: false,
             animation: false,
             cutout: "60%",
+            layout: { padding: 8 },
+            onClick: onElegir
+              ? (_evento, elementos) => {
+                  const i = indiceElegido(elementos);
+                  if (i !== null && datos[i]) onElegir(datos[i].id);
+                }
+              : undefined,
+            onHover: onElegir ? cursorElegible : undefined,
             plugins: {
-              legend: { position: "bottom", labels: { boxWidth: 12, padding: 12 } },
+              legend: {
+                position: "bottom",
+                labels: { boxWidth: 12, padding: 12 },
+                // Con filtrado cruzado la leyenda filtra como el sector, en lugar de ocultarlo.
+                ...(onElegir
+                  ? {
+                      onClick: (_evento, item) => {
+                        const d = item.index !== undefined ? datos[item.index] : undefined;
+                        if (d) onElegir(d.id);
+                      },
+                    }
+                  : {}),
+              },
               tooltip: {
                 callbacks: {
                   label: (item) => {
@@ -51,7 +86,9 @@ export default function GraficoAnillo({ titulo, datos }: Props) {
       <TablaAccesible
         titulo={titulo}
         columnas={["Tipo de evento", "Incidencias"]}
-        filas={datos.map((d) => ({ etiqueta: d.nombre, valor: d.total }))}
+        filas={datos.map((d) => ({ id: d.id, etiqueta: d.nombre, valor: d.total }))}
+        seleccionado={seleccionado}
+        onElegir={onElegir}
       />
     </div>
   );

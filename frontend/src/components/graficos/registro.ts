@@ -1,6 +1,8 @@
 // Registro de Chart.js: solo los elementos que usan los gráficos del dashboard (barras, anillo y línea).
 
 import {
+  type ActiveElement,
+  type ChartEvent,
   ArcElement,
   BarElement,
   CategoryScale,
@@ -37,3 +39,20 @@ export const PALETA_CATEGORIAS = [
 
 /** Ejes con números enteros (las incidencias no tienen decimales). */
 export const EJE_ENTERO = { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#e2e8f0" } } as const;
+
+/** Color hex con transparencia, para atenuar lo que no está elegido en el filtrado cruzado. */
+export function atenuar(hex: string, alfa = 0.25): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`;
+}
+
+/** Índice del primer elemento bajo el puntero en un evento de Chart.js, o `null` si no hay ninguno. */
+export function indiceElegido(elementos: ActiveElement[]): number | null {
+  return elementos.length > 0 ? elementos[0].index : null;
+}
+
+/** `onHover` de los gráficos que filtran: mano sobre un elemento elegible, flecha en el resto. */
+export function cursorElegible(evento: ChartEvent, elementos: ActiveElement[]) {
+  const destino = evento.native?.target;
+  if (destino instanceof HTMLElement) destino.style.cursor = elementos.length > 0 ? "pointer" : "default";
+}
