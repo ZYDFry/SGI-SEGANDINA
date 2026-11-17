@@ -12,6 +12,32 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Fase 8 / RF-04 — Mis incidencias
+- Qué se hizo:
+  - `GET /api/incidencias/mias?periodo=&desde=&hasta=&page=&size=` (Vigilante y Administrador; Supervisor → 403):
+    las incidencias registradas por el dueño del token (`jwt.getSubject()`), con el mismo orden y la misma paginación
+    que el historial. Regla en `SecurityConfig` antes de `GET /api/incidencias/**`.
+  - Cada fila (`MiIncidenciaResponse`) trae `fechaRegistro` y `editableHasta` (siempre `null` hasta que exista la
+    edición); no trae `usuario`. El endpoint solo acepta el rango (`PeriodoFiltro`), no zona, tipo ni nivel.
+  - Pantalla `/incidencias/mias` Mobile-First: tarjetas en el celular y tabla desde 640 px, selector de periodo,
+    paginación y "Ver detalle" con la descripción. "Mis incidencias" aparece en el menú (Vigilante y Administrador) y
+    en la barra inferior del Vigilante; la confirmación del registro enlaza "Ver mis incidencias".
+  - `components/DetalleIncidencia.tsx` reúne la insignia de gravedad y el detalle, compartidos con el historial.
+  - Documentación: subsección "Mis incidencias" en RF-04 y fila nueva en la tabla de roles; pantalla en
+    `ui_pantallas.md`; casos CP-126 a CP-128 (CP-107 actualizado); sección en `referencia_clases.md`.
+- Archivos clave: `backend/.../controller/IncidenciaController.java`, `backend/.../service/impl/IncidenciaServiceImpl.java`,
+  `backend/.../dao/IncidenciaDao.java`, `backend/.../dto/{request/PeriodoFiltro,response/MiIncidenciaResponse}.java`,
+  `backend/.../config/SecurityConfig.java`, `frontend/src/app/(privado)/incidencias/mias/`,
+  `frontend/src/components/DetalleIncidencia.tsx`, `frontend/src/lib/roles.ts`, `frontend/e2e/mis-incidencias.spec.ts`,
+  `postman/collections/SGI-SEGANDINA/Mis Incidencias {Vigilante,Supervisor}.request.yaml`.
+- Cómo probarlo: `cd backend && .\mvnw.cmd -q verify` (251 tests, todos aprobados; cobertura 90,6 % de
+  instrucciones); `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/mis-incidencias.spec.ts
+  e2e/navegacion.spec.ts` (CP-128 y CP-107 a CP-109 aprobados el 17/11/2026); Newman con las variables del Vigilante
+  y del Supervisor para CP-126 y CP-127. Corrida completa del 17/11/2026 (`pruebas\ejecutar-todo.cmd`): backend 251
+  (90,6 % de cobertura de instrucciones), Newman 39 de 39 peticiones (CP-126 → 200 y CP-127 → 403 aprobados),
+  Playwright 57 (54 pruebas más 3 sesiones), sin fallos ni omitidas; índice y PDF de evidencias regenerados.
+- Pendientes: la edición de incidencias propias (`editableHasta`) queda para un paso posterior.
+
 ## [2026-11-17] Fase 8 / RF-05 y RF-07 — periodo anterior, carga por zona y reasignación por Supervisor
 - Qué se hizo:
   - `GET /api/dashboard/kpis` agrega el periodo anterior del mismo largo (`desdeAnterior`, `hastaAnterior`,

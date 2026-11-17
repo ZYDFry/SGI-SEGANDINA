@@ -17,6 +17,7 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 |---|---|---|---|
 | `/login` | Login | público | RF-01 |
 | `/incidencias/nueva` | Formulario de registro (Mobile-First) | Vigilante, Administrador | RF-03 |
+| `/incidencias/mias` | Mis incidencias: las registradas por el usuario de la sesión (Mobile-First) | Vigilante, Administrador | RF-04 |
 | `/dashboard` | Dashboard gerencial (Desktop) | Administrador, Supervisor | RF-05, RF-07 |
 | `/despliegue/[idZona]` | Despliegue de una zona: personal, carga y reasignación (se llega desde el dashboard) | Administrador, Supervisor | RF-07, RF-02 |
 | `/historial` | Historial de incidencias con filtros y exportación | Administrador, Supervisor | RF-04, RF-06 |
@@ -33,9 +34,9 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 ### Menú de navegación por rol
 
 - El menú muestra solo las opciones permitidas para el rol, cada una con su ícono (SVG en línea) y agrupadas bajo
-  títulos: **Gestión** (Dashboard, Historial, Registrar incidencia), **Administración** (Auditoría, Personal,
+  títulos: **Gestión** (Dashboard, Historial, Registrar incidencia, Mis incidencias), **Administración** (Auditoría, Personal,
   Catálogos; solo el Administrador) y **Mi cuenta** (Cambiar mi contraseña). Supervisor: Dashboard e Historial;
-  Vigilante: Registrar incidencia. "Mis incidencias" del Vigilante está preparada y se mostrará cuando exista su pantalla.
+  Vigilante: Registrar incidencia y Mis incidencias.
 - El encabezado muestra el título de la pantalla actual (el nombre de la opción activa) y debajo el usuario y su rol.
 - Escritorio (`lg`, desde 1024 px): barra lateral fija con la marca, los íconos y los grupos; la opción de la
   pantalla actual va resaltada y con `aria-current="page"` (en `/historial/auditoria` se marca "Auditoría", no
@@ -44,8 +45,8 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
   `aria-expanded`, `aria-controls`) que abre un panel deslizable con los mismos grupos; en "Mi cuenta" incluye
   "Cerrar sesión". Al abrir, el foco va al primer enlace y Tab no sale del panel; se cierra al elegir una opción,
   con Escape, con ✕ o tocando fuera, y el foco vuelve al botón "Menú".
-- Vigilante en el celular (`< sm`, menos de 640 px): barra inferior fija con ícono y texto: "Registrar" y
-  "Mi cuenta" (y "Mis incidencias" cuando exista). La opción actual va marcada (`aria-current="page"`). "Mi cuenta"
+- Vigilante en el celular (`< sm`, menos de 640 px): barra inferior fija con ícono y texto: "Registrar",
+  "Mis incidencias" y "Mi cuenta". La opción actual va marcada (`aria-current="page"`). "Mi cuenta"
   abre una hoja con "Cambiar mi contraseña" y "Cerrar sesión" (Escape o tocar fuera la cierran). El botón fijo
   "Registrar incidencia" queda por encima de la barra.
 - En el celular, "Cerrar sesión" no está en el encabezado: está dentro de "Mi cuenta" (panel o barra inferior).
@@ -67,7 +68,17 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
   - Administrador: desplegable con búsqueda de las zonas activas (su propia zona, si tiene, primero con "Tu zona").
 - Selectores rápidos como botones para Tipo de evento y Nivel de gravedad (los de gravedad con color).
 - Campo de descripción y botón de registro grande y destacado.
-- Confirmación visible al guardar y formulario listo para otro registro.
+- Confirmación visible al guardar, con el enlace "Ver mis incidencias", y formulario listo para otro registro.
+
+### 2.1 Mis incidencias (`/incidencias/mias`, Mobile-First)
+- Vigilante y Administrador: las incidencias que registró el usuario de la sesión (el backend lo toma del token), de
+  la más reciente a la más antigua. El Supervisor no la tiene (no registra).
+- Selector de periodo común (por defecto "30 días"; "Personalizado" con desde y hasta validados) y paginación en el
+  servidor. Botón "Registrar incidencia" para volver al formulario.
+- Celular (`< sm`): una tarjeta por incidencia con tipo, zona, fecha y la insignia de gravedad; desde `sm`: tabla con
+  Fecha, Zona, Tipo y Gravedad (sin columna Usuario). "Ver detalle" despliega la descripción, el número, cuándo se
+  guardó en el sistema y la ubicación de la zona.
+- Estados de carga, error con "Reintentar" y "No registró incidencias en este periodo."
 
 ### 3. Dashboard gerencial (Desktop)
 - Barra lateral de navegación con íconos y grupos (en tablet y móvil se abre con el botón "Menú").

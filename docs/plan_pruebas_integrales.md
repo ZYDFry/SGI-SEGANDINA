@@ -151,7 +151,7 @@ precondición y se ejecutan contra Supabase.
 
 | ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|
-| CP-01 | RF-01 a RF-09 | UI-B | JDK 21 en `JAVA_HOME`. | 1. `cd backend`. 2. `.\mvnw.cmd -q verify`. | Ninguno (H2 en memoria). | Compila y pasan los 243 tests, sin fallos ni errores. | Maven/JUnit, 17/11/2026: 243 de 243 tests aprobados, 0 con fallo o error, 0 omitidos. Cobertura: 90.5 % de instrucciones, 92.1 % de líneas, 74.7 % de ramas. | Aprobado | index.html (Backend), surefire.html y JaCoCo |
+| CP-01 | RF-01 a RF-09 | UI-B | JDK 21 en `JAVA_HOME`. | 1. `cd backend`. 2. `.\mvnw.cmd -q verify`. | Ninguno (H2 en memoria). | Compila y pasan los 251 tests, sin fallos ni errores. | Maven/JUnit, 17/11/2026: 251 de 251 tests aprobados, 0 con fallo o error, 0 omitidos. Cobertura: 90.6 % de instrucciones, 92.2 % de líneas, 74.9 % de ramas. | Aprobado | index.html (Backend), surefire.html y JaCoCo |
 
 ### 5.2 RF-01 Autenticación y accesos
 
@@ -380,7 +380,7 @@ escriben datos ni cierran la sesión.
 
 | ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
 |---|---|---|---|---|---|---|---|---|---|
-| CP-107 | RF-01, RNF-03 | USA | Sesión de Vigilante; ventana de 360 × 740. | 1. Abrir `/incidencias/nueva`. 2. Revisar la barra inferior y el botón "Registrar incidencia". 3. Pulsar "Mi cuenta". 4. Elegir "Cambiar mi contraseña". 5. Pulsar "Registrar". | — | 1 y 2: barra inferior fija con "Registrar" (marcada, `aria-current="page"`) y "Mi cuenta", con ícono y texto; no aparece "Mis incidencias" ni el botón "Menú"; el título del encabezado dice "Registrar incidencia"; el botón "Registrar incidencia" queda completo por encima de la barra. 3: se abre la hoja "Mi cuenta" (`aria-expanded="true"`) con "Cambiar mi contraseña" y "Cerrar sesión". 4: abre `/mi-contrasena`, la hoja se cierra, "Mi cuenta" queda marcada y el título cambia. 5: vuelve al formulario con "Registrar" marcada. | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo (no se cierra la sesión). | Aprobado | CP-107_barra_inferior.png, CP-107_mi_cuenta.png |
+| CP-107 | RF-01, RNF-03 | USA | Sesión de Vigilante; ventana de 360 × 740. | 1. Abrir `/incidencias/nueva`. 2. Revisar la barra inferior y el botón "Registrar incidencia". 3. Pulsar "Mi cuenta". 4. Elegir "Cambiar mi contraseña". 5. Pulsar "Registrar". | — | 1 y 2: barra inferior fija con "Registrar" (marcada, `aria-current="page"`), "Mis incidencias" y "Mi cuenta", con ícono y texto, y el enlace "Mis incidencias"; no aparece el botón "Menú"; el título del encabezado dice "Registrar incidencia"; el botón "Registrar incidencia" queda completo por encima de la barra. 3: se abre la hoja "Mi cuenta" (`aria-expanded="true"`) con "Cambiar mi contraseña" y "Cerrar sesión". 4: abre `/mi-contrasena`, la hoja se cierra, "Mi cuenta" queda marcada y el título cambia. 5: vuelve al formulario con "Registrar" marcada. | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo (no se cierra la sesión). | Aprobado | CP-107_barra_inferior.png, CP-107_mi_cuenta.png |
 | CP-108 | RF-01, RNF-03 | USA | Sesión de Supervisor; ventana de 768 × 1024. | 1. Abrir `/dashboard`. 2. Pulsar "Menú". 3. Revisar el panel. 4. Pulsar Escape. | — | 1: no hay barra inferior; el botón "Menú" tiene `aria-expanded="false"` y `aria-controls="menu-panel"`. 2 y 3: el panel muestra los grupos "Gestión" (Dashboard, marcada, e Historial) y "Mi cuenta" (Cambiar mi contraseña y "Cerrar sesión"), sin "Administración"; el foco está en "Dashboard" y Tab no sale del panel. 4: el panel se cierra, `aria-expanded` vuelve a `false` y el foco regresa al botón "Menú". | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo. | Aprobado | CP-108_menu_tablet.png |
 | CP-109 | RF-01, RNF-03 | USA | Sesión de Administrador; ventana de 1366 × 768. | 1. Abrir `/dashboard`. 2. Revisar la barra lateral. 3. Elegir "Auditoría". | — | 1 y 2: barra lateral fija con íconos y los grupos "Gestión", "Administración" y "Mi cuenta"; "Dashboard" marcada con `aria-current="page"`; sin botón "Menú"; título "Dashboard". 3: en `/historial/auditoria` queda marcada "Auditoría" (no "Historial") y el título dice "Auditoría". | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo. | Aprobado | CP-109_barra_lateral.png |
 
@@ -421,6 +421,21 @@ de `UsuarioServiceImplTest`, `UsuarioControllerTest`, `DashboardServiceImplTest`
 | CP-124 | RF-07 | SEG | Token de Vigilante. | 1. `PATCH /api/usuarios/{id}/zona` `{idZona: 1}` ("Usuarios Reasignar Zona Vigilante"). 2. Abrir `/despliegue/1` en el navegador. | — | 1: 403 "No tiene permisos para esta operación"; no cambia nada. 2: redirige al inicio del Vigilante. | Newman, 17/11/2026: 2 de 2 pruebas aprobadas (paso 1, 403 con la sesión del Vigilante). Playwright, 17/11/2026: 1 de 1 (el Vigilante que abre /despliegue/1 vuelve a /incidencias/nueva). | Aprobado | CP-124_vigilante_redirigido.png |
 | CP-125 | RF-07, RF-04 | E2E | Vigilante con incidencias en la zona A; token de Supervisor. Newman (`--reasignacion`): "Incidencias Por Zona Antes/Despues De Reasignar" alrededor de CP-121. | 1. Anotar `GET /api/incidencias?idZona=A` (total) y la zona de sus incidencias. 2. Moverlo a la zona B desde `/despliegue/A`. 3. Repetir el paso 1 y consultar `idZona=B`. 4. Registrar una incidencia nueva con el Vigilante. | — | 3: el total de A no cambia y sus incidencias siguen en A; B no gana incidencias. 4: la nueva queda en B (solo puede registrar en su zona nueva). Lo cubre también `IncidenciaDaoTest.moverAlVigilanteDeZonaNoCambiaSusIncidenciasPasadas`. | Newman (`--reasignacion`), 17/11/2026: 4 de 4 pruebas aprobadas. Automatizado: incidencias por zona del año antes y después de mover al Vigilante de prueba; la zona de origen y la de destino no cambian. El paso 4 (incidencia nueva en la zona B) es manual; además lo cubre `IncidenciaDaoTest`. Playwright, 17/11/2026: 1 de 1 (registro simulado: tras moverlo, el Vigilante registra en su zona nueva). | Aprobado | CP-125_incidencia_en_zona_nueva.png |
 
+### 5.17 Mis incidencias (RF-04)
+
+El Vigilante y el Administrador consultan las incidencias que registraron con su propia cuenta
+(`GET /api/incidencias/mias`). CP-126 y CP-127 corren contra Supabase con el token indicado (Newman, con las variables
+`E2E_VIGILANTE_*` y `E2E_SUPERVISOR_*`). En Playwright (CP-128) se simulan con `page.route` la zona asignada, el
+registro y la consulta: no escribe en la base. Que la consulta devuelva solo las propias lo prueban además
+`IncidenciaDaoTest` (H2, dos usuarios), `IncidenciaServiceImplTest` y `DashboardControllerTest` (el `sub` del token
+llega al servicio; 401, 403 y 400).
+
+| ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
+|---|---|---|---|---|---|---|---|---|---|
+| CP-126 | RF-04 | API | Token de Vigilante con incidencias registradas en los últimos 30 días; otro usuario con incidencias en el mismo periodo. | 1. `GET /api/incidencias/mias?periodo=ULTIMOS_30_DIAS` ("Mis Incidencias Vigilante"). 2. Comparar con `SELECT count(*) FROM incidencia WHERE id_usuario = <id del Vigilante> AND fecha_hora >= <hoy − 29 días 00:00 Lima>`. 3. Con el token del Administrador, repetir el paso 1. | — | 1: 200 con `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`; de la más reciente a la más antigua; cada fila con `fechaRegistro` y `editableHasta` en `null`, sin `usuario` ni `contrasena`. 2: `totalElementos` coincide con el conteo (ninguna de otro usuario). 3: 200 con solo las del Administrador. | Newman, 17/11/2026: 1 de 1 pruebas aprobadas (200; 4 de 4 aserciones: formato de página, `fechaRegistro` y `editableHasta` null sin `usuario` ni `contrasena`, orden descendente). Automatizado: forma, orden y campos; que sean solo las propias lo prueban `IncidenciaDaoTest` y `DashboardControllerTest`. | Aprobado | index.html (API), newman.html |
+| CP-127 | RF-04 | SEG | Token de Supervisor. | 1. `GET /api/incidencias/mias` ("Mis Incidencias Supervisor"). 2. Abrir `/incidencias/mias` en el navegador con la sesión del Supervisor. | — | 1: 403 "No tiene permisos para esta operación" con el formato uniforme de error. 2: redirige al inicio del Supervisor (`/dashboard`); "Mis incidencias" no aparece en su menú. | Newman, 17/11/2026: 1 de 1 pruebas aprobadas (403 "No tiene permisos para esta operación" con el formato uniforme de error). El paso 2 se verifica a mano. | Aprobado | index.html (API), newman.html |
+| CP-128 | RF-04, RF-03 | E2E | Sesión de Vigilante con zona asignada; ventana de 360 × 740. | 1. En `/incidencias/nueva`, registrar una incidencia. 2. Pulsar "Ver mis incidencias" en la confirmación. 3. Revisar la primera tarjeta y pulsar "Ver detalle". 4. Revisar la barra inferior y el ancho de la página. | Descripción "Prueba simulada CP-128: puerta lateral abierta" | 1: confirmación "Incidencia N.° … registrada" con el enlace "Ver mis incidencias". 2: abre `/incidencias/mias` con el título "Mis incidencias" y "30 días" elegido. 3: la incidencia recién registrada es la primera tarjeta (tipo, zona, fecha y gravedad); el detalle muestra la descripción y "Registrada en el sistema el …"; en el celular no se muestra la tabla. 4: "Mis incidencias" marcada (`aria-current="page"`) en la barra inferior; sin desplazamiento horizontal. | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo (registro y consulta simulados). | Aprobado | CP-128_mis_incidencias_360.png |
+
 ### 5.12 Requerimientos no funcionales
 
 | ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
@@ -432,14 +447,14 @@ de `UsuarioServiceImplTest`, `UsuarioControllerTest`, `DashboardServiceImplTest`
 
 ## 6. Pruebas existentes y cómo ejecutarlas
 
-### 6.1 Backend (`backend/src/test/java/com/segandina/sgi`, 243 tests)
+### 6.1 Backend (`backend/src/test/java/com/segandina/sgi`, 251 tests)
 
 | Tipo | Archivos | Qué prueban |
 |---|---|---|
-| Unitaria (JUnit 5 + Mockito, sin BD) | `service/impl/AuthServiceImplTest` (6), `CatalogoServiceImplTest` (5), `DashboardServiceImplTest` (13), `DespliegueServiceImplTest` (4), `IncidenciaServiceImplTest` (22), `ReporteServiceImplTest` (6), `TipoEventoServiceImplTest` (7), `UsuarioServiceImplTest` (27), `JwtTokenServiceImplTest` (4); `config/AdminSeedRunnerTest` (3) | Reglas de negocio de cada servicio, auditoría en cada acción, emisión del JWT y claim `cambioPendiente`, seed del Administrador. |
+| Unitaria (JUnit 5 + Mockito, sin BD) | `service/impl/AuthServiceImplTest` (6), `CatalogoServiceImplTest` (5), `DashboardServiceImplTest` (13), `DespliegueServiceImplTest` (4), `IncidenciaServiceImplTest` (24), `ReporteServiceImplTest` (6), `TipoEventoServiceImplTest` (7), `UsuarioServiceImplTest` (27), `JwtTokenServiceImplTest` (4); `config/AdminSeedRunnerTest` (3) | Reglas de negocio de cada servicio, auditoría en cada acción, emisión del JWT y claim `cambioPendiente`, seed del Administrador. |
 | Unitaria (sin BD ni mocks) | `dto/request/RangoFechasTest` (13), `export/ExcelExportadorTest` (3), `export/PdfExportadorTest` (3), `model/MapeoEntidadesTest` (8) | Cálculo de periodos en hora de Lima y validaciones del rango; contenido de los archivos Excel y PDF (con `FilasPrueba` como datos); mapeo de entidades (`CHAR(8)`, valores por defecto). |
-| Integración de controllers (`@WebMvcTest` + MockMvc, seguridad real) | `controller/AuthControllerTest` (8), `UsuarioControllerTest` (23), `DashboardControllerTest` (15), `ReporteControllerTest` (6), `ZonaControllerTest` (4), `AuditoriaControllerTest` (12); `config/CorsConfigTest` (3) | Rutas, códigos 200/201/204/400/401/403/404/409, formato de error, reglas por rol y contraseña pendiente, cabeceras de descarga, CORS. |
-| Integración con base de datos (`@DataJpaTest` contra H2 en modo PostgreSQL) | `dao/IncidenciaDaoTest` (7), `dao/AuditoriaDaoTest` (2), `service/impl/AuditoriaServiceImplTest` (12), `service/impl/ZonaServiceImplTest` (22), `service/impl/NivelGravedadServiceImplTest` (5); `dao/TablaAuditoriaH2` (ayuda que recrea `auditoria` con `JSON`) | Consultas del historial, dashboard y auditoría, búsqueda de zonas, intercambio de orden de niveles. No sustituyen a los casos contra Supabase (sección 5.5 a 5.9). |
+| Integración de controllers (`@WebMvcTest` + MockMvc, seguridad real) | `controller/AuthControllerTest` (8), `UsuarioControllerTest` (23), `DashboardControllerTest` (20), `ReporteControllerTest` (6), `ZonaControllerTest` (4), `AuditoriaControllerTest` (12); `config/CorsConfigTest` (3) | Rutas, códigos 200/201/204/400/401/403/404/409, formato de error, reglas por rol y contraseña pendiente, cabeceras de descarga, CORS. |
+| Integración con base de datos (`@DataJpaTest` contra H2 en modo PostgreSQL) | `dao/IncidenciaDaoTest` (8), `dao/AuditoriaDaoTest` (2), `service/impl/AuditoriaServiceImplTest` (12), `service/impl/ZonaServiceImplTest` (22), `service/impl/NivelGravedadServiceImplTest` (5); `dao/TablaAuditoriaH2` (ayuda que recrea `auditoria` con `JSON`) | Consultas del historial, dashboard y auditoría, búsqueda de zonas, intercambio de orden de niveles. No sustituyen a los casos contra Supabase (sección 5.5 a 5.9). |
 
 Comandos (desde `backend/`; en Windows `.\mvnw.cmd` con `JAVA_HOME` en el JDK 21):
 
@@ -454,8 +469,8 @@ Comandos (desde `backend/`; en Windows `.\mvnw.cmd` con `JAVA_HOME` en el JDK 21
 
 | Herramienta | Dónde | Cómo |
 |---|---|---|
-| Postman (Runner) | `postman/collections/SGI-SEGANDINA` (54 peticiones con script de código de estado) | Backend en perfil `local`, environment local completo (sección 2.2), "Run collection" empezando por "Login". |
-| Newman | `pruebas/scripts/newman.mjs` (convierte la colección v3 a v2.1 en memoria) | `cd pruebas && npm run newman`: Login y las 29 consultas GET como Administrador (`E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `BASE_URL`); con `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`, además "Login Vigilante", "Registrar Incidencia Otra Zona" (CP-104, rechazada con 400) y "Usuarios Reasignar Zona Vigilante" (CP-124, rechazada con 403); con `E2E_SUPERVISOR_DNI` y `E2E_SUPERVISOR_PASSWORD`, "Login Supervisor" y las tres peticiones de CP-123 (rechazadas con 400 y 403). Ninguna escribe. Corre con `periodo` = ULTIMOS_30_DIAS, `desde`/`hasta` = del 1 del mes a hoy, `accionAuditoria` = LOGIN_FALLIDO y `qAuditoria` = 9999. `npm run newman:reasignacion` agrega CP-121 y CP-125 (mueve al Vigilante de prueba a otra zona, compara las incidencias por zona y lo devuelve). `npm run newman:completo` agrega todas las escrituras (solo base de prueba; necesita `PRUEBAS_CONTRASENA_TEMPORAL`). "Usuarios Mi Contrasena" no se ejecuta. Reporte: `pruebas/reportes/newman/newman.html`. |
+| Postman (Runner) | `postman/collections/SGI-SEGANDINA` (56 peticiones con script de código de estado) | Backend en perfil `local`, environment local completo (sección 2.2), "Run collection" empezando por "Login". |
+| Newman | `pruebas/scripts/newman.mjs` (convierte la colección v3 a v2.1 en memoria) | `cd pruebas && npm run newman`: Login y las 29 consultas GET como Administrador (`E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `BASE_URL`); con `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`, además "Login Vigilante", "Registrar Incidencia Otra Zona" (CP-104, rechazada con 400), "Usuarios Reasignar Zona Vigilante" (CP-124, rechazada con 403) y "Mis Incidencias Vigilante" (CP-126); con `E2E_SUPERVISOR_DNI` y `E2E_SUPERVISOR_PASSWORD`, "Login Supervisor", las tres peticiones de CP-123 (rechazadas con 400 y 403) y "Mis Incidencias Supervisor" (CP-127, rechazada con 403). Ninguna escribe. Corre con `periodo` = ULTIMOS_30_DIAS, `desde`/`hasta` = del 1 del mes a hoy, `accionAuditoria` = LOGIN_FALLIDO y `qAuditoria` = 9999. `npm run newman:reasignacion` agrega CP-121 y CP-125 (mueve al Vigilante de prueba a otra zona, compara las incidencias por zona y lo devuelve). `npm run newman:completo` agrega todas las escrituras (solo base de prueba; necesita `PRUEBAS_CONTRASENA_TEMPORAL`). "Usuarios Mi Contrasena" no se ejecuta. Reporte: `pruebas/reportes/newman/newman.html`. |
 | SQL Editor de Supabase | Proyecto de Supabase | Consultas de verificación de cada caso (`auditoria`, `incidencia`, `v_despliegue_por_zona`) y CP-59 a CP-61. |
 
 ### 6.3 Frontend
@@ -463,7 +478,7 @@ Comandos (desde `backend/`; en Windows `.\mvnw.cmd` con `JAVA_HOME` en el JDK 21
 | Tipo | Herramienta | Comando |
 |---|---|---|
 | Análisis estático y compilación | ESLint y build de Next.js | `cd frontend && npm run lint && npm run build` |
-| Extremo a extremo y validaciones | Playwright (`frontend/e2e`: `login`, `acceso-roles`, `validaciones`, `incidencia`, `paneles`, `navegacion`, `dashboard-filtros` y `despliegue`; 53 pruebas más 3 de preparación de sesiones) | `cd frontend && npx playwright test`, con `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD`, `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`. Capturas en `docs/evidencias/pruebas/capturas/`. |
+| Extremo a extremo y validaciones | Playwright (`frontend/e2e`: `login`, `acceso-roles`, `validaciones`, `incidencia`, `paneles`, `navegacion`, `dashboard-filtros`, `despliegue` y `mis-incidencias`; 54 pruebas más 3 de preparación de sesiones) | `cd frontend && npx playwright test`, con `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD`, `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`. Capturas en `docs/evidencias/pruebas/capturas/`. |
 
 ### 6.4 Ejecución completa y evidencias
 
@@ -478,8 +493,8 @@ Requisitos, variables y datos que escribe cada paso: `docs/evidencias/pruebas/RE
 |---|---|
 | RF-01 | CP-01, CP-02 a CP-15, CP-70 a CP-73, CP-75 a CP-77, CP-84, CP-85, CP-92, CP-102, CP-103, CP-107 a CP-109 |
 | RF-02 | CP-01, CP-16 a CP-25, CP-70 a CP-77, CP-90 a CP-95, CP-102, CP-103, CP-121, CP-123 |
-| RF-03 | CP-01, CP-26 a CP-33, CP-77 a CP-79, CP-84 a CP-86, CP-89, CP-99, CP-104 a CP-106 |
-| RF-04 | CP-01, CP-34 a CP-38, CP-87, CP-113, CP-119, CP-125 |
+| RF-03 | CP-01, CP-26 a CP-33, CP-77 a CP-79, CP-84 a CP-86, CP-89, CP-99, CP-104 a CP-106, CP-128 |
+| RF-04 | CP-01, CP-34 a CP-38, CP-87, CP-113, CP-119, CP-125 a CP-128 |
 | RF-05 | CP-01, CP-39 a CP-45, CP-87, CP-110 a CP-116, CP-118, CP-119 |
 | RF-06 | CP-01, CP-46 a CP-51 |
 | RF-07 | CP-01, CP-45, CP-52, CP-53, CP-95, CP-98, CP-117, CP-120 a CP-125 |
@@ -487,7 +502,7 @@ Requisitos, variables y datos que escribe cada paso: `docs/evidencias/pruebas/RE
 | RF-09 | CP-01, CP-64 a CP-69, CP-77, CP-96 a CP-101, CP-103 |
 | RNF-01 | CP-07 a CP-12, CP-59 a CP-62, CP-80, CP-81 |
 | RNF-02 | Fuera de alcance (sección 1.3) |
-| RNF-03 | CP-31, CP-33, CP-82, CP-107 a CP-109 |
+| RNF-03 | CP-31, CP-33, CP-82, CP-107 a CP-109, CP-128 |
 | RNF-04 | CP-32, CP-50 |
 | RNF-05 | CP-83 |
 

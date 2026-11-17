@@ -11,6 +11,7 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 | Reasignar la zona de un Vigilante activo (RF-02, RF-07) | Sí | Sí | No |
 | Registrar incidencia (RF-03) | Sí | No (propuesto) | Sí |
 | Ver historial y filtrar (RF-04) | Sí | Sí | No (propuesto) |
+| Ver mis incidencias: las que registró uno mismo (RF-04) | Sí | No | Sí |
 | Ver dashboard y despliegue (RF-05, RF-07) | Sí | Sí | No |
 | Exportar reportes (RF-06) | Sí | Sí | No |
 | Consultar auditoría (RF-08) | Sí | No | No |
@@ -19,7 +20,7 @@ Fuente: SRS del Proyecto Integrador (RF-01 a RF-07, RNF-01 a RNF-05) más RF-08 
 
 El Supervisor tiene, según las decisiones técnicas, "visualización de dashboard y reportes", y además puede mover
 vigilantes entre zonas desde la pantalla de despliegue de una zona (RF-07); no puede crear, editar ni desactivar
-usuarios. El Vigilante usa el formulario móvil.
+usuarios. El Vigilante usa el formulario móvil y consulta solo las incidencias que registró ("Mis incidencias").
 
 ---
 
@@ -174,6 +175,24 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Columnas en pantalla:** Fecha, Zona, Tipo, Gravedad, Usuario (y descripción en el detalle).
 - **Criterios de aceptación:** sin filtros muestra los últimos 30 días; con filtros solo lo que cumple todos; los filtros vigentes son los que usa la exportación (RF-06).
 - **Filtros en la URL:** la pantalla lee y escribe los filtros comunes en la dirección (`/historial?periodo=ULTIMOS_7_DIAS&idZona=3`), con los mismos nombres que los query params de la API. Un enlace compartido o el botón "Ver en historial" del dashboard abren el historial con esos filtros; los valores no válidos se ignoran.
+
+### Mis incidencias
+
+- **Descripción:** quien registra incidencias (Vigilante y Administrador) consulta las que registró con su propia cuenta.
+- **Endpoint:** `GET /api/incidencias/mias` (Vigilante y Administrador; Supervisor recibe 403; sin token, 401).
+- **Parámetros:** `periodo`, `desde` y `hasta` con los mismos valores y validaciones del rango común (sin valor,
+  últimos 30 días), más `page` y `size` como en el historial. No acepta filtros de zona, tipo ni nivel.
+- **Reglas:** el usuario se toma del token (`sub` del JWT), nunca de los parámetros, así que cada uno solo ve las
+  suyas (`incidencia.id_usuario`). Mismo orden (`fecha_hora` descendente, luego id) y misma paginación que el
+  historial. Es solo lectura: no se audita.
+- **Respuesta:** página con el formato común. Cada fila trae `idIncidencia`, `fechaHora`, `fechaRegistro`,
+  `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `editableHasta` (hasta cuándo su autor podrá corregirla;
+  por ahora siempre `null`, porque la edición aún no existe). No trae `usuario`, porque siempre es el propio.
+- **Pantalla:** `/incidencias/mias`, Mobile-First: tarjetas en el celular y tabla (Fecha, Zona, Tipo, Gravedad)
+  desde 640 px, selector de periodo, paginación y "Ver detalle" con la descripción. Se llega desde "Mis incidencias"
+  en el menú (y en la barra inferior del Vigilante) y desde "Ver mis incidencias" en la confirmación del registro.
+- **Criterios de aceptación:** una incidencia recién registrada aparece primera en "Mis incidencias"; ninguna
+  incidencia de otro usuario aparece; el Supervisor recibe 403.
 
 ## RF-05 Dashboard analítico (Prioridad: Alta)
 

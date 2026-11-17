@@ -1443,3 +1443,53 @@ base de datos: `REASIGNAR_ZONA` es un valor nuevo de `auditoria.accion_realizada
   "Usuarios Reasignar Zona Vigilante" (403); con `--completo`, "Usuarios Reasignar Zona" y "Usuarios Reasignar Zona
   Restaurar" (mueven al Vigilante de prueba y lo devuelven).
 - A mano: los pasos de CP-117 a CP-125 en `docs/plan_pruebas_integrales.md`.
+
+## RF-04 — Mis incidencias
+
+Quien registra incidencias (Vigilante y Administrador) consulta las que registró con su propia cuenta, con selector de
+periodo y paginación, en `GET /api/incidencias/mias` y la pantalla `/incidencias/mias` (tarjetas en el celular, tabla
+desde 640 px). El usuario sale del token, nunca de los parámetros; el Supervisor recibe 403. Cada fila trae
+`editableHasta`, preparado para la edición futura y por ahora siempre `null`. No hay cambios en la base de datos.
+
+### Backend (`backend/src/main/java/com/segandina/sgi/`)
+
+| Clase | Responsabilidad | Métodos públicos principales |
+|---|---|---|
+| `dto/request/PeriodoFiltro` (nuevo) | Solo el rango de fechas tomado de los query params. | Record `{periodo, desde, hasta}` (fechas `AAAA-MM-DD`); se resuelve con `RangoFechas.resolver`, con las mismas validaciones 400 del historial. |
+| `dto/response/MiIncidenciaResponse` (nuevo) | Fila de "Mis incidencias", sin el usuario (es el propio). | `desde(Incidencia)` → `{idIncidencia, fechaHora, fechaRegistro, descripcion, zona, tipoEvento, nivelGravedad, editableHasta: null}`. |
+| `dao/IncidenciaDao` (modificado) | DAO de incidencias. | `delUsuario(idUsuario)` → `Specification<Incidencia>` "`usuario.idUsuario = idUsuario`", que se combina con `conFiltros(rango, null)` mediante `and`. |
+| `service/IncidenciaService` / `impl/IncidenciaServiceImpl` (modificados) | Lógica de incidencias. | `buscarPropias(filtro, idUsuario, pagina, tamano)` → `Page<MiIncidenciaResponse>`: resuelve el rango, consulta `findAll(conFiltros(rango, null).and(delUsuario(idUsuario)), pageable)` con el mismo `ORDEN_HISTORIAL` y el mismo acotado de página y tamaño (1 a 100) que `buscar` (método privado común `paginaHistorial`). Solo lectura, sin auditoría. |
+| `controller/IncidenciaController` (modificado) | Endpoints de incidencias. | `GET /api/incidencias/mias?periodo&desde&hasta&page&size` → `buscarPropias(filtro, Long.valueOf(jwt.getSubject()), page, size)` envuelto en `PaginaResponse`. |
+| `config/SecurityConfig` (modificado) | Reglas por rol. | `GET /api/incidencias/mias` → Administrador y Vigilante, declarada antes de `GET /api/incidencias/**` (Administrador y Supervisor). |
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/tipos.ts` y `lib/servicios.ts` (modificados) | Tipo y llamada nuevos. | Tipo `MiIncidencia`. `buscarMisIncidencias(periodo, page, size)` → `Pagina<MiIncidencia>` desde `/api/incidencias/mias` (con `desde` y `hasta` solo si el periodo es `PERSONALIZADO`). |
+| `lib/roles.ts` (modificado) | Menú por rol. | Constante `RUTA_MIS_INCIDENCIAS` (`/incidencias/mias`); la opción "Mis incidencias" (grupo "Gestión") queda disponible para `ROLES_REGISTRO` (Vigilante y Administrador). Aparece en el menú lateral, en el panel y en la barra inferior del Vigilante. |
+| `components/DetalleIncidencia.tsx` (nuevo) | Partes comunes del historial y de "Mis incidencias". | `InsigniaGravedad({nivel})`: insignia de color del nivel. `DetalleIncidencia({idIncidencia, descripcion, fechaRegistro, zona})`: descripción y la línea "N.° … · Registrada en el sistema el … · distrito, provincia". |
+| `app/(privado)/historial/HistorialIncidencias.tsx` (modificado) | Historial. | Usa `InsigniaGravedad` y `DetalleIncidencia` (mismo resultado en pantalla). |
+| `app/(privado)/incidencias/mias/page.tsx` y `MisIncidencias.tsx` (nuevos) | Pantalla "Mis incidencias" (`RutaProtegida` con `ROLES_REGISTRO`). | `SelectorPeriodo` (por defecto `PERIODO_INICIAL`), `useConsulta(buscarMisIncidencias)`, `EstadoDatos` y `Paginacion`; al cambiar el periodo o el tamaño vuelve a la página 1. Componentes internos `ListaTarjetas` (`< sm`, lista "Mis incidencias") y `TablaMisIncidencias` (desde `sm`), cada uno con "Ver detalle" (`aria-expanded`, `aria-controls`). |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Registro. | La confirmación incluye el enlace "Ver mis incidencias". |
+
+### Flujo: el Vigilante abre "Mis incidencias"
+
+1. `MisIncidencias` llama a `buscarMisIncidencias({periodo: "ULTIMOS_30_DIAS"}, 0, 20)`, que envía `GET /api/incidencias/mias?periodo=ULTIMOS_30_DIAS&page=0&size=20` con el token.
+2. `SecurityConfig` aplica la regla `GET /api/incidencias/mias` (Administrador y Vigilante) antes que la del historial; un Supervisor recibe 403 aquí.
+3. `IncidenciaController.buscarPropias` toma el id de `jwt.getSubject()` y delega en `IncidenciaServiceImpl.buscarPropias`.
+4. `RangoFechas.resolver` calcula los 30 días en hora de Lima (o responde 400 con un rango inválido).
+5. `IncidenciaDao.findAll(conFiltros(rango, null).and(delUsuario(id)), pageable)` ejecuta un `SELECT` sobre `incidencia` con `fecha_hora` en el rango e `id_usuario` = id, ordenado por `fecha_hora` e `id_incidencia` descendentes, cargando zona, tipo y nivel en la misma consulta (`@EntityGraph`).
+6. Cada fila se convierte con `MiIncidenciaResponse.desde` y la página vuelve como `PaginaResponse`; la pantalla muestra tarjetas o la tabla según el ancho.
+
+### Cómo probar
+
+- `cd backend && .\mvnw.cmd -q verify` (251 tests): `IncidenciaServiceImplTest` (página, orden, `editableHasta`
+  nulo y rango inválido), `IncidenciaDaoTest.misIncidenciasSoloTraenLasDelUsuarioDentroDelRango` (H2, dos usuarios) y
+  `DashboardControllerTest` (200 Vigilante y Administrador con el id del token, 403 Supervisor, 401 sin token, 400
+  con un periodo inválido).
+- `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/mis-incidencias.spec.ts` (CP-128, con el
+  registro y la consulta simulados) y `e2e/navegacion.spec.ts` (CP-107: "Mis incidencias" en la barra inferior).
+- Postman / Newman: "Mis Incidencias Vigilante" (CP-126, con `E2E_VIGILANTE_*`) y "Mis Incidencias Supervisor"
+  (CP-127, 403, con `E2E_SUPERVISOR_*`). Ambas son de solo lectura.
+- A mano: los pasos de CP-126 a CP-128 en `docs/plan_pruebas_integrales.md`.
