@@ -67,6 +67,11 @@ Formato de cada entrada:
   Archivos: `postman/collections/SGI-SEGANDINA/` (6 peticiones nuevas), `pruebas/scripts/{coleccion,newman}.mjs`,
   `pruebas/casos.mjs`. Corrida del 17/11 con `npm run newman:reasignacion` y reporte: 41 de 41 peticiones; CP-121 a
   CP-125 aprobados; reporte con backend 243, API 41 y Playwright 47 (más 3 sesiones), sin fallos.
+- Corrida final del 17/11 (15:20, `pruebas\ejecutar-todo.cmd --reasignacion`): 334 pruebas aprobadas, 0 fallidas y 0
+  omitidas (backend 243 con 90,5 % de cobertura de instrucciones, Newman 41, Playwright 50 contando las 3 sesiones);
+  64 de 64 casos aprobados, CP-117 a CP-125 incluidos. Índice, PDF y capturas regenerados, sin DNIs reales.
+- `pruebas/ejecutar-todo.cmd` llama al Maven Wrapper con ruta explícita (`.\mvnw.cmd`): en terminales con
+  `NoDefaultCurrentDirectoryInExePath` definido, `cmd` no lo encontraba y el paso del backend fallaba.
 - Pendientes: revisar en la auditoría las dos filas `REASIGNAR_ZONA` por corrida de `--reasignacion`; pasos de pantalla
   de CP-117 a CP-119 y CP-124; incidencia nueva en la zona nueva (CP-125, paso 4); DEF-01.
 
