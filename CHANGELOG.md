@@ -12,6 +12,20 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Fase 8 — cierre
+- Qué se hizo: se cierra la Fase 8 (frontend de paneles, pruebas y documentación). Incluye el dashboard con filtros
+  globales, filtrado cruzado y comparación con el periodo anterior; la pantalla de cada zona con la reasignación de
+  vigilantes; el historial con exportación y la pestaña de auditoría; "Mis incidencias"; personal (con restablecer
+  contraseña); catálogos con baja lógica; cambio de contraseña; menú por rol con barra inferior del Vigilante; el plan
+  de pruebas integrales (CP-01 a CP-128) y la ejecución automática con su reporte de evidencias.
+- Archivos clave: `README.md` (estado del proyecto), `docs/plan_pruebas_integrales.md`, `docs/evidencias/pruebas/`.
+- Cómo probarlo: `pruebas\ejecutar-todo.cmd`. Corrida completa del 17/11/2026: backend 251 de 251 tests (90,6 % de
+  cobertura de instrucciones), Newman 39 de 39 peticiones, Playwright 57 de 57 (54 pruebas más 3 sesiones), sin
+  fallos ni omitidas.
+- Pendientes: 17 casos manuales por ejecutar en el navegador antes de la aprobación del plan de pruebas (23/11/2026):
+  CP-70 a CP-73, CP-82, CP-85, CP-87, CP-88, CP-91 a CP-95, CP-97, CP-98, CP-100 y CP-102. Siguiente: Fase 9
+  (despliegue en Vercel, Render o Railway y Supabase).
+
 ## [2026-11-17] Fase 8 / RF-04 — Mis incidencias
 - Qué se hizo:
   - `GET /api/incidencias/mias?periodo=&desde=&hasta=&page=&size=` (Vigilante y Administrador; Supervisor → 403):

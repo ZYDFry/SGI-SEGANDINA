@@ -120,12 +120,16 @@ Tras iniciar sesión, el Vigilante entra a `/incidencias/nueva`; el Administrado
 | 5 | Historial, dashboard y despliegue de vigilantes por zona | Hecho |
 | 6 | Exportación de reportes en Excel y PDF | Hecho |
 | 7 | Frontend base: login, rutas por rol y formulario de incidencias | Hecho |
-| 8 | Frontend: dashboard, historial, auditoría, personal y catálogos; plan de pruebas y evidencias | En curso |
+| 8 | Frontend: dashboard, historial, auditoría, personal y catálogos; plan de pruebas y evidencias | Hecho |
 | 9 | Despliegue en Vercel, Render o Railway y Supabase | Pendiente |
 
-En la Fase 8 ya están todas las pantallas (dashboard, historial con exportación y auditoría, personal, catálogos y
-cambio de contraseña), el plan de pruebas integrales y la ejecución automática de pruebas con su reporte de
-evidencias.
+La Fase 8 dejó todas las pantallas: dashboard con filtros globales y filtrado cruzado, pantalla de cada zona con la
+reasignación de vigilantes, historial con exportación y auditoría, "Mis incidencias", personal, catálogos y cambio de
+contraseña. También dejó el plan de pruebas integrales (casos CP-01 a CP-128) y la ejecución automática de pruebas con
+su reporte de evidencias. Corrida completa del 17/11/2026: backend 251 de 251 tests, Newman 39 de 39 peticiones y
+Playwright 57 de 57, sin fallos. Quedan 17 casos manuales por ejecutar en el navegador (CP-70 a CP-73, CP-82, CP-85,
+CP-87, CP-88, CP-91 a CP-95, CP-97, CP-98, CP-100 y CP-102), marcados "Pendiente" en
+`docs/plan_pruebas_integrales.md`.
 
 ## Pruebas
 
