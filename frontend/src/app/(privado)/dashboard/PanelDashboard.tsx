@@ -9,19 +9,28 @@ import GraficoAnillo from "@/components/graficos/GraficoAnillo";
 import GraficoBarras from "@/components/graficos/GraficoBarras";
 import GraficoSerie, { type TipoSerie } from "@/components/graficos/GraficoSerie";
 import Tarjeta, { TarjetaKpi } from "@/components/Tarjeta";
+import { compararConAnterior } from "@/lib/comparacion";
 import { formatearDia, formatearHora } from "@/lib/fechas";
-import { DIMENSIONES, FILTRO_INICIAL, alternarFiltro, sinFiltro, type ClaveDimension } from "@/lib/filtrosUrl";
+import {
+  DIMENSIONES,
+  FILTRO_INICIAL,
+  alternarFiltro,
+  consultaDesdeFiltro,
+  sinFiltro,
+  type ClaveDimension,
+} from "@/lib/filtrosUrl";
 import { coloresGravedad } from "@/lib/gravedad";
 import {
   type Catalogos,
-  cargarCatalogos,
+  cargarCatalogosFiltro,
+  obtenerCargaPorZona,
   obtenerDespliegue,
   obtenerKpis,
   obtenerPorTipo,
   obtenerPorZona,
   obtenerSerieTiempo,
 } from "@/lib/servicios";
-import type { Agrupacion, DespliegueZona, FiltroIncidencias, Kpis } from "@/lib/tipos";
+import type { Agrupacion, CargaZona, DespliegueZona, FiltroIncidencias, Kpis } from "@/lib/tipos";
 import { useConsulta } from "@/lib/useConsulta";
 import { useFiltroUrl } from "@/lib/useFiltroUrl";
 import { REFRESCO_MS, useRefresco } from "@/lib/useRefresco";
@@ -54,7 +63,7 @@ type Quitar = (clave: ClaveDimension) => void;
  */
 export default function PanelDashboard() {
   const { filtro, consulta, aplicar } = useFiltroUrl();
-  const catalogos = useConsulta(cargarCatalogos);
+  const catalogos = useConsulta(cargarCatalogosFiltro);
   const [tipoSerie, setTipoSerie] = useState<TipoSerie>("linea");
   // null = agrupación por defecto del backend según el largo del rango; se olvida al cambiar el periodo.
   const clavePeriodo = `${filtro.periodo}|${filtro.desde ?? ""}|${filtro.hasta ?? ""}`;
@@ -77,6 +86,8 @@ export default function PanelDashboard() {
   const porTipo = useConsulta(useCallback(() => obtenerPorTipo(filtroTipos), [filtroTipos]));
   const serie = useConsulta(useCallback(() => obtenerSerieTiempo(filtro, agrupacion), [filtro, agrupacion]));
   const despliegue = useConsulta(obtenerDespliegue);
+  // La tabla de carga, como los gráficos, ignora su propio filtro de zona y resalta la elegida.
+  const carga = useConsulta(useCallback(() => obtenerCargaPorZona(filtroZonas), [filtroZonas]));
 
   const { recargar: recargarNiveles } = kpisNiveles;
   const { recargar: recargarConNivel } = kpisConNivel;
@@ -84,6 +95,7 @@ export default function PanelDashboard() {
   const { recargar: recargarTipo } = porTipo;
   const { recargar: recargarSerie } = serie;
   const { recargar: recargarDespliegue } = despliegue;
+  const { recargar: recargarCarga } = carga;
   const recargarTodo = useCallback(() => {
     recargarNiveles();
     recargarConNivel();
@@ -91,9 +103,10 @@ export default function PanelDashboard() {
     recargarTipo();
     recargarSerie();
     recargarDespliegue();
-  }, [recargarNiveles, recargarConNivel, recargarZona, recargarTipo, recargarSerie, recargarDespliegue]);
+    recargarCarga();
+  }, [recargarNiveles, recargarConNivel, recargarZona, recargarTipo, recargarSerie, recargarDespliegue, recargarCarga]);
   useRefresco(recargarTodo);
-  const actualizando = [kpisNiveles, kpisConNivel, porZona, porTipo, serie, despliegue].some((c) => c.actualizando);
+  const actualizando = [kpisNiveles, kpisConNivel, porZona, porTipo, serie, despliegue, carga].some((c) => c.actualizando);
 
   const alternar = useCallback<Alternar>((clave, id) => aplicar(alternarFiltro(filtro, clave, id)), [aplicar, filtro]);
   const quitar = useCallback<Quitar>((clave) => aplicar(sinFiltro(filtro, clave)), [aplicar, filtro]);
@@ -246,7 +259,7 @@ export default function PanelDashboard() {
 
       {/* Aquí se sumará la sección "Atención de casos" (recibe `filtro` y `alternar`, como los demás bloques). */}
 
-      <SeccionDespliegue despliegue={despliegue} />
+      <SeccionCarga carga={carga} filtro={filtro} catalogos={catalogos.datos} quitar={quitar} />
     </div>
   );
 }
@@ -298,12 +311,23 @@ interface PropsIndicadores {
   alternar: Alternar;
 }
 
+/** Ruta de la pantalla de una zona con los filtros vigentes (sin la zona, que va en la ruta). */
+function rutaZona(idZona: number, filtro: FiltroIncidencias): string {
+  const consulta = consultaDesdeFiltro(sinFiltro(filtro, "idZona"));
+  return consulta ? `/despliegue/${idZona}?${consulta}` : `/despliegue/${idZona}`;
+}
+
+const COLOR_TENDENCIA = { sube: "text-red-600", sinBase: "text-red-600", baja: "text-green-700", igual: "text-slate-500" };
+
 /** KPI generales y tarjetas por nivel de gravedad (filtran al hacer clic). */
 function SeccionIndicadores({ kpis, kpisNiveles, despliegue, filtro, alternar }: PropsIndicadores) {
   const totalVigilantes = despliegue.datos?.reduce((suma, z) => suma + z.vigilantesActivos, 0) ?? null;
   const zonasSinVigilantes = despliegue.datos?.filter((z) => z.vigilantesActivos === 0).length ?? 0;
   const error = kpis.error ?? kpisNiveles.error;
   const elegido = filtro.idNivelGravedad;
+  const comparacion = kpis.datos
+    ? compararConAnterior(kpis.datos.incidenciasPeriodo, kpis.datos.incidenciasPeriodoAnterior)
+    : null;
 
   if (error) {
     return (
@@ -332,11 +356,24 @@ function SeccionIndicadores({ kpis, kpisNiveles, despliegue, filtro, alternar }:
           valor={kpis.datos?.incidenciasPeriodo ?? null}
           cargando={kpis.cargando}
           detalle={kpis.datos ? `${formatearDia(kpis.datos.desde)} al ${formatearDia(kpis.datos.hasta)}` : undefined}
+          extra={
+            comparacion &&
+            kpis.datos && (
+              <p
+                data-comparacion={comparacion.tendencia}
+                title={`Periodo anterior: ${formatearDia(kpis.datos.desdeAnterior)} al ${formatearDia(kpis.datos.hastaAnterior)} · ${kpis.datos.incidenciasPeriodoAnterior} incidencias`}
+                className={`mt-1 truncate text-xs font-semibold ${COLOR_TENDENCIA[comparacion.tendencia]}`}
+              >
+                {comparacion.texto}
+              </p>
+            )
+          }
         />
         <TarjetaKpi
           etiqueta="Vigilantes desplegados"
           valor={despliegue.error ? "!" : totalVigilantes}
           cargando={despliegue.cargando}
+          href={filtro.idZona !== null ? rutaZona(filtro.idZona, filtro) : "#despliegue"}
           alerta={zonasSinVigilantes > 0 || !!despliegue.error}
           color={zonasSinVigilantes > 0 ? "#dc2626" : undefined}
           detalle={
@@ -368,47 +405,135 @@ function SeccionIndicadores({ kpis, kpisNiveles, despliegue, filtro, alternar }:
   );
 }
 
-/** Vigilantes activos por zona activa (RF-07): no depende de los filtros. */
-function SeccionDespliegue({ despliegue }: { despliegue: Consulta<DespliegueZona[]> }) {
+type ColumnaCarga = "nombreZona" | "vigilantesActivos" | "incidencias" | "incidenciasPorVigilante";
+
+const COLUMNAS_CARGA: { clave: ColumnaCarga; etiqueta: string; numerica: boolean }[] = [
+  { clave: "nombreZona", etiqueta: "Zona", numerica: false },
+  { clave: "vigilantesActivos", etiqueta: "Vigilantes activos", numerica: true },
+  { clave: "incidencias", etiqueta: "Incidencias", numerica: true },
+  { clave: "incidenciasPorVigilante", etiqueta: "Inc. por vigilante", numerica: true },
+];
+
+interface PropsCarga {
+  carga: Consulta<CargaZona[]>;
+  filtro: FiltroIncidencias;
+  catalogos: Catalogos | null;
+  quitar: Quitar;
+}
+
+/**
+ * Despliegue y carga por zona (RF-07): vigilantes activos, incidencias del periodo e incidencias por vigilante.
+ * Ordenable por cualquier columna (por defecto, el orden de la API: la zona más cargada primero). Cada zona enlaza a
+ * su pantalla de despliegue, donde se reasigna personal.
+ */
+function SeccionCarga({ carga, filtro, catalogos, quitar }: PropsCarga) {
+  const [orden, setOrden] = useState<{ columna: ColumnaCarga; asc: boolean } | null>(null);
+
+  const filas = useMemo(() => {
+    const datos = carga.datos ?? [];
+    if (!orden) return datos;
+    const { columna, asc } = orden;
+    return [...datos].sort((a, b) => {
+      const va = a[columna];
+      const vb = b[columna];
+      // Sin vigilantes (null) se ordena como la carga más alta: es la zona que más necesita personal
+      const comparacion =
+        typeof va === "string" && typeof vb === "string"
+          ? va.localeCompare(vb, "es")
+          : (va === null ? Infinity : (va as number)) - (vb === null ? Infinity : (vb as number));
+      return asc ? comparacion : -comparacion;
+    });
+  }, [carga.datos, orden]);
+
+  function ordenarPor(columna: ColumnaCarga) {
+    setOrden((actual) =>
+      actual?.columna === columna ? { columna, asc: !actual.asc } : { columna, asc: columna === "nombreZona" },
+    );
+  }
+
   return (
-    <Tarjeta titulo="Despliegue de vigilantes por zona">
-      <EstadoDatos
-        cargando={despliegue.cargando}
-        error={despliegue.error}
-        vacio={despliegue.datos?.length === 0}
-        mensajeVacio="No hay zonas activas."
-        onReintentar={despliegue.recargar}
+    <div id="despliegue" className="scroll-mt-24">
+      <Tarjeta
+        titulo="Despliegue y carga por zona"
+        acciones={<AvisoFiltro filtro={filtro} propia="idZona" catalogos={catalogos} quitar={quitar} />}
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-slate-500">
-              <tr>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Zona
-                </th>
-                <th scope="col" className="py-2 text-right font-semibold">
-                  Vigilantes activos
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {despliegue.datos?.map((zona) => (
-                <tr key={zona.idZona} className="border-b border-slate-100 last:border-0">
-                  <td className="py-2 pr-4 text-slate-800">{zona.nombreZona}</td>
-                  <td className="py-2 text-right">
-                    {zona.vigilantesActivos === 0 ? (
-                      <span className="font-semibold text-red-600">0 · Sin vigilantes</span>
-                    ) : (
-                      <span className="font-semibold text-slate-900">{zona.vigilantesActivos}</span>
-                    )}
-                  </td>
+        <p className="mb-2 text-xs text-slate-500">
+          Vigilantes activos asignados hoy frente a las incidencias del periodo. Elige una zona para ver su personal y
+          reasignarlo.
+        </p>
+        <EstadoDatos
+          cargando={carga.cargando}
+          error={carga.error}
+          vacio={carga.datos?.length === 0}
+          mensajeVacio="No hay zonas activas."
+          onReintentar={carga.recargar}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Carga por zona; los encabezados ordenan la tabla</caption>
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  {COLUMNAS_CARGA.map(({ clave, etiqueta, numerica }) => {
+                    const activa = orden?.columna === clave;
+                    return (
+                      <th
+                        key={clave}
+                        scope="col"
+                        aria-sort={activa ? (orden.asc ? "ascending" : "descending") : "none"}
+                        className={`py-2 font-semibold ${numerica ? "text-right" : "pr-4"}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => ordenarPor(clave)}
+                          className="inline-flex items-center gap-1 hover:text-blue-900 focus-visible:outline-2 focus-visible:outline-blue-900"
+                        >
+                          {etiqueta}
+                          <span aria-hidden="true">{activa ? (orden.asc ? "▲" : "▼") : "↕"}</span>
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </EstadoDatos>
-    </Tarjeta>
+              </thead>
+              <tbody>
+                {filas.map((zona) => {
+                  const elegida = filtro.idZona === zona.idZona;
+                  return (
+                    <tr
+                      key={zona.idZona}
+                      data-zona={zona.idZona}
+                      className={`border-b border-slate-100 last:border-0 ${elegida ? "bg-blue-50" : ""}`}
+                    >
+                      <td className="py-2 pr-4">
+                        <Link
+                          href={rutaZona(zona.idZona, filtro)}
+                          className="font-semibold text-blue-900 underline hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-900"
+                        >
+                          {zona.nombreZona}
+                        </Link>
+                      </td>
+                      <td className="py-2 text-right">
+                        {zona.vigilantesActivos === 0 ? (
+                          <span className="font-semibold text-red-600">0 · Sin vigilantes</span>
+                        ) : (
+                          <span className="font-semibold text-slate-900">{zona.vigilantesActivos}</span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right text-slate-900">{zona.incidencias}</td>
+                      <td className="py-2 text-right text-slate-900">
+                        {zona.incidenciasPorVigilante === null
+                          ? "—"
+                          : zona.incidenciasPorVigilante.toLocaleString("es-PE", { maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </EstadoDatos>
+      </Tarjeta>
+    </div>
   );
 }
 

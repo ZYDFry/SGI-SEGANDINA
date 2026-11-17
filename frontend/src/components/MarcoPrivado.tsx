@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useRef, useState, type ReactNode } from "react";
 import { useSesion } from "@/context/SesionContext";
 import { menuDe } from "@/lib/roles";
 import BarraInferior from "./BarraInferior";
@@ -14,6 +14,10 @@ import MenuLateral from "./MenuLateral";
  *
  * Publica el alto de la barra inferior en la variable CSS `--alto-barra-inferior` (0 si no hay barra o desde `sm`)
  * para que los elementos fijos al pie, como el botón "Registrar incidencia", queden por encima de ella.
+ *
+ * El encabezado, el menú y la barra inferior leen la ruta con `usePathname`; van dentro de `Suspense` para que las
+ * rutas con un parámetro que solo se conoce al pedirlas (p. ej. `/despliegue/[idZona]`) se puedan compilar. Sin
+ * sesión no muestran nada, así que su `fallback` vacío no cambia lo que se ve.
  */
 export default function MarcoPrivado({ children }: { children: ReactNode }) {
   const { sesion } = useSesion();
@@ -31,15 +35,21 @@ export default function MarcoPrivado({ children }: { children: ReactNode }) {
         conBarraInferior ? "[--alto-barra-inferior:4rem] sm:[--alto-barra-inferior:0px]" : "[--alto-barra-inferior:0px]"
       }`}
     >
-      <Encabezado
-        opciones={opciones}
-        onAbrirMenu={conMenu ? () => setMenuAbierto(true) : undefined}
-        menuAbierto={menuAbierto}
-        botonMenuRef={botonMenuRef}
-        conBarraInferior={conBarraInferior}
-      />
+      <Suspense fallback={null}>
+        <Encabezado
+          opciones={opciones}
+          onAbrirMenu={conMenu ? () => setMenuAbierto(true) : undefined}
+          menuAbierto={menuAbierto}
+          botonMenuRef={botonMenuRef}
+          conBarraInferior={conBarraInferior}
+        />
+      </Suspense>
       <div className="flex w-full flex-1">
-        {conMenu && <MenuLateral opciones={opciones} abierto={menuAbierto} onCerrar={cerrarMenu} botonMenuRef={botonMenuRef} />}
+        {conMenu && (
+          <Suspense fallback={null}>
+            <MenuLateral opciones={opciones} abierto={menuAbierto} onCerrar={cerrarMenu} botonMenuRef={botonMenuRef} />
+          </Suspense>
+        )}
         <main
           className={`mx-auto w-full min-w-0 flex-1 px-4 py-5 ${conMenu ? "max-w-7xl lg:px-6" : "max-w-6xl"} ${
             conBarraInferior ? "pb-[calc(var(--alto-barra-inferior)+1.25rem)]" : ""
@@ -48,7 +58,11 @@ export default function MarcoPrivado({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      {conBarraInferior && <BarraInferior opciones={opciones} />}
+      {conBarraInferior && (
+        <Suspense fallback={null}>
+          <BarraInferior opciones={opciones} />
+        </Suspense>
+      )}
     </div>
   );
 }

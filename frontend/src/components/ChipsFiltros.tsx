@@ -8,7 +8,7 @@ import type { FiltroIncidencias } from "@/lib/tipos";
 
 interface Props {
   filtro: FiltroIncidencias;
-  /** Catálogos activos para mostrar los nombres; sin ellos (o con un id inactivo) se muestra "Zona: n.° 7". */
+  /** Catálogos para mostrar los nombres (los inactivos vienen marcados); sin ellos (o con un id desconocido) se muestra "Zona: n.° 7". */
   catalogos: Catalogos | null;
   onCambio: (filtro: FiltroIncidencias) => void;
 }
@@ -31,7 +31,7 @@ function nombreDe(clave: ClaveDimension, id: number, catalogos: Catalogos | null
  *
  * @param clave dimensión (zona, tipo de evento o gravedad)
  * @param id id elegido en esa dimensión
- * @param catalogos catálogos activos; sin ellos, o si el id no está, se usa "n.° id"
+ * @param catalogos catálogos para filtros; sin ellos, o si el id no está, se usa "n.° id"
  * @return por ejemplo "Zona: Zona Sur" o "Gravedad: n.° 7"
  */
 export function textoFiltro(clave: ClaveDimension, id: number, catalogos: Catalogos | null): string {

@@ -9,7 +9,7 @@ import Paginacion from "@/components/Paginacion";
 import { errorDeApi } from "@/lib/api";
 import { formatearFechaHora } from "@/lib/fechas";
 import { coloresGravedad } from "@/lib/gravedad";
-import { buscarIncidencias, cargarCatalogos, exportarReporte, type FormatoReporte } from "@/lib/servicios";
+import { buscarIncidencias, cargarCatalogosFiltro, exportarReporte, type FormatoReporte } from "@/lib/servicios";
 import type { FiltroIncidencias, IncidenciaHistorial } from "@/lib/tipos";
 import { useConsulta } from "@/lib/useConsulta";
 import { useFiltroUrl } from "@/lib/useFiltroUrl";
@@ -27,7 +27,7 @@ type EstadoExportacion =
  */
 export default function HistorialIncidencias() {
   const { filtro, consulta: claveFiltro, aplicar } = useFiltroUrl();
-  const catalogos = useConsulta(cargarCatalogos);
+  const catalogos = useConsulta(cargarCatalogosFiltro);
   // La página y la fila abierta valen para la consulta en que se eligieron: si los filtros de la URL cambian
   // (también con "Atrás"), se vuelve a la primera página.
   const [posicion, setPosicion] = useState<{ clave: string; pagina: number; abierta: number | null }>({

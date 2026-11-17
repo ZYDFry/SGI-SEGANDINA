@@ -8,13 +8,13 @@ import type { useConsulta } from "@/lib/useConsulta";
 
 export { FILTRO_INICIAL };
 
-/** Resultado de `useConsulta(cargarCatalogos)`: lo carga la pantalla para compartirlo con otros componentes. */
+/** Resultado de `useConsulta(cargarCatalogosFiltro)`: lo carga la pantalla para compartirlo con otros componentes. */
 export type ConsultaCatalogos = ReturnType<typeof useConsulta<Catalogos>>;
 
 interface Props {
   valor: FiltroIncidencias;
   onCambio: (filtro: FiltroIncidencias) => void;
-  /** Zonas, tipos y niveles activos para las listas. */
+  /** Zonas, tipos y niveles para las listas (incluye los inactivos, marcados "(inactiva)"). */
   catalogos: ConsultaCatalogos;
   /** Oculta el enlace "Quitar filtros" (el dashboard tiene su barra de filtros activos con "Quitar filtros"). */
   sinQuitar?: boolean;
@@ -22,7 +22,7 @@ interface Props {
 
 /**
  * Filtros del historial, la exportación y el dashboard: periodo, zona, gravedad y tipo de evento. Las listas salen
- * de los catálogos activos; cada cambio se aplica al momento.
+ * de los catálogos para filtros (activos e inactivos); cada cambio se aplica al momento.
  */
 export default function FiltrosIncidencia({ valor, onCambio, catalogos, sinQuitar = false }: Props) {
   const deshabilitado = catalogos.cargando || !!catalogos.error;

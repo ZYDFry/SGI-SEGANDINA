@@ -7,6 +7,7 @@ import { guardarSesion, leerSesion } from "./sesion";
 import type {
   AccionAuditoria,
   Agrupacion,
+  CargaZona,
   Conteo,
   DespliegueZona,
   FiltroAuditoria,
@@ -28,6 +29,7 @@ import type {
   Usuario,
   UsuarioGestion,
   UsuarioRequest,
+  VigilanteZona,
   Zona,
   ZonaRequest,
 } from "./tipos";
@@ -72,6 +74,32 @@ export async function cargarCatalogos(): Promise<Catalogos> {
     api.get<NivelGravedad[]>("/api/catalogos/niveles-gravedad"),
   ]);
   return { zonas: zonas.data, tipos: tipos.data, niveles: niveles.data };
+}
+
+/** Respuesta de `GET /api/catalogos/filtros`: catálogos completos, con activos e inactivos. */
+interface CatalogosFiltroResponse {
+  zonas: Zona[];
+  tiposEvento: TipoEvento[];
+  nivelesGravedad: NivelGravedad[];
+}
+
+/** Marca en el nombre los registros dados de baja y los deja al final, conservando el orden del backend. */
+function conInactivosAlFinal<T extends { estadoActivo: boolean }>(lista: T[], marcar: (item: T) => T): T[] {
+  return [...lista.filter((i) => i.estadoActivo), ...lista.filter((i) => !i.estadoActivo).map(marcar)];
+}
+
+/**
+ * Zonas, tipos y niveles para los filtros del historial y del dashboard, incluidos los inactivos (marcados
+ * "(inactiva)" / "(inactivo)" y al final de cada lista), para poder consultar incidencias antiguas. Solo
+ * Administrador y Supervisor.
+ */
+export async function cargarCatalogosFiltro(): Promise<Catalogos> {
+  const { data } = await api.get<CatalogosFiltroResponse>("/api/catalogos/filtros");
+  return {
+    zonas: conInactivosAlFinal(data.zonas, (z) => ({ ...z, nombreZona: `${z.nombreZona} (inactiva)` })),
+    tipos: conInactivosAlFinal(data.tiposEvento, (t) => ({ ...t, nombreTipoEvento: `${t.nombreTipoEvento} (inactivo)` })),
+    niveles: conInactivosAlFinal(data.nivelesGravedad, (n) => ({ ...n, nombreNivel: `${n.nombreNivel} (inactivo)` })),
+  };
 }
 
 export async function registrarIncidencia(incidencia: IncidenciaRequest): Promise<IncidenciaResponse> {
@@ -147,6 +175,30 @@ export async function obtenerSerieTiempo(
 /** Vigilantes activos por zona activa (no usa filtros). */
 export async function obtenerDespliegue(): Promise<DespliegueZona[]> {
   const { data } = await api.get<DespliegueZona[]>("/api/dashboard/despliegue");
+  return data;
+}
+
+/** Carga por zona con los filtros comunes (RF-07), de la más cargada a la menos cargada. */
+export async function obtenerCargaPorZona(filtro: FiltroIncidencias): Promise<CargaZona[]> {
+  const { data } = await api.get<CargaZona[]>("/api/dashboard/carga-por-zona", { params: parametrosIncidencias(filtro) });
+  return data;
+}
+
+/** Datos de una zona (activa o no) para la pantalla de despliegue; 404 si no existe. */
+export async function obtenerZonaDespliegue(idZona: number): Promise<Zona> {
+  const { data } = await api.get<Zona>(`/api/dashboard/zonas/${idZona}`);
+  return data;
+}
+
+/** Vigilantes con su zona; `idZona` y `activo` son opcionales. */
+export async function listarVigilantes(filtro: { idZona?: number; activo?: boolean } = {}): Promise<VigilanteZona[]> {
+  const { data } = await api.get<VigilanteZona[]>("/api/dashboard/vigilantes", { params: filtro });
+  return data;
+}
+
+/** Mueve a un vigilante activo a otra zona activa (Administrador y Supervisor). */
+export async function reasignarZonaVigilante(idUsuario: number, idZona: number): Promise<UsuarioGestion> {
+  const { data } = await api.patch<UsuarioGestion>(`/api/usuarios/${idUsuario}/zona`, { idZona });
   return data;
 }
 

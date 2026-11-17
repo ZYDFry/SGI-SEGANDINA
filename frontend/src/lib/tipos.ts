@@ -125,6 +125,10 @@ export interface Kpis {
   hasta: string;
   incidenciasHoy: number;
   incidenciasPeriodo: number;
+  /** Periodo anterior: mismo largo, justo antes de `desde`. */
+  desdeAnterior: string;
+  hastaAnterior: string;
+  incidenciasPeriodoAnterior: number;
   porGravedad: ConteoGravedad[];
 }
 
@@ -152,6 +156,27 @@ export interface DespliegueZona {
   idZona: number;
   nombreZona: string;
   vigilantesActivos: number;
+}
+
+/** Carga de una zona (`GET /api/dashboard/carga-por-zona`, RF-07). */
+export interface CargaZona {
+  idZona: number;
+  nombreZona: string;
+  incidencias: number;
+  vigilantesActivos: number;
+  /** `null` si la zona no tiene vigilantes activos. */
+  incidenciasPorVigilante: number | null;
+}
+
+/** Vigilante con su zona (`GET /api/dashboard/vigilantes`); sin DNI ni contraseña. */
+export interface VigilanteZona {
+  idUsuario: number;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  idZona: number | null;
+  nombreZona: string | null;
+  estadoActivo: boolean;
 }
 
 /** Usuario que registró una incidencia o realizó una acción (sin contraseña ni rol). */

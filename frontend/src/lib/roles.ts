@@ -108,12 +108,16 @@ export function gruposDe(opciones: OpcionMenu[]): { titulo: GrupoMenu; opciones:
  * Opción del menú que corresponde a la ruta actual: la de prefijo más largo, para que `/catalogos/tipos-evento`
  * marque "Catálogos" y `/historial/auditoria` marque "Auditoría" y no "Historial".
  *
+ * Las pantallas que no están en el menú se marcan con la opción de la que dependen: `/despliegue/7` (una zona,
+ * a la que se llega desde el dashboard) marca "Dashboard".
+ *
  * @return el `href` de la opción activa, o `null` si ninguna coincide
  */
 export function opcionActiva(ruta: string, opciones: OpcionMenu[]): string | null {
+  const base = ruta === "/despliegue" || ruta.startsWith("/despliegue/") ? "/dashboard" : ruta;
   let mejor: string | null = null;
   for (const { href } of opciones) {
-    const coincide = ruta === href || ruta.startsWith(`${href}/`);
+    const coincide = base === href || base.startsWith(`${href}/`);
     if (coincide && (mejor === null || href.length > mejor.length)) mejor = href;
   }
   return mejor;

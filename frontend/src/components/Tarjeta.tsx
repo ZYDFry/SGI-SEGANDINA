@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface Props {
@@ -25,6 +26,10 @@ interface PropsKpi {
   etiqueta: string;
   valor: number | string | null;
   detalle?: string;
+  /** Línea adicional bajo el detalle (p. ej. la comparación con el periodo anterior). */
+  extra?: ReactNode;
+  /** Con esta ruta la tarjeta es un enlace (p. ej. a la pantalla de una zona). */
+  href?: string;
   /** Color del borde izquierdo (hex); por defecto azul marino. */
   color?: string;
   /** Resalta la tarjeta como alerta (texto rojo). */
@@ -38,11 +43,13 @@ interface PropsKpi {
   atenuada?: boolean;
 }
 
-/** Indicador grande del dashboard; con `onElegir`, también sirve para filtrar. */
+/** Indicador grande del dashboard; con `onElegir`, también sirve para filtrar; con `href`, es un enlace. */
 export function TarjetaKpi({
   etiqueta,
   valor,
   detalle,
+  extra,
+  href,
   color = "#1c398e",
   alerta = false,
   cargando = false,
@@ -57,9 +64,21 @@ export function TarjetaKpi({
         {cargando || valor === null ? <span className="text-slate-300">—</span> : valor}
       </p>
       {detalle && <p className="mt-1 truncate text-xs text-slate-500">{detalle}</p>}
+      {extra}
     </>
   );
   const clases = `min-w-0 rounded-2xl border-l-4 bg-white p-4 shadow-sm ${atenuada ? "opacity-45" : ""}`;
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${clases} block transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900`}
+        style={{ borderLeftColor: color }}
+      >
+        {contenido}
+      </Link>
+    );
+  }
   if (!onElegir) {
     return (
       <div className={clases} style={{ borderLeftColor: color }}>

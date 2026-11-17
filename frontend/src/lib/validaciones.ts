@@ -55,6 +55,7 @@ export const MENSAJES = {
   dniBusqueda: `El DNI debe tener solo dígitos, hasta ${LARGO_DNI}`,
   rol: "Elige un rol",
   zonaVigilante: `El ${ROL_VIGILANTE} debe tener una zona asignada`,
+  vigilante: "Elige un vigilante",
   ordenInvalido: `El orden debe ser un número entero entre ${ORDEN_MIN} y ${ORDEN_MAX}`,
   soloNumeros: "Solo se permiten números",
 } as const;
@@ -431,4 +432,20 @@ function sinNulos<C extends string>(errores: Record<C, string | null>): Errores<
     if (mensaje) resultado[campo] = mensaje;
   }
   return resultado;
+}
+
+/** Campos de la reasignación de zona (RF-07): zona destino al mover un vigilante o vigilante a traer a la zona. */
+export type CampoReasignacion = "idZona" | "idUsuario";
+
+/**
+ * Reasignación de zona (`PATCH /api/usuarios/{id}/zona`): la zona destino es obligatoria, como `idZona` en
+ * `ReasignarZonaRequest`; al traer un vigilante a la zona, también hay que elegirlo.
+ *
+ * @param campo campo que muestra el formulario
+ * @param valor id elegido, o `null`
+ */
+export function validarReasignacion(campo: CampoReasignacion, valor: number | null): Errores<CampoReasignacion> {
+  return sinNulos({
+    [campo]: validarSeleccion(valor, campo === "idZona" ? MENSAJES.zona : MENSAJES.vigilante),
+  } as Record<CampoReasignacion, string | null>);
 }
