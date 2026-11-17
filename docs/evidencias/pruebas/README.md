@@ -23,6 +23,10 @@ credenciales o porque el servidor no estaba corriendo) aparece como **No ejecuta
 Datos que escribe cada paso en la base:
 
 - Newman en modo por defecto: solo un registro `LOGIN_OK` en auditoría por la petición "Login".
+- Newman con `--reasignacion`: lo mismo que el modo por defecto más CP-121: mueve al Vigilante de prueba
+  (`E2E_VIGILANTE_*`) a otra zona activa y lo devuelve a la suya. Quedan dos registros `REASIGNAR_ZONA` en la
+  auditoría (A → B y B → A) y ningún otro cambio. Necesita que la zona del Vigilante esté activa; si la devolución
+  falla, hay que reasignarlo a mano desde Personal o desde la pantalla de la zona.
 - Newman con `--completo`: crea un usuario con un DNI ficticio aleatorio (`7xxxxxxx`), la zona "Sede Surco" y el tipo
   "Incendio"; edita y desactiva el usuario 2, la zona 1 y el tipo 1; restablece la contraseña del usuario 2 y edita el
   nivel 1. **Úsalo solo con una base de prueba que se pueda restaurar**, y nunca si el usuario 2 es uno de los usuarios
@@ -72,7 +76,8 @@ Todo en orden, desde la raíz del repositorio:
 
 ```
 pruebas\ejecutar-todo.cmd              rem solo lectura en la API
-pruebas\ejecutar-todo.cmd --completo   rem también las escrituras de la colección (base de prueba)
+pruebas\ejecutar-todo.cmd --reasignacion   rem solo lectura más CP-121 (mueve al Vigilante y lo devuelve)
+pruebas\ejecutar-todo.cmd --completo       rem también las escrituras de la colección (base de prueba)
 ```
 
 El script avisa si el backend o el frontend no responden y en ese caso omite Newman y Playwright (los tests del
@@ -84,7 +89,7 @@ Por partes:
 |---|---|
 | Backend con reportes | `cd backend && .\mvnw.cmd verify surefire-report:report-only` |
 | Peticiones que correrá Newman | `cd pruebas && npm run coleccion` |
-| Newman | `cd pruebas && npm run newman` (o `npm run newman:completo`) |
+| Newman | `cd pruebas && npm run newman` (o `npm run newman:reasignacion`, `npm run newman:completo`) |
 | Playwright | `cd frontend && npx playwright test` (una sola: `npx playwright test login.spec.ts`) |
 | Índice y PDF | `cd pruebas && npm run reporte` |
 

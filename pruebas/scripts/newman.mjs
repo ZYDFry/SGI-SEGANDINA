@@ -4,7 +4,8 @@
 //  - pruebas/reportes/newman/resumen.json  resumen saneado que usa reporte.mjs (sin credenciales ni tokens)
 //
 // El environment se arma en memoria desde variables de entorno; nunca se escribe en disco.
-// Uso: node scripts/newman.mjs [--completo]
+// Uso: node scripts/newman.mjs [--completo | --reasignacion]
+//  --reasignacion: lectura más CP-121 (mueve al Vigilante de prueba a otra zona y lo devuelve); no toca otros datos.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -16,6 +17,7 @@ import { CASO_POR_PETICION } from "../casos.mjs";
 const DIR_PRUEBAS = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR_SALIDA = join(DIR_PRUEBAS, "reportes", "newman");
 const completo = process.argv.includes("--completo");
+const reasignacion = !completo && process.argv.includes("--reasignacion");
 
 /** Peticiones cuyo cuerpo (de ida o de vuelta) puede llevar contraseñas o el token. */
 const CUERPOS_OCULTOS = ["Login", "Login Vigilante", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
@@ -62,6 +64,11 @@ const valores = {
   idZonaAjena: "",
 };
 
+if (reasignacion && !conVigilante) {
+  console.error("--reasignacion necesita E2E_VIGILANTE_DNI y E2E_VIGILANTE_PASSWORD (CP-121 mueve a ese Vigilante y lo devuelve).");
+  process.exit(2);
+}
+
 if (completo) {
   const temporal = process.env.PRUEBAS_CONTRASENA_TEMPORAL;
   if (!temporal) {
@@ -74,9 +81,9 @@ if (completo) {
   valores.contrasenaNueva = temporal;
 }
 
-const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante });
+const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante, reasignacion });
 if (!conVigilante) console.log("Sin E2E_VIGILANTE_DNI/E2E_VIGILANTE_PASSWORD: se omite CP-104 (Login Vigilante y Registrar Incidencia Otra Zona).");
-console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : " (solo lectura)"}.`);
+console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : reasignacion ? " (solo lectura + reasignación CP-121)" : " (solo lectura)"}.`);
 
 mkdirSync(DIR_SALIDA, { recursive: true });
 
@@ -126,7 +133,7 @@ newman.run(
     });
 
     const aprobadas = peticiones.filter((p) => p.ok).length;
-    guardarResumen({ ejecutado: true, completo, fecha: new Date().toISOString(), baseUrl, total: peticiones.length, aprobadas, fallidas: peticiones.length - aprobadas, peticiones });
+    guardarResumen({ ejecutado: true, completo, reasignacion, fecha: new Date().toISOString(), baseUrl, total: peticiones.length, aprobadas, fallidas: peticiones.length - aprobadas, peticiones });
     console.log(`Newman: ${aprobadas} de ${peticiones.length} peticiones aprobadas. Reporte: ${join(DIR_SALIDA, "newman.html")}`);
     process.exit(aprobadas === peticiones.length ? 0 : 1);
   },

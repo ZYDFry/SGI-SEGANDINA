@@ -8,6 +8,7 @@
     "coleccion": "node scripts/coleccion.mjs --listar",
     "newman": "node scripts/newman.mjs",
     "newman:completo": "node scripts/newman.mjs --completo",
+    "newman:reasignacion": "node scripts/newman.mjs --reasignacion",
     "reporte": "node scripts/reporte.mjs"
   },
   "devDependencies": {

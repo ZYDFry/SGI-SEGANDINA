@@ -141,5 +141,5 @@ Object.assign(CASOS, {
   "CP-26": { rf: "RF-03", tipo: "API", descripcion: "Registrar incidencia por API (--completo).", esperado: "201 con la incidencia.", automatiza: "Paso 1.", soloCompleto: true },
   "CP-64": { rf: "RF-09", tipo: "API", descripcion: "Crear y editar zona (--completo).", esperado: "201 al crear y 200 al editar.", automatiza: "Pasos 1 y edición.", soloCompleto: true },
   "CP-66": { rf: "RF-09", tipo: "API", descripcion: "Desactivar zona (--completo).", esperado: "200.", automatiza: "Paso 1.", soloCompleto: true },
-  "CP-121": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Administrador reasigna la zona del Vigilante de prueba (--completo).", esperado: "200 con la zona destino y luego 200 al devolverlo a su zona; sin contrasena.", automatiza: "Mover y restaurar (la fila REASIGNAR_ZONA se revisa en la auditoría).", soloCompleto: true },
+  "CP-121": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Administrador reasigna la zona del Vigilante de prueba (--reasignacion o --completo).", esperado: "200 con la zona destino y luego 200 al devolverlo a su zona; sin contrasena.", automatiza: "Mover y restaurar (las filas REASIGNAR_ZONA se revisan en la auditoría).", soloCompleto: true },
 });

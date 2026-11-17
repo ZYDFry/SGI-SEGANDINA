@@ -6,7 +6,7 @@ rem    2. Coleccion Postman con Newman (solo lectura; --completo agrega las escr
 rem    3. Pruebas de extremo a extremo con Playwright (capturas CP-xx)
 rem    4. docs\evidencias\pruebas\index.html y reporte_pruebas.pdf
 rem
-rem  Uso:  pruebas\ejecutar-todo.cmd [--completo]
+rem  Uso:  pruebas\ejecutar-todo.cmd [--completo | --reasignacion]
 rem  Variables: BASE_URL, FRONTEND_URL, E2E_ADMIN_DNI, E2E_ADMIN_PASSWORD, E2E_SUPERVISOR_DNI,
 rem             E2E_SUPERVISOR_PASSWORD, E2E_VIGILANTE_DNI, E2E_VIGILANTE_PASSWORD
 rem             y PRUEBAS_CONTRASENA_TEMPORAL (solo con --completo). Ver docs\evidencias\pruebas\README.md
@@ -19,13 +19,14 @@ if not defined BASE_URL set "BASE_URL=http://localhost:8080"
 if not defined FRONTEND_URL set "FRONTEND_URL=http://localhost:3000"
 set "COMPLETO="
 if /i "%~1"=="--completo" set "COMPLETO=--completo"
+if /i "%~1"=="--reasignacion" set "COMPLETO=--reasignacion"
 set "FALLOS=0"
 
 echo.
 echo === SGI-SEGANDINA: ejecucion de pruebas ===
 echo API:      %BASE_URL%
 echo Frontend: %FRONTEND_URL%
-if defined COMPLETO (echo Newman:   modo completo ^(escribe datos^)) else (echo Newman:   solo lectura)
+if "%COMPLETO%"=="--completo" (echo Newman:   modo completo ^(escribe datos^)) else if "%COMPLETO%"=="--reasignacion" (echo Newman:   solo lectura + reasignacion CP-121) else (echo Newman:   solo lectura)
 echo.
 
 rem ---------------------------------------------------------------- requisitos

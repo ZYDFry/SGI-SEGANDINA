@@ -1,7 +1,8 @@
 // Convierte la colección Postman local (formato v3: un archivo *.request.yaml por petición) al formato
 // v2.1 que entiende Newman. La conversión se hace en memoria en cada corrida: la colección versionada no cambia.
 //
-// Uso directo: node scripts/coleccion.mjs --listar   (muestra las peticiones convertidas y si escriben datos)
+// Uso directo: node scripts/coleccion.mjs --listar [--completo | --reasignacion]   (muestra las peticiones convertidas
+// y si escriben datos)
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -28,8 +29,11 @@ export const PETICIONES_VIGILANTE = new Set([
   "Usuarios Reasignar Zona Restaurar",
 ]);
 
-/** Peticiones que usan al Vigilante de prueba y modifican datos: solo con --completo. */
-const ESCRITURAS_VIGILANTE = new Set(["Usuarios Reasignar Zona", "Usuarios Reasignar Zona Restaurar"]);
+/**
+ * Peticiones que usan al Vigilante de prueba y modifican datos (CP-121): corren con --completo o con --reasignacion. La
+ * segunda lo devuelve a su zona, así que solo quedan dos filas REASIGNAR_ZONA en la auditoría.
+ */
+export const ESCRITURAS_VIGILANTE = new Set(["Usuarios Reasignar Zona", "Usuarios Reasignar Zona Restaurar"]);
 
 /** Los login, los GET y las peticiones rechazadas del Vigilante no modifican datos; el resto solo corre con --completo. */
 function esLectura(nombre, metodo) {
@@ -90,14 +94,17 @@ function convertirPeticion(nombre, def) {
 }
 
 /** Lee la colección y la devuelve en formato v2.1, ordenada por `order`. */
-export function cargarColeccion({ completo = false, vigilante = true } = {}) {
+export function cargarColeccion({ completo = false, vigilante = true, reasignacion = false } = {}) {
   const archivos = readdirSync(DIR_COLECCION).filter((f) => f.endsWith(".request.yaml"));
   const peticiones = archivos
     .map((f) => convertirPeticion(f.replace(/\.request\.yaml$/, ""), parse(readFileSync(join(DIR_COLECCION, f), "utf8"))))
     .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre));
 
   const incluidas = peticiones.filter(
-    (p) => !EXCLUIDAS.has(p.nombre) && (completo || p.lectura) && (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)),
+    (p) =>
+      !EXCLUIDAS.has(p.nombre) &&
+      (completo || p.lectura || (reasignacion && ESCRITURAS_VIGILANTE.has(p.nombre))) &&
+      (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)),
   );
 
   // Autenticación de la colección (Bearer {{token}}), definida en .resources/definition.yaml
@@ -122,11 +129,12 @@ export function cargarColeccion({ completo = false, vigilante = true } = {}) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const completo = process.argv.includes("--completo");
-  const { peticiones, incluidas } = cargarColeccion({ completo });
+  const reasignacion = process.argv.includes("--reasignacion");
+  const { peticiones, incluidas } = cargarColeccion({ completo, reasignacion });
   const nombresIncluidos = new Set(incluidas.map((p) => p.nombre));
   for (const p of peticiones) {
     const marca = nombresIncluidos.has(p.nombre) ? "corre " : "omite ";
     console.log(`${marca} ${String(p.orden).padStart(5)} ${p.metodo.padEnd(6)} ${p.lectura ? "lectura  " : "escritura"} ${p.nombre}`);
   }
-  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : " (solo lectura)"}.`);
+  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : reasignacion ? " (solo lectura + reasignación CP-121)" : " (solo lectura)"}.`);
 }
