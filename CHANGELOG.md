@@ -25,6 +25,45 @@ Formato de cada entrada:
   (reading 'useContext')") si la terminal tiene `NODE_ENV=development`; con `NODE_ENV=production` o sin la variable
   compila bien. Conviene revisarlo antes del despliegue (Fase 9).
 
+## [2026-11-17] Fase 8 — corrida completa de pruebas y ajuste de CP-84
+- Qué se hizo:
+  - Corrida de `pruebas\ejecutar-todo.cmd` del 17/11: backend 215 de 215 tests aprobados, Newman 27 de 27
+    aserciones aprobadas y Playwright 45 de 46 aprobadas. CP-110 a CP-114 (filtros del dashboard) aprobados y anotados
+    en el plan de pruebas.
+  - CP-84 fallaba porque buscaba cualquier elemento `role="alert"` en la página y encontraba el anunciador de rutas
+    de Next (`next-route-announcer`, vacío y fuera de `<main>`). La prueba ahora busca los avisos solo dentro de
+    `<main>`; repetida sola, aprobada. No era un fallo de la aplicación.
+- Archivos clave: `frontend/e2e/login.spec.ts`, `docs/plan_pruebas_integrales.md`.
+- Cómo probarlo: `cd frontend && npx playwright test e2e/login.spec.ts -g "CP-84"`.
+- Corrida completa repetida el 17/11 (10:38): backend 215 de 215, Newman 27 de 27 y Playwright 46 de 46 aprobadas;
+  índice y PDF de evidencias regenerados, sin capturas de fallo.
+- Pendientes: ninguno.
+
+## [2026-11-16] Fase 8 / RF-05 — dashboard con filtros globales y filtrado cruzado
+- Qué se hizo (solo frontend; el backend ya aceptaba los filtros):
+  - Barra de filtros global en el dashboard (periodo, zona, tipo y gravedad) que afecta a KPI, barras, anillo y serie.
+  - Filtrado cruzado: clic en una barra de zona, un sector del anillo (o su leyenda) o una tarjeta de gravedad aplica
+    o quita el filtro. Cada gráfico se consulta sin su propio filtro y resalta lo elegido (el resto atenuado).
+    Alternativa con teclado: botones "Filtrar por …" en la tabla de datos de cada gráfico, visible al enfocarla.
+  - Chips de filtros activos con "×" y "Quitar todo".
+  - Filtros en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`) en el dashboard y el
+    historial: enlaces compartibles y "Atrás" funcional. Botón "Ver en historial" con los mismos parámetros.
+  - Diseño preparado para el filtro "Estado actual" (`DIMENSIONES` en `filtrosUrl.ts`) y la sección "Atención de
+    casos" (bloques separados en `PanelDashboard`).
+  - Casos CP-110 a CP-114 en el plan de pruebas, `pruebas/casos.mjs` y `e2e/dashboard-filtros.spec.ts` (respuestas
+    simuladas con datos ficticios).
+- Archivos clave: `frontend/src/lib/filtrosUrl.ts`, `frontend/src/lib/useFiltroUrl.ts`,
+  `frontend/src/components/ChipsFiltros.tsx`, `frontend/src/app/(privado)/dashboard/PanelDashboard.tsx`,
+  `frontend/src/app/(privado)/historial/HistorialIncidencias.tsx`, `frontend/src/components/graficos/*`,
+  `frontend/src/components/FiltrosIncidencia.tsx`, `frontend/src/components/Tarjeta.tsx`.
+- Cómo probarlo: `cd frontend && npm run lint && npm run build` (sin errores el 16/11);
+  `npx playwright test e2e/dashboard-filtros.spec.ts` (5 de 5 aprobadas el 16/11 con una sesión de prueba local, sin
+  backend; falta la corrida con las sesiones reales y sus capturas). A mano: "Cómo probar" de la sección RF-05 en
+  `docs/referencia_clases.md`.
+- Pendientes: corrida completa de Playwright con backend (incluye `paneles.spec.ts`: CP-45, CP-38 y CP-51), resultados
+  de CP-110 a CP-114 en el plan y regenerar el índice y el PDF de evidencias. El filtro "Estado actual" y la sección
+  "Atención de casos" quedan para después.
+
 ## [2026-11-14] Fase 8 — revisión de la corrida de Playwright: DEF-01 cerrado y CP-106
 - Qué se hizo:
   - Corrida del 14/11: 37 de 41 aprobadas; CP-107 a CP-109 (menú por rol) aprobadas. Fallaban CP-90, CP-96, CP-99

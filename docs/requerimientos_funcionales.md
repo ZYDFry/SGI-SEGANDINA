@@ -152,6 +152,7 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Respuesta:** página con `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`. Cada fila trae `idIncidencia`, `fechaHora`, `fechaRegistro`, `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `usuario` (`idUsuario`, `dni`, `nombreCompleto`; nunca la contraseña).
 - **Columnas en pantalla:** Fecha, Zona, Tipo, Gravedad, Usuario (y descripción en el detalle).
 - **Criterios de aceptación:** sin filtros muestra los últimos 30 días; con filtros solo lo que cumple todos; los filtros vigentes son los que usa la exportación (RF-06).
+- **Filtros en la URL:** la pantalla lee y escribe los filtros comunes en la dirección (`/historial?periodo=ULTIMOS_7_DIAS&idZona=3`), con los mismos nombres que los query params de la API. Un enlace compartido o el botón "Ver en historial" del dashboard abren el historial con esos filtros; los valores no válidos se ignoran.
 
 ## RF-05 Dashboard analítico (Prioridad: Alta)
 
@@ -168,7 +169,13 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Serie por tiempo:** parámetro opcional `agrupacion` = `DIA`, `SEMANA` o `MES`. Sin valor: `DIA` si el rango tiene hasta 31 días, `SEMANA` hasta 180 y `MES` si es mayor. Se devuelven todos los tramos del rango, también los que no tienen incidencias (con `total` 0). Las semanas van de lunes a domingo y los meses son calendario; el primer y el último tramo se recortan a `desde` y `hasta` (por ejemplo, del jueves 1 al domingo 4).
 - **Despliegue por zona:** ver RF-07.
 - **Reglas:** los datos salen de consultas agregadas en el backend; el conteo por día se hace con `fecha_hora AT TIME ZONE 'America/Lima'` y la agrupación en semanas o meses y el relleno con ceros se hacen en Java. El flujo TO-BE habla de métricas "en tiempo real": cargar al abrir y refrescar cada 30–60 s (propuesto).
-- **Criterios de aceptación:** estados de carga y de error visibles; un registro nuevo aparece en las métricas sin recargar manualmente tras el siguiente refresco.
+- **Filtros globales y filtrado cruzado (pantalla):**
+  - Una barra de filtros (periodo, zona, tipo de evento y gravedad) se aplica a los KPI, las barras, el anillo y la serie. El despliegue (RF-07) no se filtra.
+  - Clic en una barra de zona, en un sector del anillo o en una tarjeta de gravedad aplica ese filtro; otro clic sobre lo mismo lo quita. Alternativa con teclado: botones "Filtrar por …" en la tabla de datos de cada gráfico.
+  - Cada gráfico se consulta sin su propio filtro, para seguir mostrando todas sus opciones: las barras sin `idZona`, el anillo sin `idTipoEvento` y las tarjetas de gravedad con un `GET /api/dashboard/kpis` sin `idNivelGravedad`. Lo elegido se resalta y el resto se atenúa. Los KPI de hoy y del periodo y la serie usan todos los filtros.
+  - Chips de los filtros activos con "×" y "Quitar todo" (vuelve a los últimos 30 días sin filtros).
+  - Los filtros se guardan en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`; el periodo por defecto no se escribe): un enlace compartido los reproduce y "Atrás" deshace el último cambio. "Ver en historial" abre `/historial` con los mismos parámetros, así el total del historial coincide con "Incidencias del periodo".
+- **Criterios de aceptación:** estados de carga y de error visibles; un registro nuevo aparece en las métricas sin recargar manualmente tras el siguiente refresco; elegir una zona, un tipo o una gravedad (en la barra o en el gráfico) actualiza los demás bloques y aparece su chip; la URL copiada reproduce los filtros.
 
 ## RF-06 Exportación de reportes (Prioridad: Media)
 

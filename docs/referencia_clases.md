@@ -1294,3 +1294,44 @@ Cómo probar: `cd frontend && npx playwright test e2e/validaciones.spec.ts -g "C
 `npx playwright test e2e/incidencia.spec.ts -g "CP-106"`. A mano, en `npm run dev`: abrir "+ Nueva zona" y pulsar
 "Crear zona" sin escribir: aparecen los cuatro avisos y el foco va al nombre; al cerrar el modal, el foco vuelve a
 "+ Nueva zona".
+
+## RF-05 — dashboard con filtros globales y filtrado cruzado
+
+El dashboard tiene una barra de filtros global (periodo, zona, tipo de evento y gravedad) que afecta a los KPI, las
+barras, el anillo y la serie. Un clic en una barra de zona, un sector del anillo o una tarjeta de gravedad aplica o
+quita ese filtro; cada gráfico se consulta sin su propio filtro y resalta lo elegido. Los filtros viven en la URL,
+se muestran como chips y "Ver en historial" abre el historial con los mismos parámetros. Solo cambia el frontend: el
+backend ya aceptaba `idZona`, `idTipoEvento` e `idNivelGravedad` en los endpoints del dashboard.
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/filtrosUrl.ts` (nuevo) | Convierte los filtros comunes de/a la URL y los alterna desde los gráficos. Define `FILTRO_INICIAL` (últimos 30 días sin filtros; `FiltrosIncidencia` lo reexporta). | `DIMENSIONES`: `{ clave, etiqueta }` de zona, tipo y gravedad (orden de los chips; un filtro nuevo, como el estado actual, se suma aquí y en `FiltroIncidencias`). `filtroDesdeUrl(params)` → `FiltroIncidencias`: valida el periodo, el rango personalizado con `validarRangoFechas` y los ids (enteros positivos); lo inválido queda con el valor por defecto. `consultaDesdeFiltro(filtro)` → query string sin "?" (usa `parametrosIncidencias`; omite el periodo por defecto). `sinFiltro(filtro, clave)` → el filtro sin esa dimensión. `alternarFiltro(filtro, clave, id)` → aplica el id o lo quita si ya estaba. `claveFiltro(filtro)` → texto estable para comparar filtros. |
+| `lib/useFiltroUrl.ts` (nuevo) | Hook que usa la URL como única fuente de verdad de los filtros (`useSearchParams`; el componente debe estar dentro de `<Suspense>`). | `useFiltroUrl()` → `{ filtro, consulta, aplicar(nuevo) }`. `aplicar` hace `router.push` (sin desplazar la página) solo si la consulta cambia, así "Atrás" deshace cada cambio. |
+| `components/ChipsFiltros.tsx` (nuevo) | Grupo "Filtros activos": un chip por filtro (periodo solo si no es el de defecto; zona, tipo y gravedad con su nombre, o "n.° id" si no está en los catálogos activos), cada uno con "×" (`aria-label="Quitar filtro …"`), y "Quitar todo". No dibuja nada sin filtros. | Props: `filtro`, `catalogos: Catalogos \| null`, `onCambio(filtro)`. |
+| `components/FiltrosIncidencia.tsx` (modificado) | Recibe los catálogos por prop (la pantalla los carga una vez y los comparte con los chips). Reinicia `SelectorPeriodo` con una `key` cuando el periodo cambia desde fuera ("Atrás"). Un id que no está en las opciones (zona inactiva llegada por la URL) se agrega como "Zona n.° id". | Props: `valor`, `onCambio`, `catalogos: ConsultaCatalogos`, `sinQuitar?` (oculta "Quitar filtros"). Exporta el tipo `ConsultaCatalogos`. |
+| `components/Tarjeta.tsx` (modificado) | `TarjetaKpi` puede ser un botón que filtra. | Props nuevas: `onElegir?()` (la dibuja como `<button aria-pressed>`), `seleccionada?` (borde marcado), `atenuada?`. |
+| `components/graficos/GraficoBarras.tsx` y `GraficoAnillo.tsx` (modificados) | Clic en una barra (toda la fila de la zona) o en un sector o su leyenda llama a `onElegir` con el id; mano como cursor sobre lo elegible; lo no elegido se atenúa y el sector elegido sobresale. | Props nuevas: `seleccionado?: number \| null`, `onElegir?(id)`. |
+| `components/graficos/TablaAccesible.tsx` (modificado) | Con `onElegir`, cada fila tiene un botón "Filtrar por …" con `aria-pressed`; la tabla es invisible pero se muestra mientras uno de sus botones tiene el foco. | Props nuevas: filas con `id?`, `seleccionado?`, `onElegir?(id)`. |
+| `components/graficos/registro.ts` (modificado) | Ayudas compartidas por los gráficos que filtran. | `atenuar(hex, alfa = 0.25)` → `rgba(...)`. `indiceElegido(elementos)` → índice o `null`. `cursorElegible(evento, elementos)` (para `onHover`). |
+| `app/(privado)/dashboard/PanelDashboard.tsx` (modificado) | Usa `useFiltroUrl`; barra `FiltrosIncidencia`, `ChipsFiltros` y el enlace "Ver en historial". Arma un filtro por gráfico con `sinFiltro`: barras sin zona, anillo sin tipo y tarjetas de gravedad con un `kpis` sin gravedad (si no hay gravedad elegida, esa misma consulta da los KPI y no se hace una segunda). La agrupación de la serie se recuerda solo para el periodo en que se eligió. Bloques internos `SeccionIndicadores` y `SeccionDespliegue` y un lugar marcado para la futura sección "Atención de casos". | — |
+| `app/(privado)/historial/HistorialIncidencias.tsx` (modificado) | Lee y escribe los filtros en la URL con `useFiltroUrl`; la página y el detalle abierto se guardan junto con la consulta en que se eligieron, así un cambio de filtros (también con "Atrás") vuelve a la primera página. | — |
+| `app/(privado)/dashboard/page.tsx` e `historial/page.tsx` (modificados) | Envuelven el contenido en `<Suspense fallback={<Cargando />}>`, que Next exige alrededor de `useSearchParams`. | — |
+
+### Flujo: clic en el sector "Robo" del anillo
+
+1. Chart.js llama a `options.onClick` de `GraficoAnillo` con el elemento bajo el puntero; `indiceElegido` da su índice y se llama `onElegir(datos[i].id)`.
+2. `PanelDashboard` ejecuta `alternar("idTipoEvento", id)` → `alternarFiltro(filtro, …)` → `aplicar(nuevo)` → `router.push("/dashboard?idTipoEvento=…")`.
+3. `useSearchParams` cambia → `filtroDesdeUrl` da el filtro nuevo → los `useMemo` recalculan `filtroZonas` (con tipo) y `filtroTipos` (sin tipo).
+4. `useConsulta` vuelve a pedir `GET /api/dashboard/kpis`, `incidencias-por-zona` e `incidencias-por-tiempo` con `idTipoEvento`, y `incidencias-por-tipo` sin él; en el backend, `DashboardController` → `DashboardServiceImpl` → `IncidenciaEstadisticasDao` agregan con esos filtros.
+5. `ChipsFiltros` muestra "Tipo de evento: Robo", el selector "Tipo de evento" queda en Robo y el anillo resalta su sector. "Atrás" vuelve a la URL anterior y todo se recalcula igual.
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- `npx playwright test e2e/dashboard-filtros.spec.ts` (CP-110 a CP-114; sesión de Supervisor, con catálogos,
+  dashboard e historial simulados: no depende de los datos de la base ni escribe).
+- A mano en `/dashboard`: elegir una zona y ver el chip y la URL; clic en un sector, en una barra y en una tarjeta de
+  gravedad (otro clic lo quita); Tab hasta la tabla de un gráfico y Enter en "Filtrar por …"; "Atrás" y "Adelante";
+  copiar la URL en otra pestaña; "Ver en historial" y comparar "N registros" con "Incidencias del periodo".

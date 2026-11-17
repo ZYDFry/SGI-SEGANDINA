@@ -70,15 +70,28 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 
 ### 3. Dashboard gerencial (Desktop)
 - Barra lateral de navegación con íconos y grupos (en tablet y móvil se abre con el botón "Menú").
-- Selector de periodo común: Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado (dos calendarios).
+- Barra de filtros global: selector de periodo común (Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado
+  con dos calendarios) y listas de zona, gravedad y tipo de evento. Afecta a los KPI, las barras, el anillo y la
+  serie; el despliegue por zona no usa filtros.
+- Chips de los filtros activos debajo de la barra (periodo solo si no es "30 días"), cada uno con "×", y "Quitar
+  todo" para volver a los últimos 30 días sin filtros.
+- Botón "Ver en historial": abre `/historial` con los mismos filtros.
 - Tarjetas KPI arriba: incidencias de hoy, del periodo, vigilantes desplegados y una por nivel de gravedad con su color.
 - Gráfico de barras (incidencias por zona), anillo (por tipo de evento) y serie por tiempo (línea o barras, por día,
   semana o mes); tabla de despliegue por zona con las zonas sin vigilantes en rojo.
+- Filtrado cruzado: clic en una barra de zona, un sector del anillo (o su leyenda) o una tarjeta de gravedad aplica
+  ese filtro a todo el panel; otro clic lo quita. Cada gráfico sigue mostrando todas sus opciones (no se filtra a sí
+  mismo) con la elegida resaltada y las demás atenuadas; la tarjeta elegida queda con borde. Con el teclado, cada
+  gráfico tiene debajo una tabla con un botón "Filtrar por …" por fila que se hace visible al recibir el foco.
+- Los filtros viven en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`): un enlace copiado
+  abre el panel con los mismos filtros y "Atrás" deshace el último cambio. Un valor no válido se ignora.
 - Estados de carga y error en cada gráfico; refresco automático cada 60 s.
 
 ### 4. Historial de incidencias y auditoría
 - Tabla con columnas: Fecha, Zona, Tipo, Gravedad, Usuario.
 - Filtros arriba: periodo, zona, gravedad y tipo de evento; descripción en el detalle de cada fila; paginación.
+  Los filtros se leen y se escriben en la URL con los mismos parámetros que el dashboard, así "Ver en historial" y
+  los enlaces compartidos abren el historial ya filtrado; al cambiar un filtro se vuelve a la primera página.
 - Botones "Exportar Excel" y "Exportar PDF" que usan los filtros vigentes.
 - Pestaña "Auditoría" (`/historial/auditoria`, solo Administrador) con filtros por periodo, acción y DNI y el detalle
   de cada registro en texto legible.

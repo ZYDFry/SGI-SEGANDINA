@@ -384,6 +384,21 @@ escriben datos ni cierran la sesión.
 | CP-108 | RF-01, RNF-03 | USA | Sesión de Supervisor; ventana de 768 × 1024. | 1. Abrir `/dashboard`. 2. Pulsar "Menú". 3. Revisar el panel. 4. Pulsar Escape. | — | 1: no hay barra inferior; el botón "Menú" tiene `aria-expanded="false"` y `aria-controls="menu-panel"`. 2 y 3: el panel muestra los grupos "Gestión" (Dashboard, marcada, e Historial) y "Mi cuenta" (Cambiar mi contraseña y "Cerrar sesión"), sin "Administración"; el foco está en "Dashboard" y Tab no sale del panel. 4: el panel se cierra, `aria-expanded` vuelve a `false` y el foco regresa al botón "Menú". | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo. | Aprobado | CP-108_menu_tablet.png |
 | CP-109 | RF-01, RNF-03 | USA | Sesión de Administrador; ventana de 1366 × 768. | 1. Abrir `/dashboard`. 2. Revisar la barra lateral. 3. Elegir "Auditoría". | — | 1 y 2: barra lateral fija con íconos y los grupos "Gestión", "Administración" y "Mi cuenta"; "Dashboard" marcada con `aria-current="page"`; sin botón "Menú"; título "Dashboard". 3: en `/historial/auditoria` queda marcada "Auditoría" (no "Historial") y el título dice "Auditoría". | Playwright, 14/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo. | Aprobado | CP-109_barra_lateral.png |
 
+### 5.15 Dashboard con filtros globales y filtrado cruzado (frontend)
+
+Sesión de Supervisor en escritorio (1366 × 768). En Playwright se simulan con datos ficticios
+`GET /api/catalogos/*`, `GET /api/dashboard/*` y `GET /api/incidencias` (3 zonas, 3 tipos y 4 niveles con 30
+incidencias en total), para que los totales sean fijos y se pueda revisar qué filtros envía cada gráfico. No
+escriben datos. Contra Supabase se ejecutan igual, comparando con `GET /api/dashboard/*` en la pestaña Network.
+
+| ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
+|---|---|---|---|---|---|---|---|---|---|
+| CP-110 | RF-05 | E2E | `/dashboard` sin parámetros. | 1. Elegir una zona en el filtro "Zona". 2. Revisar el anillo, los KPI, la serie y las barras. 3. Revisar la URL y las peticiones. | Zona Sur E2E (10 de 30 incidencias; 7 de "Robo E2E") | 1: aparece el chip "Zona: …" y la URL agrega `idZona`. 2: "Incidencias del periodo" pasa de 30 a 10 y el anillo muestra solo las de esa zona (Robo E2E 7); las barras siguen mostrando todas las zonas, con la elegida resaltada y las demás atenuadas. 3: `kpis`, `incidencias-por-tipo` e `incidencias-por-tiempo` llevan `idZona`; `incidencias-por-zona` no. | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base. | Aprobado | CP-110_dashboard_filtrado_por_zona.png |
+| CP-111 | RF-05 | E2E | `/dashboard` sin parámetros. | 1. Hacer clic en el sector "Robo E2E" del anillo. 2. Revisar chips, KPI, URL y peticiones. 3. Hacer clic en la tarjeta "Gravedad Media E2E". 4. Con el teclado, pasar con Tab a la tabla del anillo (se hace visible) y pulsar Enter en "Filtrar por Robo E2E". | — | 1 y 2: el sector se resalta (los demás atenuados), aparece el chip "Tipo de evento: Robo E2E", el selector "Tipo de evento" muestra Robo E2E, "Incidencias del periodo" = 21 y la URL lleva `idTipoEvento`; `kpis` e `incidencias-por-zona` se piden con `idTipoEvento` y `incidencias-por-tipo` sin él. 3: la tarjeta queda marcada (`aria-pressed="true"`), las otras atenuadas, la URL agrega `idNivelGravedad` y el total pasa a 6. 4: quita el filtro de tipo (otro clic o Enter lo alterna). | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base. | Aprobado | CP-111_dashboard_clic_en_sector.png |
+| CP-112 | RF-05 | E2E | `/dashboard?idZona=…&idTipoEvento=…`. | 1. Pulsar "×" del chip de zona. 2. Pulsar "Atrás" del navegador. 3. Pulsar "Quitar todo". | — | 1: el chip desaparece, la URL ya no tiene `idZona`, las peticiones no lo envían y los KPI se recalculan (21). 2: vuelven el filtro, el chip y el total (7). 3: la URL queda `/dashboard`, no hay chips y se ven los últimos 30 días sin filtros (30). | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base. | Aprobado | CP-112_chips_activos.png, CP-112_sin_filtros.png |
+| CP-113 | RF-05, RF-04 | E2E | `/dashboard?periodo=ULTIMOS_7_DIAS&idZona=…&idNivelGravedad=…`. | 1. Anotar "Incidencias del periodo". 2. Pulsar "Ver en historial". 3. Revisar filtros, total y petición. 4. Cambiar "Tipo de evento" en el historial. | — | 2: abre `/historial` con los mismos parámetros en la URL. 3: "7 días", la zona y la gravedad aparecen elegidas; "N registros" es igual al KPI del paso 1 (8) y `GET /api/incidencias` lleva los mismos filtros. 4: la URL del historial agrega `idTipoEvento` y la tabla se filtra. | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base. | Aprobado | CP-113_historial_desde_dashboard.png |
+| CP-114 | RF-05 | E2E | Enlace compartido. | 1. Abrir `/dashboard?periodo=PERSONALIZADO&desde=2026-10-01&hasta=2026-10-31&idZona=…&idNivelGravedad=…&idTipoEvento=abc` en una pestaña nueva. | `idTipoEvento=abc` (no válido) | "Personalizado" marcado con Desde y Hasta cargados; chips de periodo (01/10/2026 al 31/10/2026), zona y gravedad; sin chip de tipo (el valor no válido se ignora); tarjeta de gravedad marcada; `kpis` se pide solo con `periodo`, `desde`, `hasta`, `idZona` e `idNivelGravedad`. | Playwright, 17/11/2026: 1 de 1 pruebas aprobadas. Automatizado: completo con catálogos, dashboard e historial simulados (datos ficticios); no escribe en la base. | Aprobado | CP-114_url_compartida.png |
+
 ### 5.12 Requerimientos no funcionales
 
 | ID | RF | Tipo | Precondición | Pasos | Datos de prueba | Resultado esperado | Resultado obtenido | Estado | Evidencia |
@@ -426,7 +441,7 @@ Comandos (desde `backend/`; en Windows `.\mvnw.cmd` con `JAVA_HOME` en el JDK 21
 | Tipo | Herramienta | Comando |
 |---|---|---|
 | Análisis estático y compilación | ESLint y build de Next.js | `cd frontend && npm run lint && npm run build` |
-| Extremo a extremo y validaciones | Playwright (`frontend/e2e`: `login`, `acceso-roles`, `validaciones`, `incidencia`, `paneles` y `navegacion`; 38 pruebas más 3 de preparación de sesiones) | `cd frontend && npx playwright test`, con `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD`, `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`. Capturas en `docs/evidencias/pruebas/capturas/`. |
+| Extremo a extremo y validaciones | Playwright (`frontend/e2e`: `login`, `acceso-roles`, `validaciones`, `incidencia`, `paneles`, `navegacion` y `dashboard-filtros`; 43 pruebas más 3 de preparación de sesiones) | `cd frontend && npx playwright test`, con `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD`, `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD`, `E2E_VIGILANTE_DNI` y `E2E_VIGILANTE_PASSWORD`. Capturas en `docs/evidencias/pruebas/capturas/`. |
 
 ### 6.4 Ejecución completa y evidencias
 
@@ -442,8 +457,8 @@ Requisitos, variables y datos que escribe cada paso: `docs/evidencias/pruebas/RE
 | RF-01 | CP-01, CP-02 a CP-15, CP-70 a CP-73, CP-75 a CP-77, CP-84, CP-85, CP-92, CP-102, CP-103, CP-107 a CP-109 |
 | RF-02 | CP-01, CP-16 a CP-25, CP-70 a CP-77, CP-90 a CP-95, CP-102, CP-103 |
 | RF-03 | CP-01, CP-26 a CP-33, CP-77 a CP-79, CP-84 a CP-86, CP-89, CP-99, CP-104 a CP-106 |
-| RF-04 | CP-01, CP-34 a CP-38, CP-87 |
-| RF-05 | CP-01, CP-39 a CP-45, CP-87 |
+| RF-04 | CP-01, CP-34 a CP-38, CP-87, CP-113 |
+| RF-05 | CP-01, CP-39 a CP-45, CP-87, CP-110 a CP-114 |
 | RF-06 | CP-01, CP-46 a CP-51 |
 | RF-07 | CP-01, CP-45, CP-52, CP-53, CP-95, CP-98 |
 | RF-08 | CP-01, CP-54 a CP-61, CP-63, CP-87, CP-88 (y la verificación de auditoría de CP-02 a CP-05, CP-11, CP-12, CP-16, CP-20 a CP-22, CP-26, CP-49, CP-64, CP-66, CP-68) |
