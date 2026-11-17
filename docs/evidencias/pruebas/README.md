@@ -23,8 +23,10 @@ credenciales o porque el servidor no estaba corriendo) aparece como **No ejecuta
 Datos que escribe cada paso en la base:
 
 - Newman en modo por defecto: solo un registro `LOGIN_OK` en auditoría por la petición "Login".
-- Newman con `--reasignacion`: lo mismo que el modo por defecto más CP-121: mueve al Vigilante de prueba
-  (`E2E_VIGILANTE_*`) a otra zona activa y lo devuelve a la suya. Quedan dos registros `REASIGNAR_ZONA` en la
+- Newman en modo por defecto, con `E2E_SUPERVISOR_*`: además inicia sesión como Supervisor y prueba CP-123 (reasignar
+  a un Supervisor, crear un usuario y desactivar uno); el backend las rechaza (400 y 403) y no cambia nada.
+- Newman con `--reasignacion`: lo mismo que el modo por defecto más CP-121 y CP-125: mueve al Vigilante de prueba
+  (`E2E_VIGILANTE_*`) a otra zona activa, comprueba que las incidencias por zona no cambian y lo devuelve a la suya. Quedan dos registros `REASIGNAR_ZONA` en la
   auditoría (A → B y B → A) y ningún otro cambio. Necesita que la zona del Vigilante esté activa; si la devolución
   falla, hay que reasignarlo a mano desde Personal o desde la pantalla de la zona.
 - Newman con `--completo`: crea un usuario con un DNI ficticio aleatorio (`7xxxxxxx`), la zona "Sede Surco" y el tipo
@@ -52,7 +54,7 @@ Datos que escribe cada paso en la base:
 | `BASE_URL` | URL de la API. | `http://localhost:8080` |
 | `FRONTEND_URL` | URL del frontend. | `http://localhost:3000` |
 | `E2E_ADMIN_DNI`, `E2E_ADMIN_PASSWORD` | Administrador de prueba (Newman y Playwright). | — |
-| `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD` | Supervisor de prueba (Playwright). | — |
+| `E2E_SUPERVISOR_DNI`, `E2E_SUPERVISOR_PASSWORD` | Supervisor de prueba (Playwright y CP-123 en Newman). | — |
 | `E2E_VIGILANTE_DNI`, `E2E_VIGILANTE_PASSWORD` | Vigilante de prueba con zona asignada (Playwright). | — |
 | `PRUEBAS_CONTRASENA_TEMPORAL` | Solo con `--completo`: contraseña de 8 a 72 caracteres para el usuario que se crea y para el restablecimiento. | — |
 
@@ -76,7 +78,7 @@ Todo en orden, desde la raíz del repositorio:
 
 ```
 pruebas\ejecutar-todo.cmd              rem solo lectura en la API
-pruebas\ejecutar-todo.cmd --reasignacion   rem solo lectura más CP-121 (mueve al Vigilante y lo devuelve)
+pruebas\ejecutar-todo.cmd --reasignacion   rem solo lectura más CP-121 y CP-125 (mueve al Vigilante y lo devuelve)
 pruebas\ejecutar-todo.cmd --completo       rem también las escrituras de la colección (base de prueba)
 ```
 

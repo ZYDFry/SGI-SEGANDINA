@@ -27,21 +27,41 @@ export const PETICIONES_VIGILANTE = new Set([
   "Usuarios Reasignar Zona Vigilante",
   "Usuarios Reasignar Zona",
   "Usuarios Reasignar Zona Restaurar",
+  "Incidencias Por Zona Antes De Reasignar",
+  "Incidencias Por Zona Despues De Reasignar",
 ]);
 
 /**
- * Peticiones que usan al Vigilante de prueba y modifican datos (CP-121): corren con --completo o con --reasignacion. La
- * segunda lo devuelve a su zona, así que solo quedan dos filas REASIGNAR_ZONA en la auditoría.
+ * Peticiones de la reasignación del Vigilante de prueba (CP-121 y CP-125): corren con --completo o con --reasignacion.
+ * Lo mueven a otra zona, comprueban que las incidencias por zona no cambian y lo devuelven a la suya, así que solo
+ * quedan dos filas REASIGNAR_ZONA en la auditoría. Las dos consultas de incidencias son GET pero solo tienen sentido
+ * alrededor del cambio.
  */
-export const ESCRITURAS_VIGILANTE = new Set(["Usuarios Reasignar Zona", "Usuarios Reasignar Zona Restaurar"]);
+export const ESCRITURAS_VIGILANTE = new Set([
+  "Incidencias Por Zona Antes De Reasignar",
+  "Usuarios Reasignar Zona",
+  "Incidencias Por Zona Despues De Reasignar",
+  "Usuarios Reasignar Zona Restaurar",
+]);
 
-/** Los login, los GET y las peticiones rechazadas del Vigilante no modifican datos; el resto solo corre con --completo. */
+/**
+ * Peticiones que necesitan la sesión del Supervisor (E2E_SUPERVISOR_*); sin esas variables se omiten. No escriben: el
+ * backend rechaza las de CP-123 (400 y 403).
+ */
+export const PETICIONES_SUPERVISOR = new Set([
+  "Login Supervisor",
+  "Usuarios Reasignar Zona Supervisor",
+  "Usuarios Crear Supervisor",
+  "Usuarios Cambiar Estado Supervisor",
+]);
+
+/**
+ * Los login, los GET y las peticiones rechazadas del Vigilante y del Supervisor no modifican datos; el resto solo corre
+ * con --completo (o, las de la reasignación, con --reasignacion).
+ */
 function esLectura(nombre, metodo) {
-  return (
-    metodo === "GET" ||
-    nombre === "Login" ||
-    (PETICIONES_VIGILANTE.has(nombre) && !ESCRITURAS_VIGILANTE.has(nombre))
-  );
+  if (ESCRITURAS_VIGILANTE.has(nombre)) return false;
+  return metodo === "GET" || nombre === "Login" || PETICIONES_VIGILANTE.has(nombre) || PETICIONES_SUPERVISOR.has(nombre);
 }
 
 /** queryParams viene como objeto {clave: valor} o como lista [{key, value, disabled}]. */
@@ -94,7 +114,7 @@ function convertirPeticion(nombre, def) {
 }
 
 /** Lee la colección y la devuelve en formato v2.1, ordenada por `order`. */
-export function cargarColeccion({ completo = false, vigilante = true, reasignacion = false } = {}) {
+export function cargarColeccion({ completo = false, vigilante = true, supervisor = true, reasignacion = false } = {}) {
   const archivos = readdirSync(DIR_COLECCION).filter((f) => f.endsWith(".request.yaml"));
   const peticiones = archivos
     .map((f) => convertirPeticion(f.replace(/\.request\.yaml$/, ""), parse(readFileSync(join(DIR_COLECCION, f), "utf8"))))
@@ -104,7 +124,8 @@ export function cargarColeccion({ completo = false, vigilante = true, reasignaci
     (p) =>
       !EXCLUIDAS.has(p.nombre) &&
       (completo || p.lectura || (reasignacion && ESCRITURAS_VIGILANTE.has(p.nombre))) &&
-      (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)),
+      (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)) &&
+      (supervisor || !PETICIONES_SUPERVISOR.has(p.nombre)),
   );
 
   // Autenticación de la colección (Bearer {{token}}), definida en .resources/definition.yaml
@@ -136,5 +157,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const marca = nombresIncluidos.has(p.nombre) ? "corre " : "omite ";
     console.log(`${marca} ${String(p.orden).padStart(5)} ${p.metodo.padEnd(6)} ${p.lectura ? "lectura  " : "escritura"} ${p.nombre}`);
   }
-  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : reasignacion ? " (solo lectura + reasignación CP-121)" : " (solo lectura)"}.`);
+  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : reasignacion ? " (solo lectura + reasignación CP-121 y CP-125)" : " (solo lectura)"}.`);
 }

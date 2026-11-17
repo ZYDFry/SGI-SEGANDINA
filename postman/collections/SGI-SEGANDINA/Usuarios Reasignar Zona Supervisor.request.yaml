@@ -1,0 +1,22 @@
+$kind: http-request
+description: "CP-123: el Supervisor intenta reasignar la zona de un usuario que no es Vigilante (él mismo); el backend responde 400 y no cambia nada."
+url: "{{baseUrl}}/api/usuarios/{{idSupervisor}}/zona"
+method: PATCH
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenSupervisor}}"
+body:
+  type: json
+  content: '{"idZona": 1}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 400', () => pm.response.to.have.status(400));
+      const data = pm.response.json();
+      pm.test('Solo se reasigna a un Vigilante', () =>
+        pm.expect(data.mensaje).to.eql('Solo se puede reasignar la zona de un Vigilante'));
+      pm.test('Formato uniforme de error', () => pm.expect(data).to.include.keys('timestamp', 'status', 'mensaje'));
+    language: text/javascript
+order: 5300

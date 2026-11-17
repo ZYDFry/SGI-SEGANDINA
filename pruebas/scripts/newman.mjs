@@ -5,7 +5,8 @@
 //
 // El environment se arma en memoria desde variables de entorno; nunca se escribe en disco.
 // Uso: node scripts/newman.mjs [--completo | --reasignacion]
-//  --reasignacion: lectura más CP-121 (mueve al Vigilante de prueba a otra zona y lo devuelve); no toca otros datos.
+//  --reasignacion: lectura más CP-121 y CP-125 (mueve al Vigilante de prueba a otra zona, comprueba que las
+//                  incidencias por zona no cambian y lo devuelve); no toca otros datos.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -20,7 +21,7 @@ const completo = process.argv.includes("--completo");
 const reasignacion = !completo && process.argv.includes("--reasignacion");
 
 /** Peticiones cuyo cuerpo (de ida o de vuelta) puede llevar contraseñas o el token. */
-const CUERPOS_OCULTOS = ["Login", "Login Vigilante", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
+const CUERPOS_OCULTOS = ["Login", "Login Vigilante", "Login Supervisor", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
 
 /** Fecha AAAA-MM-DD en hora de Lima. */
 function fechaLima(fecha = new Date()) {
@@ -39,6 +40,10 @@ const contrasena = process.env.E2E_ADMIN_PASSWORD;
 const dniVigilante = process.env.E2E_VIGILANTE_DNI;
 const contrasenaVigilante = process.env.E2E_VIGILANTE_PASSWORD;
 const conVigilante = Boolean(dniVigilante && contrasenaVigilante);
+// Opcionales: con ellas corre CP-123 (el Supervisor no puede reasignar a otro rol ni gestionar usuarios).
+const dniSupervisor = process.env.E2E_SUPERVISOR_DNI;
+const contrasenaSupervisor = process.env.E2E_SUPERVISOR_PASSWORD;
+const conSupervisor = Boolean(dniSupervisor && contrasenaSupervisor);
 
 if (!dni || !contrasena) {
   console.error("Newman no se ejecutó: faltan E2E_ADMIN_DNI y/o E2E_ADMIN_PASSWORD.");
@@ -62,6 +67,10 @@ const valores = {
   tokenVigilante: "",
   idZonaVigilante: "",
   idZonaAjena: "",
+  dniSupervisor: dniSupervisor ?? "",
+  contrasenaSupervisor: contrasenaSupervisor ?? "",
+  tokenSupervisor: "",
+  idSupervisor: "",
 };
 
 if (reasignacion && !conVigilante) {
@@ -81,9 +90,10 @@ if (completo) {
   valores.contrasenaNueva = temporal;
 }
 
-const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante, reasignacion });
-if (!conVigilante) console.log("Sin E2E_VIGILANTE_DNI/E2E_VIGILANTE_PASSWORD: se omite CP-104 (Login Vigilante y Registrar Incidencia Otra Zona).");
-console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : reasignacion ? " (solo lectura + reasignación CP-121)" : " (solo lectura)"}.`);
+const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante, supervisor: conSupervisor, reasignacion });
+if (!conVigilante) console.log("Sin E2E_VIGILANTE_DNI/E2E_VIGILANTE_PASSWORD: se omiten CP-104 y CP-124 (peticiones del Vigilante).");
+if (!conSupervisor) console.log("Sin E2E_SUPERVISOR_DNI/E2E_SUPERVISOR_PASSWORD: se omite CP-123 (peticiones del Supervisor).");
+console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : reasignacion ? " (solo lectura + reasignación CP-121 y CP-125)" : " (solo lectura)"}.`);
 
 mkdirSync(DIR_SALIDA, { recursive: true });
 

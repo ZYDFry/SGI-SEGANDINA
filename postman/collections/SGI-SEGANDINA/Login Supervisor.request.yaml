@@ -1,0 +1,26 @@
+$kind: http-request
+description: "Inicia sesión como Supervisor para CP-123. Guarda tokenSupervisor e idSupervisor."
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+body:
+  type: json
+  content: |-
+    {
+      "dni": "{{dniSupervisor}}",
+      "contrasena": "{{contrasenaSupervisor}}"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      pm.test('El usuario es Supervisor', () => pm.expect(data.usuario.rol).to.eql('Supervisor'));
+      pm.test('La respuesta no trae la contraseña', () => pm.expect(data.usuario).to.not.have.property('contrasena'));
+      if (data.token) {
+        pm.environment.set('tokenSupervisor', data.token);
+        pm.environment.set('idSupervisor', String(data.usuario.idUsuario));
+      }
+    language: text/javascript
+order: 1200

@@ -36,6 +36,7 @@ export const CASOS = {
   "CP-117": { rf: "RF-07", tipo: "API", descripcion: "Carga por zona con los filtros comunes.", esperado: "200 con [{idZona, nombreZona, incidencias, vigilantesActivos, incidenciasPorVigilante}]; incidenciasPorVigilante es null solo si la zona no tiene vigilantes.", automatiza: "Forma de la respuesta con el periodo de la corrida (la comparación con SQL es manual)." },
   "CP-118": { rf: "RF-05", tipo: "API", descripcion: "KPI con la comparación con el periodo anterior.", esperado: "200 con incidenciasPeriodoAnterior, desdeAnterior y hastaAnterior; con 7 días, el periodo anterior son los 7 días que terminan el día antes de desde.", automatiza: "Paso 1 con ULTIMOS_7_DIAS (el conteo contra el historial y la tarjeta se revisan a mano)." },
   "CP-119": { rf: "RF-04, RF-05", tipo: "API", descripcion: "Catálogos para filtros con los inactivos.", esperado: "200 con zonas, tiposEvento y nivelesGravedad, cada uno con estadoActivo.", automatiza: "Paso 1 (filtrar el historial por una zona inactiva se prueba a mano)." },
+  "CP-123": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Supervisor intenta reasignar a quien no es Vigilante y gestionar usuarios.", esperado: "PATCH /api/usuarios/{id supervisor}/zona → 400 \"Solo se puede reasignar la zona de un Vigilante\"; POST /api/usuarios y PATCH /api/usuarios/{id}/estado → 403; nada cambia.", automatiza: "Pasos 1 y 3 con la sesión del Supervisor (E2E_SUPERVISOR_*); el Vigilante inactivo (paso 2) lo cubren los tests del backend." },
   "CP-124": { rf: "RF-07", tipo: "API", descripcion: "Un Vigilante intenta reasignar una zona.", esperado: "403 \"No tiene permisos para esta operación\"; no cambia nada.", automatiza: "Completo, con la sesión del Vigilante (E2E_VIGILANTE_*); sin esas variables se omite." },
   "CP-68": { rf: "RF-09", tipo: "API", descripcion: "Listado de niveles de gravedad.", esperado: "200 con los niveles ordenados.", automatiza: "Paso 2 (listado); la edición corre con --completo." },
 
@@ -124,6 +125,12 @@ export const CASO_POR_PETICION = {
   "Usuarios Reasignar Zona Vigilante": "CP-124",
   "Usuarios Reasignar Zona": "CP-121",
   "Usuarios Reasignar Zona Restaurar": "CP-121",
+  "Login Supervisor": "CP-123",
+  "Usuarios Reasignar Zona Supervisor": "CP-123",
+  "Usuarios Crear Supervisor": "CP-123",
+  "Usuarios Cambiar Estado Supervisor": "CP-123",
+  "Incidencias Por Zona Antes De Reasignar": "CP-125",
+  "Incidencias Por Zona Despues De Reasignar": "CP-125",
   "Reportes Excel": "CP-46",
   "Reportes PDF": "CP-47",
   "Reportes PDF Personalizado": "CP-47",
@@ -141,5 +148,6 @@ Object.assign(CASOS, {
   "CP-26": { rf: "RF-03", tipo: "API", descripcion: "Registrar incidencia por API (--completo).", esperado: "201 con la incidencia.", automatiza: "Paso 1.", soloCompleto: true },
   "CP-64": { rf: "RF-09", tipo: "API", descripcion: "Crear y editar zona (--completo).", esperado: "201 al crear y 200 al editar.", automatiza: "Pasos 1 y edición.", soloCompleto: true },
   "CP-66": { rf: "RF-09", tipo: "API", descripcion: "Desactivar zona (--completo).", esperado: "200.", automatiza: "Paso 1.", soloCompleto: true },
+  "CP-125": { rf: "RF-07, RF-04", tipo: "API", descripcion: "Mover al Vigilante no cambia sus incidencias pasadas (--reasignacion o --completo).", esperado: "Las incidencias por zona del año de la zona de origen y de la de destino son las mismas antes y después de moverlo.", automatiza: "Pasos 1 a 3 alrededor de la reasignación de CP-121 (la incidencia nueva del paso 4 se prueba a mano).", soloCompleto: true },
   "CP-121": { rf: "RF-07, RF-02", tipo: "API", descripcion: "El Administrador reasigna la zona del Vigilante de prueba (--reasignacion o --completo).", esperado: "200 con la zona destino y luego 200 al devolverlo a su zona; sin contrasena.", automatiza: "Mover y restaurar (las filas REASIGNAR_ZONA se revisan en la auditoría).", soloCompleto: true },
 });

@@ -1,0 +1,15 @@
+$kind: http-request
+description: "CP-125 (--reasignacion o --completo): guarda las incidencias por zona antes de mover al Vigilante de prueba."
+url: "{{baseUrl}}/api/dashboard/incidencias-por-zona?periodo=ANIO_ACTUAL"
+method: GET
+queryParams:
+  periodo: ANIO_ACTUAL
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const totales = {};
+      pm.response.json().forEach((fila) => { totales[String(fila.id)] = fila.total; });
+      pm.environment.set('incidenciasPorZonaAntes', JSON.stringify(totales));
+    language: text/javascript
+order: 6340

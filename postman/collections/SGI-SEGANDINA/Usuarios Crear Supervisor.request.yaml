@@ -1,0 +1,20 @@
+$kind: http-request
+description: "CP-123: el Supervisor intenta crear un usuario; el backend responde 403 antes de validar el cuerpo y no crea nada."
+url: "{{baseUrl}}/api/usuarios"
+method: POST
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenSupervisor}}"
+body:
+  type: json
+  content: '{}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 403', () => pm.response.to.have.status(403));
+      pm.test('Mensaje sin permisos', () =>
+        pm.expect(pm.response.json().mensaje).to.eql('No tiene permisos para esta operación'));
+    language: text/javascript
+order: 5310

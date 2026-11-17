@@ -1,0 +1,21 @@
+$kind: http-request
+description: "CP-125 (--reasignacion o --completo): con el Vigilante ya movido, las incidencias de su zona de origen y de la de destino no cambian."
+url: "{{baseUrl}}/api/dashboard/incidencias-por-zona?periodo=ANIO_ACTUAL"
+method: GET
+queryParams:
+  periodo: ANIO_ACTUAL
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const antes = JSON.parse(pm.environment.get('incidenciasPorZonaAntes') || '{}');
+      const despues = {};
+      pm.response.json().forEach((fila) => { despues[String(fila.id)] = fila.total; });
+      const origen = pm.environment.get('idZonaVigilante');
+      const destino = pm.environment.get('idZonaDestino');
+      pm.test('La zona de origen conserva sus incidencias', () =>
+        pm.expect(despues[origen] ?? 0).to.eql(antes[origen] ?? 0));
+      pm.test('La zona de destino no gana incidencias', () =>
+        pm.expect(despues[destino] ?? 0).to.eql(antes[destino] ?? 0));
+    language: text/javascript
+order: 6355
