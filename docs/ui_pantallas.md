@@ -73,16 +73,26 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
 - Barra de filtros global: selector de periodo común (Hoy, 7 días, 30 días, Mes actual, Año actual y Personalizado
   con dos calendarios) y listas de zona, gravedad y tipo de evento. Afecta a los KPI, las barras, el anillo y la
   serie; el despliegue por zona no usa filtros.
-- Chips de los filtros activos debajo de la barra (periodo solo si no es "30 días"), cada uno con "×", y "Quitar
-  todo" para volver a los últimos 30 días sin filtros.
+- Debajo del título, la indicación "Haz clic en un gráfico para filtrar. Quita los filtros con × o con Quitar
+  filtros".
+- Barra de filtros activos justo encima de los KPI y los gráficos, siempre visible y fija arriba al desplazar en
+  pantallas grandes (`lg`): un chip por filtro (periodo solo si no es "30 días") con "×" para quitarlo y el botón
+  "Quitar filtros" (vuelve a los últimos 30 días sin filtros) cuando hay al menos uno. Sin filtros dice "Mostrando
+  todo". Cada cambio se anuncia a los lectores de pantalla con una región `aria-live`.
 - Botón "Ver en historial": abre `/historial` con los mismos filtros.
 - Tarjetas KPI arriba: incidencias de hoy, del periodo, vigilantes desplegados y una por nivel de gravedad con su color.
 - Gráfico de barras (incidencias por zona), anillo (por tipo de evento) y serie por tiempo (línea o barras, por día,
   semana o mes); tabla de despliegue por zona con las zonas sin vigilantes en rojo.
 - Filtrado cruzado: clic en una barra de zona, un sector del anillo (o su leyenda) o una tarjeta de gravedad aplica
-  ese filtro a todo el panel; otro clic lo quita. Cada gráfico sigue mostrando todas sus opciones (no se filtra a sí
-  mismo) con la elegida resaltada y las demás atenuadas; la tarjeta elegida queda con borde. Con el teclado, cada
-  gráfico tiene debajo una tabla con un botón "Filtrar por …" por fila que se hace visible al recibir el foco.
+  ese filtro a todo el panel. Cada gráfico sigue mostrando todas sus opciones (no se filtra a sí mismo) con la
+  elegida resaltada y las demás atenuadas; la tarjeta elegida queda con borde. Con el teclado, cada gráfico tiene
+  debajo una tabla con un botón "Filtrar por …" por fila que se hace visible al recibir el foco.
+- Aviso en el encabezado de cada gráfico filtrado por otro (barras, anillo y serie): "Filtrado por Zona: … · Ver
+  todo", uno por filtro; "Ver todo" quita ese filtro.
+- Formas de quitar un filtro: "×" de su chip, "Quitar filtros" (todos), "Ver todo" del aviso, otro clic en la misma
+  barra, sector o tarjeta, clic en un espacio vacío del gráfico (a la derecha de una barra, o el centro y las
+  esquinas del anillo), Escape con el foco en el dashboard (todos; no actúa dentro de campos ni selectores) y
+  "Atrás" del navegador.
 - Los filtros viven en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`): un enlace copiado
   abre el panel con los mismos filtros y "Atrás" deshace el último cambio. Un valor no válido se ignora.
 - Estados de carga y error en cada gráfico; refresco automático cada 60 s.

@@ -1335,3 +1335,41 @@ backend ya aceptaba `idZona`, `idTipoEvento` e `idNivelGravedad` en los endpoint
 - A mano en `/dashboard`: elegir una zona y ver el chip y la URL; clic en un sector, en una barra y en una tarjeta de
   gravedad (otro clic lo quita); Tab hasta la tabla de un gráfico y Enter en "Filtrar por …"; "Atrás" y "Adelante";
   copiar la URL en otra pestaña; "Ver en historial" y comparar "N registros" con "Incidencias del periodo".
+
+## RF-05 — usabilidad del filtrado cruzado del dashboard
+
+Antes, tras un clic en un gráfico no había una forma visible de volver a ver todo: los chips quedaban arriba, dentro
+de la tarjeta de filtros, y desaparecían sin filtros. Ahora una barra de filtros activos fija queda justo encima de
+los gráficos ("Mostrando todo" o los chips con "×" y "Quitar filtros"), cada gráfico filtrado avisa "Filtrado por …
+· Ver todo", y un filtro también se quita con un clic en un espacio vacío del gráfico o con Escape. Solo cambia el
+frontend.
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `components/ChipsFiltros.tsx` (modificado) | Barra de filtros activos: siempre se dibuja. Sin filtros muestra "Mostrando todo"; con filtros, un chip con "×" por cada uno y el botón "Quitar filtros" (antes "Quitar todo"). Una región `aria-live="polite"` oculta (`data-testid="anuncio-filtros"`) anuncia "Filtros activos: …" o "Mostrando todo" en cada cambio. | Props sin cambios: `filtro`, `catalogos`, `onCambio(filtro)`. Exporta `textoFiltro(clave, id, catalogos)` → "Zona: Zona Sur" (o "Zona: n.° 7" si el id no está en los catálogos), usado por los chips y los avisos. |
+| `app/(privado)/dashboard/PanelDashboard.tsx` (modificado) | Indicación de uso bajo el título. Saca `ChipsFiltros` de la tarjeta de filtros a un contenedor propio (`data-testid="barra-filtros"`, `lg:sticky lg:top-2`) justo antes de los KPI. Agrega `quitar(clave)` (aplica `sinFiltro`) y un `keydown` en `document`: Escape aplica `FILTRO_INICIAL` si hay filtros y el foco está en el dashboard o en `body` (no en `input`, `select` ni `textarea`). | Componente interno `AvisoFiltro({ filtro, propia?, catalogos, quitar })`: en el slot `acciones` de `Tarjeta`, lista "Filtrado por <texto> · Ver todo" por cada dimensión activa distinta de `propia` (`data-aviso=<clave>`); el botón "Ver todo" (`aria-label="Ver todo: quitar filtro …"`) llama a `quitar(clave)`. |
+| `components/graficos/GraficoBarras.tsx` (modificado) | El tooltip sigue respondiendo en toda la fila de la zona, pero el clic solo elige la barra si cae entre su inicio y su extremo (al menos 24 px); el clic en el espacio en blanco a la derecha, con una zona elegida, llama a `onQuitar`. El cursor de mano sigue la misma regla. | Prop nueva `onQuitar?()`. |
+| `components/graficos/GraficoAnillo.tsx` (modificado) | Un clic sin sector debajo dentro del área de dibujo (hueco central o esquinas), con un tipo elegido, llama a `onQuitar`. La leyenda conserva su propio clic. | Prop nueva `onQuitar?()`. |
+| `components/graficos/registro.ts` (modificado) | Ayudas para distinguir un clic en un elemento de un clic en vacío. | `enAreaDeDibujo(evento, grafico)` → `true` si el evento cae en `chartArea` (sin ejes ni leyenda). `indiceBarraBajoPuntero(evento, elementos)` → índice de la barra horizontal si `evento.x` no pasa de `max(extremo, inicio + 24)`, o `null`. |
+
+Chart.js solo llama a `options.onClick` dentro del área de dibujo, así que un clic en los nombres de zona del eje no
+filtra ni quita nada.
+
+### Flujo: clic en el espacio vacío junto a una barra con "Zona Sur" elegida
+
+1. Chart.js llama a `onClick` de `GraficoBarras` con la fila bajo el puntero (`mode: "index"`); `indiceBarraBajoPuntero` ve que `evento.x` pasa del extremo de la barra y devuelve `null`.
+2. Como hay una zona elegida, se llama `onQuitar()` → `quitar("idZona")` en `PanelDashboard` → `aplicar(sinFiltro(filtro, "idZona"))` → `router.push("/dashboard")`.
+3. `useFiltroUrl` lee la URL nueva; `useConsulta` vuelve a pedir `kpis`, `incidencias-por-tipo` e `incidencias-por-tiempo` sin `idZona` (en el backend, `DashboardController` → `DashboardServiceImpl` → `IncidenciaEstadisticasDao`).
+4. `ChipsFiltros` muestra "Mostrando todo" y la región `aria-live` lo anuncia; los avisos "Filtrado por Zona: …" del anillo y la serie desaparecen. "Atrás" vuelve a `?idZona=…` y todo se recalcula igual.
+
+### Cómo probar
+
+- `cd frontend && npm run lint && npm run build`.
+- `npx playwright test e2e/dashboard-filtros.spec.ts` (CP-110 a CP-116; sesión de Supervisor con catálogos,
+  dashboard e historial simulados: no depende de los datos de la base ni escribe).
+- A mano en `/dashboard` (ventana ancha): clic en una barra → chip y aviso "Filtrado por" en el anillo y la serie →
+  "Ver todo"; clic a la derecha de una barra y en el centro del anillo; Escape tras un clic en un gráfico; "Atrás";
+  desplazar hasta la serie y comprobar que la barra de filtros queda arriba. Con NVDA, comprobar que cada cambio se
+  anuncia.

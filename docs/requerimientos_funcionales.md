@@ -173,7 +173,9 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
   - Una barra de filtros (periodo, zona, tipo de evento y gravedad) se aplica a los KPI, las barras, el anillo y la serie. El despliegue (RF-07) no se filtra.
   - Clic en una barra de zona, en un sector del anillo o en una tarjeta de gravedad aplica ese filtro; otro clic sobre lo mismo lo quita. Alternativa con teclado: botones "Filtrar por …" en la tabla de datos de cada gráfico.
   - Cada gráfico se consulta sin su propio filtro, para seguir mostrando todas sus opciones: las barras sin `idZona`, el anillo sin `idTipoEvento` y las tarjetas de gravedad con un `GET /api/dashboard/kpis` sin `idNivelGravedad`. Lo elegido se resalta y el resto se atenúa. Los KPI de hoy y del periodo y la serie usan todos los filtros.
-  - Chips de los filtros activos con "×" y "Quitar todo" (vuelve a los últimos 30 días sin filtros).
+  - Barra de filtros activos encima de los gráficos (fija al desplazar en pantallas grandes): chips con "×", "Quitar
+    filtros" (vuelve a los últimos 30 días sin filtros) o "Mostrando todo"; cada gráfico filtrado avisa "Filtrado por …
+    · Ver todo". Un filtro también se quita con un clic en un espacio vacío del gráfico, con Escape o con "Atrás".
   - Los filtros se guardan en la URL (`?periodo=&desde=&hasta=&idZona=&idTipoEvento=&idNivelGravedad=`; el periodo por defecto no se escribe): un enlace compartido los reproduce y "Atrás" deshace el último cambio. "Ver en historial" abre `/historial` con los mismos parámetros, así el total del historial coincide con "Incidencias del periodo".
 - **Criterios de aceptación:** estados de carga y de error visibles; un registro nuevo aparece en las métricas sin recargar manualmente tras el siguiente refresco; elegir una zona, un tipo o una gravedad (en la barra o en el gráfico) actualiza los demás bloques y aparece su chip; la URL copiada reproduce los filtros.
 

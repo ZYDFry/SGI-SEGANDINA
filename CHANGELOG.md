@@ -12,6 +12,31 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Fase 8 / RF-05 — usabilidad del filtrado cruzado del dashboard
+- Qué se hizo:
+  - Barra de filtros activos siempre visible justo encima de los KPI y gráficos, fija al desplazar en pantallas
+    grandes: chips con "×", botón "Quitar filtros" (antes "Quitar todo") y "Mostrando todo" cuando no hay filtros.
+    Cada cambio se anuncia con `aria-live`.
+  - Aviso "Filtrado por <valor> · Ver todo" en el encabezado de las barras, el anillo y la serie cuando otro
+    filtro los afecta; "Ver todo" quita ese filtro.
+  - Más formas de quitar un filtro: clic en el espacio vacío a la derecha de una barra o en el centro del anillo,
+    y Escape con el foco en el dashboard (quita todos; no actúa dentro de campos ni selectores). "Atrás" ya
+    restauraba el estado anterior porque los filtros viven en la URL.
+  - Indicación de uso bajo el título: "Haz clic en un gráfico para filtrar. Quita los filtros con × o con Quitar
+    filtros".
+  - En las barras, el clic ya no responde en toda la fila: solo desde el inicio hasta el extremo de la barra (al
+    menos 24 px), para dejar espacio vacío donde quitar el filtro. El tooltip sigue en toda la fila.
+- Archivos clave: `frontend/src/components/ChipsFiltros.tsx`, `frontend/src/app/(privado)/dashboard/PanelDashboard.tsx`,
+  `frontend/src/components/graficos/{GraficoBarras,GraficoAnillo}.tsx`, `frontend/src/components/graficos/registro.ts`,
+  `frontend/e2e/dashboard-filtros.spec.ts`, `pruebas/casos.mjs`, `docs/ui_pantallas.md`,
+  `docs/plan_pruebas_integrales.md`, `docs/referencia_clases.md`.
+- Cómo probarlo: `cd frontend && npx playwright test e2e/dashboard-filtros.spec.ts` (CP-110 a CP-116, 7 de 7
+  aprobadas el 17/11/2026); a mano, los pasos de CP-115 y CP-116.
+- Corrida completa del 17/11 (11:30): 287 pruebas aprobadas, 0 fallidas y 0 omitidas (backend 215, Newman 27,
+  Playwright 45); índice y PDF de evidencias regenerados con CP-115 y CP-116. Pruebas manuales del dashboard
+  aprobadas.
+- Pendientes: revisar el anuncio `aria-live` con NVDA.
+
 ## [2026-11-17] Mantenimiento — Next.js 16.4.6 por aviso de seguridad
 - Qué se hizo:
   - `next` y `eslint-config-next` pasan de 16.4.3 a 16.4.6 (versión exacta), porque 16.4.3 está afectada por un
