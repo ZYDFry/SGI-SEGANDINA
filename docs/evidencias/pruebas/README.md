@@ -29,6 +29,13 @@ Datos que escribe cada paso en la base:
   (`E2E_VIGILANTE_*`) a otra zona activa, comprueba que las incidencias por zona no cambian y lo devuelve a la suya. Quedan dos registros `REASIGNAR_ZONA` en la
   auditoría (A → B y B → A) y ningún otro cambio. Necesita que la zona del Vigilante esté activa; si la devolución
   falla, hay que reasignarlo a mano desde Personal o desde la pantalla de la zona.
+- Newman con `--correccion`: lo mismo que el modo por defecto más CP-26 y CP-129 a CP-131 (corrección de la incidencia
+  por su autor, RF-03). Es el modo pensado para la base real, porque escribe lo mínimo: **una incidencia de prueba del
+  Administrador** ("Prueba CP-129: descripción corregida", en la primera zona, tipo y nivel activos), que queda para
+  siempre porque no hay borrado físico y cuenta una vez en el dashboard y el historial, y **dos registros de
+  auditoría** (`REGISTRAR_INCIDENCIA` y `EDITAR_INCIDENCIA`). CP-130 (fuera de plazo) y CP-131 (incidencia ajena) los
+  rechaza el backend y no cambian nada. No toca usuarios, zonas, tipos ni niveles. CP-130 necesita alguna incidencia
+  propia del Administrador o del Vigilante registrada hace más de 15 minutos; CP-131 necesita `E2E_VIGILANTE_*`.
 - Newman con `--completo`: crea un usuario con un DNI ficticio aleatorio (`7xxxxxxx`), la zona "Sede Surco" y el tipo
   "Incendio"; edita y desactiva el usuario 2, la zona 1 y el tipo 1; restablece la contraseña del usuario 2 y edita el
   nivel 1. **Úsalo solo con una base de prueba que se pueda restaurar**, y nunca si el usuario 2 es uno de los usuarios
@@ -79,6 +86,7 @@ Todo en orden, desde la raíz del repositorio:
 ```
 pruebas\ejecutar-todo.cmd              rem solo lectura en la API
 pruebas\ejecutar-todo.cmd --reasignacion   rem solo lectura más CP-121 y CP-125 (mueve al Vigilante y lo devuelve)
+pruebas\ejecutar-todo.cmd --correccion     rem solo lectura más CP-129 a CP-131 (deja 1 incidencia de prueba)
 pruebas\ejecutar-todo.cmd --completo       rem también las escrituras de la colección (base de prueba)
 ```
 
@@ -91,7 +99,7 @@ Por partes:
 |---|---|
 | Backend con reportes | `cd backend && .\mvnw.cmd verify surefire-report:report-only` |
 | Peticiones que correrá Newman | `cd pruebas && npm run coleccion` |
-| Newman | `cd pruebas && npm run newman` (o `npm run newman:reasignacion`, `npm run newman:completo`) |
+| Newman | `cd pruebas && npm run newman` (o `npm run newman:reasignacion`, `npm run newman:correccion`, `npm run newman:completo`) |
 | Playwright | `cd frontend && npx playwright test` (una sola: `npx playwright test login.spec.ts`) |
 | Índice y PDF | `cd pruebas && npm run reporte` |
 

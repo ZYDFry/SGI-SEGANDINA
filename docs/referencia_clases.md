@@ -1493,3 +1493,59 @@ desde 640 px). El usuario sale del token, nunca de los parámetros; el Superviso
 - Postman / Newman: "Mis Incidencias Vigilante" (CP-126, con `E2E_VIGILANTE_*`) y "Mis Incidencias Supervisor"
   (CP-127, 403, con `E2E_SUPERVISOR_*`). Ambas son de solo lectura.
 - A mano: los pasos de CP-126 a CP-128 en `docs/plan_pruebas_integrales.md`.
+
+## RF-03 — corrección de la incidencia por su autor
+
+Quien registró una incidencia (Vigilante o Administrador) puede corregirla durante 15 minutos desde `fecha_registro`
+con `PUT /api/incidencias/{id}`, con las mismas reglas del registro. Una incidencia ajena responde 404, el plazo
+vencido 400 y el Vigilante no puede cambiar la zona. Si algo cambia se audita `EDITAR_INCIDENCIA` con los valores
+antes y después de los campos modificados. "Mis incidencias" trae `editableHasta` y muestra "Corregir (quedan mm:ss)"
+con un modal que reutiliza el formulario del registro. No hay cambios en la base de datos.
+
+### Backend (`backend/src/main/java/com/segandina/sgi/`)
+
+| Clase | Responsabilidad | Métodos públicos principales |
+|---|---|---|
+| `config/IncidenciaProperties` (nuevo) | Propiedad `incidencias.plazo-edicion` (`@ConfigurationProperties("incidencias")`, habilitada en `RelojConfig`). | Record `{plazoEdicion: Duration}`; sin valor usa `PLAZO_POR_DEFECTO` (15 min); cero o negativo lanza `IllegalStateException` al arrancar. |
+| `model/Incidencia` (modificado) | Entidad `incidencia`. | `usuario` con `@JoinColumn(updatable = false)`: el autor nunca cambia; `fechaRegistro` sigue `insertable = false, updatable = false` y sin setter. |
+| `model/AccionAuditoria` (modificado) | Acciones auditadas. | `EDITAR_INCIDENCIA` ("Corregir incidencia"). |
+| `service/IncidenciaService` (modificado) | Contrato de incidencias. | `corregir(idIncidencia, request, idUsuario)` → `IncidenciaResponse`. Constantes `ZONA_NO_EDITABLE` e `INCIDENCIA_NO_EXISTE`; `plazoTerminado(Duration)` → "El plazo de corrección de 15 minutos terminó" (en minutos o segundos según el valor, con singular). |
+| `service/impl/IncidenciaServiceImpl` (modificado) | Lógica de incidencias. | `corregir`: actor activo (`SoporteServicio.actor`, 401) → incidencia del autor o `RecursoNoEncontradoException` (404) → plazo con el `Clock` (400) → zona del Vigilante = zona de la incidencia (400) → validaciones comunes → diff campo a campo → si cambió algo, guarda y audita con `SoporteServicio.cambio`. `registrar` usa ahora el mismo método privado `validarDatos(request, ahora, fechaPorDefecto)` (catálogos activos, "Otro" ≥ 20, fecha no futura), que devuelve el record privado `DatosIncidencia` con `aplicarA(incidencia)`. `buscarPropias` llena `editableHasta` con `fecha_registro + plazo` en hora de Lima, o `null` si venció. |
+| `dto/response/MiIncidenciaResponse` (modificado) | Fila de "Mis incidencias". | `desde(Incidencia, editableHasta)`. |
+| `controller/IncidenciaController` (modificado) | Endpoints de incidencias. | `PUT /api/incidencias/{id}` con `@Valid IncidenciaRequest` → `corregir(id, request, Long.valueOf(jwt.getSubject()))`, 200. |
+| `config/SecurityConfig` (modificado) | Reglas por rol. | `PUT /api/incidencias/*` → Administrador y Vigilante (Supervisor 403). |
+
+### Frontend (`frontend/src/`)
+
+| Archivo | Responsabilidad | Funciones / props principales |
+|---|---|---|
+| `lib/servicios.ts` (modificado) | Llamada nueva. | `corregirIncidencia(idIncidencia, datos)` → `IncidenciaResponse` (`PUT /api/incidencias/{id}`). |
+| `lib/useCuentaRegresiva.ts` (nuevo) | Cuenta regresiva. | `useCuentaRegresiva(hastaIso)` → segundos que faltan (se actualiza cada segundo; `0` sin fecha o vencida). |
+| `lib/fechas.ts` (modificado) | Formatos de fecha. | `formatearCuenta(segundos)` → `"mm:ss"`. |
+| `app/(privado)/incidencias/nueva/FormularioIncidencia.tsx` (modificado) | Registro y corrección. | Prop opcional `correccion: {incidencia, onCorregida, onCancelar, onEnviando?}`: parte de los valores de la incidencia, el Vigilante ve fija la zona de la incidencia, la fecha se conserva salvo "Cambiar fecha y hora", botones "Cancelar" y "Guardar corrección"; mismas `validarIncidencia`, `useValidacion` y `erroresDelServidor` (el rechazo de zona va bajo "Zona"; el de plazo, como aviso general). |
+| `app/(privado)/incidencias/mias/MisIncidencias.tsx` (modificado) | Pantalla "Mis incidencias". | Componente interno `BotonCorregir` ("Corregir (quedan mm:ss)" mientras `useCuentaRegresiva(editableHasta) > 0`) en tarjetas y tabla; `Modal` "Corregir incidencia N.° …" (bloqueado mientras guarda) con el formulario en modo corrección; al guardar recarga y muestra "Incidencia N.° … corregida". |
+| `app/(privado)/historial/auditoria/DetalleAuditoria.tsx` (modificado) | Detalle legible de auditoría. | Etiqueta `fechaHora` ("Fecha y hora"); los textos de fecha y hora ISO se muestran como `dd/mm/aaaa hh:mm` en hora de Lima. |
+
+### Flujo: el Vigilante corrige la descripción a los 5 minutos
+
+1. En `/incidencias/mias`, `BotonCorregir` muestra "Corregir (quedan 10:00)"; el modal envía `PUT /api/incidencias/41` con `{idZona, idTipoEvento, idNivelGravedad, descripcion}` (sin `fechaHora`, porque no la cambió).
+2. `SecurityConfig` aplica `PUT /api/incidencias/*` (Administrador y Vigilante); `@Valid` revisa el cuerpo (400 con detalles si falta algo).
+3. `IncidenciaController.corregir` toma el id de `jwt.getSubject()` y delega en `IncidenciaServiceImpl.corregir` (transaccional).
+4. `UsuarioDao.findById` (usuario activo) e `IncidenciaDao.findById(41)` filtrado por autor; `ahora` del `Clock` ≤ `fecha_registro + plazo`; la zona enviada es la de la incidencia.
+5. `validarDatos` consulta zona, tipo y nivel (`ZonaDao`, `TipoEventoDao`, `NivelGravedadDao`) y aplica las reglas del registro; el diff deja `antes: {descripcion}` y `despues: {descripcion}`.
+6. `IncidenciaDao.save` ejecuta `UPDATE incidencia SET …` (sin `id_usuario` ni `fecha_registro`) y `AuditoriaService.registrar(EDITAR_INCIDENCIA, {idIncidencia, antes, despues})` inserta en `auditoria` en la misma transacción.
+7. Responde 200 con `IncidenciaResponse`; el modal se cierra y la lista se vuelve a consultar.
+
+### Cómo probar
+
+- `cd backend && .\mvnw.cmd -q verify` (273 tests): `IncidenciaServiceImplTest` (auditoría solo de lo cambiado, sin
+  cambios no guarda ni audita, fecha conservada, límite exacto del plazo, vencido, ajena e inexistente, zona del
+  Vigilante reasignado, reglas del registro, `editableHasta`), `IncidenciaControllerTest` (200, 400, 401, 403, 404) y
+  `MapeoEntidadesTest` (`updatable = false` del autor y de `fecha_registro`).
+- `cd frontend && npm run lint && npm run build`; `npx playwright test e2e/mis-incidencias.spec.ts` (CP-132, con la
+  API simulada y `page.clock`).
+- Newman `--completo`: "Corregir Incidencia" (CP-129), "Corregir Incidencia Vencida" (CP-130) y "Corregir Incidencia
+  Ajena" (CP-131, con `E2E_VIGILANTE_*`).
+- Vencimiento a mano sin esperar 15 minutos: en las propiedades del perfil `local` poner
+  `incidencias.plazo-edicion=1m`, reiniciar el backend, registrar una incidencia, esperar más de un minuto con el modal
+  abierto y guardar: 400 "El plazo de corrección de 1 minuto terminó" dentro del modal.

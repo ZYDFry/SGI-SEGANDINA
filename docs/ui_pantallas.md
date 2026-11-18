@@ -17,7 +17,7 @@ Nota: este archivo se basa en el "Prompt Maestro para Generación de UI" y el do
 |---|---|---|---|
 | `/login` | Login | público | RF-01 |
 | `/incidencias/nueva` | Formulario de registro (Mobile-First) | Vigilante, Administrador | RF-03 |
-| `/incidencias/mias` | Mis incidencias: las registradas por el usuario de la sesión (Mobile-First) | Vigilante, Administrador | RF-04 |
+| `/incidencias/mias` | Mis incidencias: las registradas por el usuario de la sesión, con corrección durante 15 minutos (Mobile-First) | Vigilante, Administrador | RF-04, RF-03 |
 | `/dashboard` | Dashboard gerencial (Desktop) | Administrador, Supervisor | RF-05, RF-07 |
 | `/despliegue/[idZona]` | Despliegue de una zona: personal, carga y reasignación (se llega desde el dashboard) | Administrador, Supervisor | RF-07, RF-02 |
 | `/historial` | Historial de incidencias con filtros y exportación | Administrador, Supervisor | RF-04, RF-06 |
@@ -79,6 +79,12 @@ Tras el login: Vigilante a `/incidencias/nueva`; Administrador y Supervisor a `/
   Fecha, Zona, Tipo y Gravedad (sin columna Usuario). "Ver detalle" despliega la descripción, el número, cuándo se
   guardó en el sistema y la ubicación de la zona.
 - Estados de carga, error con "Reintentar" y "No registró incidencias en este periodo."
+- Corrección por el autor (RF-03): mientras dura el plazo (15 minutos desde que se guardó, campo `editableHasta`),
+  cada incidencia muestra "Corregir (quedan mm:ss)" junto a "Ver detalle"; al llegar a cero desaparece sin recargar.
+  Abre el modal "Corregir incidencia N.° …" con el formulario del registro y sus validaciones, cargado con los valores
+  de la incidencia; el Vigilante ve la zona fija; la fecha registrada se conserva salvo "Cambiar fecha y hora". Botones
+  "Cancelar" y "Guardar corrección"; los rechazos del backend (por ejemplo, plazo vencido) se muestran dentro del
+  modal. Al guardar se cierra y aparece "Incidencia N.° … corregida".
 
 ### 3. Dashboard gerencial (Desktop)
 - Barra lateral de navegación con íconos y grupos (en tablet y móvil se abre con el botón "Menú").

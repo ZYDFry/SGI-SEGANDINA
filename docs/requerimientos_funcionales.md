@@ -142,6 +142,38 @@ usuarios. El Vigilante usa el formulario móvil y consulta solo las incidencias 
   fecha futura, "Otro" corto, Vigilante sin zona, con la zona inactiva o con una zona distinta de la asignada); 401 sin token o con usuario inactivo; 403 con rol Supervisor.
 - **Criterios de aceptación:** el flujo completo se hace con selectores rápidos y un campo de texto; el servidor responde en menos de 3 segundos en red móvil (RNF-04); tras guardar se muestra confirmación y el formulario queda listo para otro registro.
 
+### Corrección por el autor
+
+- **Descripción:** quien registró una incidencia puede corregir un error (tipo, gravedad, descripción, fecha o, el
+  Administrador, la zona) durante un plazo corto después de guardarla.
+- **Plazo:** 15 minutos contados desde `fecha_registro` (la hora en que la guardó la BD, no `fecha_hora`). Se configura
+  con la propiedad `incidencias.plazo-edicion` (formato `Duration` de Spring: `15m`, `90s`); un valor nulo usa 15
+  minutos y uno cero o negativo impide arrancar el backend. Justo en el límite todavía se puede corregir.
+- **Contrato:** `PUT /api/incidencias/{id}` (Vigilante y Administrador) con el mismo cuerpo del registro
+  `{ "idZona", "idTipoEvento", "idNivelGravedad", "descripcion", "fechaHora"? }`. Sin `fechaHora` se conserva la
+  registrada. Respuesta: 200 con la incidencia como quedó (mismo formato que el 201 del registro).
+- **Reglas, en este orden:**
+  - El usuario se toma del JWT; inactivo o inexistente → 401.
+  - Solo el autor (`incidencia.id_usuario` = `sub` del token). Si la incidencia no existe o es de otro usuario → 404
+    "La incidencia no existe" (la misma respuesta, para no revelar que existe).
+  - Vencido el plazo → 400 "El plazo de corrección de 15 minutos terminó" (el número sale de la propiedad).
+  - El Vigilante no puede cambiar la zona: `idZona` debe ser la zona de la incidencia (no la que tiene asignada hoy;
+    si lo reasignaron durante el plazo, igual corrige la incidencia en su zona original) → si no, 400 "El Vigilante no
+    puede cambiar la zona de la incidencia". El Administrador puede elegir cualquier zona activa.
+  - Las mismas reglas del registro: zona, tipo y nivel existentes y activos; "Otro" con al menos 20 caracteres;
+    descripción obligatoria de hasta 2000; `fechaHora` no futura (2 minutos de tolerancia).
+  - El autor y `fecha_registro` nunca cambian (la entidad los mapea con `updatable = false`).
+  - Si ningún campo cambió (la fecha se compara como instante), responde 200 sin guardar ni auditar. Si algo cambió, se
+    audita `EDITAR_INCIDENCIA` en la misma transacción con `{idIncidencia, antes: {...}, despues: {...}}`, solo con los
+    campos modificados (`idZona`, `idTipoEvento`, `idNivelGravedad`, `descripcion`, `fechaHora` en ISO 8601).
+  - Supervisor → 403; sin token → 401; cuerpo inválido → 400 con los detalles por campo.
+- **Pantalla:** en "Mis incidencias" (RF-04) cada incidencia dentro del plazo muestra "Corregir (quedan mm:ss)", con
+  la cuenta regresiva calculada a partir de `editableHasta`; al llegar a cero el botón desaparece sin recargar. Abre un
+  modal con el mismo formulario del registro y sus mismas validaciones (avisos debajo de cada campo): parte de los
+  valores de la incidencia, el Vigilante ve fija la zona de la incidencia, y la fecha registrada se conserva salvo que
+  pulse "Cambiar fecha y hora". Los rechazos del backend se muestran en el modal (el de plazo vencido, como aviso
+  general). Al guardar se cierra, la lista se actualiza y aparece "Incidencia N.° … corregida".
+
 ## Rango de fechas y filtros comunes (RF-04, RF-05 y RF-06)
 
 El historial, el dashboard y los reportes reciben los mismos query params, todos opcionales y combinables con AND:
@@ -186,8 +218,9 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
   suyas (`incidencia.id_usuario`). Mismo orden (`fecha_hora` descendente, luego id) y misma paginación que el
   historial. Es solo lectura: no se audita.
 - **Respuesta:** página con el formato común. Cada fila trae `idIncidencia`, `fechaHora`, `fechaRegistro`,
-  `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `editableHasta` (hasta cuándo su autor podrá corregirla;
-  por ahora siempre `null`, porque la edición aún no existe). No trae `usuario`, porque siempre es el propio.
+  `descripcion`, `zona`, `tipoEvento`, `nivelGravedad` y `editableHasta` (hasta cuándo su autor puede corregirla:
+  `fecha_registro` más el plazo de corrección, en hora de Lima; `null` si el plazo ya venció; ver "Corrección por el
+  autor" en RF-03). No trae `usuario`, porque siempre es el propio.
 - **Pantalla:** `/incidencias/mias`, Mobile-First: tarjetas en el celular y tabla (Fecha, Zona, Tipo, Gravedad)
   desde 640 px, selector de periodo, paginación y "Ver detalle" con la descripción. Se llega desde "Mis incidencias"
   en el menú (y en la barra inferior del Vigilante) y desde "Ver mis incidencias" en la confirmación del registro.
@@ -285,7 +318,7 @@ El historial, el dashboard y los reportes reciben los mismos query params, todos
 - **Reglas:**
   - La tabla `auditoria` es solo inserción: ni el código ni los tests hacen UPDATE o DELETE.
   - Acciones: `LOGIN_OK`, `LOGIN_FALLIDO`, `CREAR_USUARIO`, `MODIFICAR_USUARIO`, `CAMBIAR_ESTADO_USUARIO`,
-    `CAMBIAR_CONTRASENA`, `RESTABLECER_CONTRASENA`, `REGISTRAR_INCIDENCIA`, `EXPORTAR_REPORTE`, `CREAR_ZONA`,
+    `CAMBIAR_CONTRASENA`, `RESTABLECER_CONTRASENA`, `REGISTRAR_INCIDENCIA`, `EDITAR_INCIDENCIA`, `EXPORTAR_REPORTE`, `CREAR_ZONA`,
     `MODIFICAR_ZONA`, `CAMBIAR_ESTADO_ZONA`, `CREAR_TIPO_EVENTO`, `MODIFICAR_TIPO_EVENTO`,
     `CAMBIAR_ESTADO_TIPO_EVENTO`, `MODIFICAR_NIVEL_GRAVEDAD`.
   - `accion_realizada` es texto libre (`VARCHAR(60)`, sin restricción de valores en la BD); los valores válidos

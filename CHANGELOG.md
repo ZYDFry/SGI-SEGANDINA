@@ -12,6 +12,59 @@ Formato de cada entrada:
 - Pendientes o problemas conocidos
 ```
 
+## [2026-11-17] Pruebas — modo Newman `--correccion` para la base real
+- Qué se hizo: como la base de Supabase es la única (no hay base de prueba), CP-129 a CP-131 no pueden correr con
+  `--completo`, que edita y desactiva el usuario 2, la zona 1 y el tipo 1. El nuevo modo `--correccion` corre la
+  lectura más la cadena de corrección: registra una incidencia de prueba del Administrador (CP-26), la corrige y
+  comprueba la auditoría con antes y después (CP-129), intenta corregir una incidencia propia vencida (CP-130, 400) y
+  la del Administrador con el token del Vigilante (CP-131, 404). Deja 1 incidencia ("Prueba CP-129: descripción
+  corregida") y 2 registros de auditoría; no toca usuarios, zonas, tipos ni niveles. La incidencia de prueba usa la
+  primera zona, tipo (distinto de "Otro") y nivel activos, que guardan las peticiones de catálogos, en vez de ids fijos.
+- Archivos clave: `pruebas/scripts/coleccion.mjs` (`ESCRITURAS_CORRECCION`), `pruebas/scripts/newman.mjs`,
+  `pruebas/package.json` (`newman:correccion`), `pruebas/ejecutar-todo.cmd`, `postman/collections/SGI-SEGANDINA`
+  ("Catalogo Zonas/Tipos/Niveles", "Registrar Incidencias", "Corregir Incidencia*"), `pruebas/casos.mjs`,
+  `docs/evidencias/pruebas/README.md`, `docs/plan_pruebas_integrales.md`.
+- Cómo probarlo: `cd pruebas && node scripts/coleccion.mjs --listar --correccion` (43 peticiones: la lectura más las 4
+  de corrección, ninguna otra escritura); luego `pruebas\ejecutar-todo.cmd --correccion`.
+- Resultado (17/11/2026, `pruebas\ejecutar-todo.cmd --correccion`): CP-26 201, CP-129 200 con la auditoría
+  `EDITAR_INCIDENCIA` (antes y después de la descripción), CP-130 400 por plazo vencido y CP-131 404; backend 273 de 273,
+  Playwright 58 de 58 y 72 casos aprobados en el índice. CP-129 a CP-131 quedan aprobados. En la base queda la
+  incidencia de prueba "Prueba CP-129: descripción corregida" con sus dos registros de auditoría.
+- Corrección del resumen de Newman (`pruebas/scripts/newman.mjs`): `summary.run.executions` repetía las peticiones
+  cuyos scripts usan `pm.sendRequest` (y mostraba la URL de esa llamada), así que la corrida figuró con 45 peticiones
+  en vez de 43. Ahora queda una fila por petición, con el método, la ruta y el código de la petición real (evento
+  `request` con el método definido en la colección).
+
+## [2026-11-17] RF-03 — el autor corrige su incidencia durante 15 minutos
+- Qué se hizo: `PUT /api/incidencias/{id}` (Vigilante y Administrador) permite al autor corregir su incidencia
+  durante el plazo `incidencias.plazo-edicion` (15 minutos desde `fecha_registro`), con las mismas reglas del
+  registro (catálogos activos, "Otro" con 20 caracteres, fecha no futura). Otro usuario recibe 404 "La incidencia no
+  existe"; vencido el plazo, 400 "El plazo de corrección de 15 minutos terminó"; el Vigilante no puede cambiar la zona
+  (se compara con la zona de la incidencia, aunque lo hayan reasignado). Sin cambios responde 200 sin guardar ni
+  auditar; con cambios audita `EDITAR_INCIDENCIA` con `{idIncidencia, antes, despues}` solo de los campos
+  modificados. Las validaciones comunes de `registrar` y `corregir` están en un único método privado. El autor queda
+  mapeado con `updatable = false` (`fecha_registro` ya era `insertable = false, updatable = false`). "Mis incidencias"
+  trae `editableHasta` y muestra "Corregir (quedan mm:ss)", que desaparece al vencer y abre el formulario del registro
+  en un modal con las mismas validaciones. La auditoría muestra las fechas ISO en formato legible. Sin cambios en la
+  base de datos (el rol `app_sgi` ya tenía UPDATE sobre `incidencia`).
+- Archivos clave: `config/IncidenciaProperties.java`, `service/impl/IncidenciaServiceImpl.java`,
+  `controller/IncidenciaController.java`, `config/SecurityConfig.java`, `model/Incidencia.java`,
+  `model/AccionAuditoria.java`, `dto/response/MiIncidenciaResponse.java`, `application.properties`;
+  `frontend/src/app/(privado)/incidencias/mias/MisIncidencias.tsx`, `.../nueva/FormularioIncidencia.tsx`,
+  `lib/useCuentaRegresiva.ts`, `historial/auditoria/DetalleAuditoria.tsx`; tests `IncidenciaServiceImplTest`,
+  `IncidenciaControllerTest` (nuevo), `MapeoEntidadesTest`, `e2e/mis-incidencias.spec.ts`; Postman "Corregir
+  Incidencia", "Corregir Incidencia Vencida" y "Corregir Incidencia Ajena".
+- Cómo probarlo: `.\mvnw.cmd -q verify` (273 de 273 tests; cobertura 91,0 % de instrucciones), `npm run lint` y
+  `npm run build` sin errores, `npx playwright test e2e/mis-incidencias.spec.ts` (CP-128 y CP-132 aprobados; también
+  pasan `incidencia`, `validaciones`, `despliegue` y `paneles`), Newman de solo lectura 39 de 39. Casos CP-129 a
+  CP-132 en `docs/plan_pruebas_integrales.md`. Para ver el vencimiento sin esperar, bajar el plazo en las propiedades
+  del perfil `local` (`incidencias.plazo-edicion=1m`). Corrida completa de `pruebas\ejecutar-todo.cmd` del
+  17/11/2026 (solo lectura): backend 273 de 273 tests (91,0 % de instrucciones, 92,5 % de líneas, 76,0 % de ramas),
+  Newman 39 de 39 peticiones, Playwright 58 de 58 (55 pruebas más 3 sesiones), sin fallos ni omitidas; índice y PDF de
+  evidencias regenerados con 68 casos aprobados.
+- Pendientes: CP-129 a CP-131 por Newman necesitan `--completo` contra una base de prueba restaurable (están aprobados
+  en JUnit). Los IDs CP-121 a CP-124 ya estaban usados por RF-05 y RF-07, así que estos casos son CP-129 a CP-132.
+
 ## [2026-11-17] Fase 8 — cierre
 - Qué se hizo: se cierra la Fase 8 (frontend de paneles, pruebas y documentación). Incluye el dashboard con filtros
   globales, filtrado cruzado y comparación con el periodo anterior; la pantalla de cada zona con la reasignación de

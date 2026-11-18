@@ -108,6 +108,7 @@ JWT_SECRET=
 Verificar en Supabase (Project Settings → Database) cuál cadena corresponde: conexión directa o pooler. Si se usa el pooler en modo transacción, puede hacer falta `?prepareThreshold=0` en la URL de JDBC.
 
 `application.properties` lee `${DB_URL}`, `${DB_USER}`, `${DB_PASSWORD}`, `${JWT_SECRET}`. Para desarrollo local, `application-local.properties` (ignorado por git) con perfil `local`.
+También define `incidencias.plazo-edicion=15m` (plazo para que el autor corrija su incidencia, RF-03; se lee con `IncidenciaProperties`); el perfil `local` puede bajarlo, por ejemplo a `1m`, para probar el vencimiento.
 
 ## 4. API REST (propuesta inicial, ajustable)
 
