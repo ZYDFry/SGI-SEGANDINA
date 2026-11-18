@@ -2,6 +2,11 @@
 // /incidencias/mias. El registro (`POST /api/incidencias`) y la consulta (`GET /api/incidencias/mias`) se simulan
 // con `page.route`, igual que la zona asignada, para no escribir en la base: la consulta devuelve justo lo
 // registrado. Que la API solo devuelva las incidencias propias lo prueban el backend (CP-126) y Newman.
+//
+// CP-132 (corrección por el autor, RF-03): el Administrador corrige una incidencia propia desde el modal, ve el
+// cambio en la auditoría y, al avanzar el reloj del navegador más allá de `editableHasta`, el botón "Corregir"
+// desaparece. La corrección (`PUT`) y la auditoría también se simulan; las reglas del plazo y del autor las prueban
+// el backend (CP-129 a CP-131) y Newman.
 
 import { expect, test, type Page } from "@playwright/test";
 import { capturar, capturarAlFallar, caso, esperarPantalla, ocultarIndicadorNext, usarSesion } from "./ayudas";
@@ -71,6 +76,134 @@ test.describe("Mis incidencias en el celular", () => {
     await capturar(page, testInfo, "CP-128_mis_incidencias_360");
   });
 });
+
+test.describe("Corrección de la incidencia propia", () => {
+  usarSesion("admin");
+
+  test("CP-132 el autor corrige su incidencia en el modal, la auditoría muestra el cambio y el botón desaparece al vencer el plazo", async ({ page }, testInfo) => {
+    caso("CP-132");
+    await page.clock.install();
+    const simulacion = await simularCorreccion(page);
+
+    await page.goto("/incidencias/mias");
+    await esperarPantalla(page, /\/incidencias\/mias$/);
+    const fila = page.locator("tbody tr").first();
+    const corregir = fila.getByRole("button", { name: /^Corregir \(quedan \d{2}:\d{2}\)$/ });
+    await expect(corregir).toBeVisible();
+    await capturar(page, testInfo, "CP-132_boton_corregir");
+
+    await corregir.click();
+    const modal = page.getByRole("dialog", { name: `Corregir incidencia N.° ${ID_CORREGIDA}` });
+    await expect(modal).toBeVisible();
+    const descripcion = modal.locator("#descripcion");
+    await expect(descripcion).toHaveValue(DESCRIPCION_ORIGINAL);
+    // Mismas validaciones del registro: vacía muestra el aviso bajo el campo
+    await descripcion.fill("");
+    await descripcion.blur();
+    await expect(modal.locator("#error-descripcion")).toBeVisible();
+    await descripcion.fill(DESCRIPCION_CORREGIDA);
+    await capturar(page, testInfo, "CP-132_modal_correccion");
+    await modal.getByRole("button", { name: "Guardar corrección" }).click();
+
+    await expect(modal).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: `Incidencia N.° ${ID_CORREGIDA} corregida` })).toBeVisible();
+    expect(simulacion.enviado, "envía el PUT con los datos corregidos").toMatchObject({
+      idZona: ZONA.idZona,
+      idTipoEvento: TIPO.idTipoEvento,
+      idNivelGravedad: NIVEL.idNivelGravedad,
+      descripcion: DESCRIPCION_CORREGIDA,
+    });
+    expect(simulacion.enviado, "sin cambiar la fecha, no la envía (se conserva)").not.toHaveProperty("fechaHora");
+
+    // La auditoría muestra la acción con el valor anterior tachado y el nuevo
+    await page.goto("/historial/auditoria");
+    await esperarPantalla(page, /\/historial\/auditoria$/);
+    const registro = page.locator("tbody tr").filter({ hasText: "Corregir incidencia" }).first();
+    await expect(registro).toBeVisible();
+    await expect(registro).toContainText(new RegExp(`Incidencia \\(id\\):\\s*${ID_CORREGIDA}`));
+    await expect(registro.locator(".line-through")).toHaveText(DESCRIPCION_ORIGINAL);
+    await expect(registro).toContainText(DESCRIPCION_CORREGIDA);
+    await capturar(page, testInfo, "CP-132_auditoria_antes_despues", { paginaCompleta: true });
+
+    // Vencido el plazo, el botón desaparece sin recargar
+    await page.goto("/incidencias/mias");
+    await esperarPantalla(page, /\/incidencias\/mias$/);
+    await expect(page.locator("tbody tr").first().getByRole("button", { name: /^Corregir/ })).toBeVisible();
+    await page.clock.fastForward("16:00");
+    await expect(page.locator("tbody tr").first().getByRole("button", { name: /^Corregir/ })).toHaveCount(0);
+    await expect(page.locator("tbody tr").first().getByRole("button", { name: "Ver detalle" })).toBeVisible();
+    await capturar(page, testInfo, "CP-132_plazo_vencido");
+  });
+});
+
+const ID_CORREGIDA = 999132;
+const DESCRIPCION_ORIGINAL = "Prueba simulada CP-132: puerta abierta";
+const DESCRIPCION_CORREGIDA = "Prueba simulada CP-132: puerta lateral forzada";
+const TIPO = { idTipoEvento: 9201, nombreTipoEvento: "Tipo de prueba CP-132", estadoActivo: true };
+const NIVEL = { idNivelGravedad: 9201, nombreNivel: "Nivel de prueba", orden: 1, estadoActivo: true };
+
+/**
+ * Simula los catálogos del formulario, "Mis incidencias" con una incidencia propia recién registrada (con
+ * `editableHasta` a 15 minutos del reloj del navegador), la corrección (`PUT`) y la consulta de auditoría con el
+ * registro `EDITAR_INCIDENCIA` resultante.
+ *
+ * @return el cuerpo que envió el `PUT` (se llena al corregir)
+ */
+async function simularCorreccion(page: Page): Promise<{ enviado: Record<string, unknown> | null }> {
+  const resultado: { enviado: Record<string, unknown> | null } = { enviado: null };
+  const registro = new Date(await page.evaluate(() => Date.now()));
+  const editableHasta = new Date(registro.getTime() + 15 * 60_000).toISOString();
+  let incidencia = {
+    idIncidencia: ID_CORREGIDA,
+    fechaHora: registro.toISOString(),
+    fechaRegistro: registro.toISOString(),
+    descripcion: DESCRIPCION_ORIGINAL,
+    zona: ZONA,
+    tipoEvento: TIPO,
+    nivelGravedad: NIVEL,
+  };
+
+  await page.route("**/api/catalogos/zonas", (ruta) => ruta.fulfill({ json: [ZONA] }));
+  await page.route("**/api/catalogos/tipos-evento", (ruta) => ruta.fulfill({ json: [TIPO] }));
+  await page.route("**/api/catalogos/niveles-gravedad", (ruta) => ruta.fulfill({ json: [NIVEL] }));
+  await page.route("**/api/incidencias/mias?**", (ruta) =>
+    ruta.fulfill({
+      json: { contenido: [{ ...incidencia, editableHasta }], pagina: 0, tamano: 20, totalElementos: 1, totalPaginas: 1 },
+    }),
+  );
+  await page.route(`**/api/incidencias/${ID_CORREGIDA}`, async (ruta) => {
+    if (ruta.request().method() !== "PUT") return ruta.fallback();
+    resultado.enviado = ruta.request().postDataJSON();
+    incidencia = { ...incidencia, descripcion: String(resultado.enviado?.descripcion) };
+    await ruta.fulfill({ json: { ...incidencia, idUsuario: 0 } });
+  });
+  await page.route("**/api/auditoria?**", (ruta) =>
+    ruta.fulfill({
+      json: {
+        contenido: [
+          {
+            idAuditoria: 999132,
+            fechaHora: new Date().toISOString(),
+            accion: "EDITAR_INCIDENCIA",
+            accionEtiqueta: "Corregir incidencia",
+            usuario: { idUsuario: 0, dni: "00000000", nombreCompleto: "Usuario de prueba" },
+            dniIntentado: null,
+            detalle: {
+              idIncidencia: ID_CORREGIDA,
+              antes: { descripcion: DESCRIPCION_ORIGINAL },
+              despues: { descripcion: DESCRIPCION_CORREGIDA },
+            },
+          },
+        ],
+        pagina: 0,
+        tamano: 20,
+        totalElementos: 1,
+        totalPaginas: 1,
+      },
+    }),
+  );
+  return resultado;
+}
 
 /**
  * Simula la zona asignada, el registro y la consulta de "Mis incidencias" (que devuelve lo registrado, con el

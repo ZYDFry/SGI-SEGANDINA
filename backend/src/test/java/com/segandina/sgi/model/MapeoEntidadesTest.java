@@ -21,6 +21,7 @@ import com.segandina.sgi.dao.AuditoriaDao;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 
 /**
@@ -78,6 +79,15 @@ class MapeoEntidadesTest {
 				.filter(m -> Modifier.isPublic(m.getModifiers()))
 				.anyMatch(m -> m.getName().equals("setFechaRegistro"));
 		assertFalse(tieneSetter, "fecha_registro la asigna la BD");
+	}
+
+	@Test
+	void incidenciaNoCambiaFechaRegistroNiAutorAlActualizar() throws NoSuchFieldException {
+		Column fechaRegistro = Incidencia.class.getDeclaredField("fechaRegistro").getAnnotation(Column.class);
+		assertFalse(fechaRegistro.insertable(), "fecha_registro no se inserta desde Java");
+		assertFalse(fechaRegistro.updatable(), "fecha_registro no se actualiza desde Java");
+		JoinColumn autor = Incidencia.class.getDeclaredField("usuario").getAnnotation(JoinColumn.class);
+		assertFalse(autor.updatable(), "el autor de la incidencia nunca cambia");
 	}
 
 	@Test

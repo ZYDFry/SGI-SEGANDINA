@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -27,7 +28,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.segandina.sgi.config.IncidenciaProperties;
 import com.segandina.sgi.config.RelojConfig;
 import com.segandina.sgi.dao.IncidenciaDao;
 import com.segandina.sgi.dao.NivelGravedadDao;
@@ -42,6 +45,7 @@ import com.segandina.sgi.dto.response.IncidenciaHistorialResponse;
 import com.segandina.sgi.dto.response.IncidenciaResponse;
 import com.segandina.sgi.dto.response.MiIncidenciaResponse;
 import com.segandina.sgi.exception.CredencialesInvalidasException;
+import com.segandina.sgi.exception.RecursoNoEncontradoException;
 import com.segandina.sgi.exception.ReglaNegocioException;
 import com.segandina.sgi.model.AccionAuditoria;
 import com.segandina.sgi.model.Incidencia;
@@ -55,7 +59,7 @@ import com.segandina.sgi.service.IncidenciaService;
 import com.segandina.sgi.service.UsuarioService;
 
 /**
- * Pruebas unitarias del registro (RF-03) y del historial (RF-04) de incidencias con DAO y auditoría simulados y un reloj fijo.
+ * Pruebas unitarias del registro y la corrección (RF-03) y del historial (RF-04) de incidencias con DAO y auditoría simulados y un reloj fijo.
  */
 class IncidenciaServiceImplTest {
 
@@ -91,7 +95,7 @@ class IncidenciaServiceImplTest {
 		auditoriaService = mock(AuditoriaService.class);
 		Clock reloj = Clock.fixed(Instant.from(AHORA), RelojConfig.ZONA_LIMA);
 		incidenciaService = new IncidenciaServiceImpl(incidenciaDao, usuarioDao, zonaDao, tipoEventoDao,
-				nivelGravedadDao, auditoriaService, reloj);
+				nivelGravedadDao, auditoriaService, reloj, new IncidenciaProperties(Duration.ofMinutes(15)));
 
 		usuario = new Usuario();
 		usuario.setIdUsuario(ID_USUARIO);
@@ -379,7 +383,7 @@ class IncidenciaServiceImplTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void misIncidenciasUsanElOrdenDelHistorialYNoSonEditablesTodavia() {
+	void misIncidenciasUsanElOrdenDelHistorialYSinFechaRegistroNoSonEditables() {
 		Incidencia incidencia = new Incidencia();
 		incidencia.setIdIncidencia(101L);
 		incidencia.setFechaHora(AHORA.minusHours(2));
@@ -413,6 +417,215 @@ class IncidenciaServiceImplTest {
 
 		assertThrows(ReglaNegocioException.class, () -> incidenciaService.buscarPropias(sinHasta, ID_USUARIO, 0, 20));
 		verifyNoInteractions(incidenciaDao);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void misIncidenciasTraenEditableHastaSoloDentroDelPlazo() {
+		Incidencia reciente = guardadaHace(Duration.ofMinutes(5));
+		Incidencia vencida = guardadaHace(Duration.ofMinutes(16));
+		vencida.setIdIncidencia(102L);
+		when(incidenciaDao.findAll(any(Specification.class), any(Pageable.class)))
+				.thenAnswer(invocacion -> new PageImpl<>(List.of(reciente, vencida), invocacion.getArgument(1), 2));
+
+		List<MiIncidenciaResponse> filas = incidenciaService.buscarPropias(
+				new PeriodoFiltro(Periodo.HOY, null, null), ID_USUARIO, 0, 20).getContent();
+
+		assertEquals(AHORA.plusMinutes(10), filas.get(0).editableHasta());
+		assertNull(filas.get(1).editableHasta());
+	}
+
+	// --- Corrección por el autor (RF-03) ---
+
+	@Test
+	void autorCorrigeDentroDelPlazoYSeAuditanSoloLosCamposCambiados() {
+		Incidencia incidencia = guardadaHace(Duration.ofMinutes(5));
+		String nueva = "Persona sospechosa forzando la puerta";
+
+		IncidenciaResponse respuesta = incidenciaService.corregir(100L,
+				new IncidenciaRequest(ID_ZONA, ID_OTRO, ID_NIVEL, "  " + nueva + "  ", null), ID_USUARIO);
+
+		assertEquals(otro, incidencia.getTipoEvento());
+		assertEquals(nueva, incidencia.getDescripcion());
+		// Sin fechaHora se conserva la registrada
+		assertEquals(AHORA.minusHours(1), incidencia.getFechaHora());
+		assertEquals(usuario, incidencia.getUsuario());
+		assertEquals("Otro", respuesta.tipoEvento().nombreTipoEvento());
+		verify(auditoriaService).registrar(AccionAuditoria.EDITAR_INCIDENCIA, Map.of(
+				"idIncidencia", 100L,
+				"antes", Map.of("idTipoEvento", ID_ROBO, "descripcion", DESCRIPCION),
+				"despues", Map.of("idTipoEvento", ID_OTRO, "descripcion", nueva)), null, usuario);
+	}
+
+	@Test
+	void cambioDeFechaSeAuditaEnFormatoIso() {
+		guardadaHace(Duration.ofMinutes(5));
+		OffsetDateTime nuevaFecha = AHORA.minusHours(3);
+
+		incidenciaService.corregir(100L, new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, nuevaFecha),
+				ID_USUARIO);
+
+		verify(auditoriaService).registrar(AccionAuditoria.EDITAR_INCIDENCIA, Map.of(
+				"idIncidencia", 100L,
+				"antes", Map.of("fechaHora", "2026-10-24T09:00:00-05:00"),
+				"despues", Map.of("fechaHora", "2026-10-24T07:00:00-05:00")), null, usuario);
+	}
+
+	@Test
+	void sinCambiosNoGuardaNiAudita() {
+		guardadaHace(Duration.ofMinutes(5));
+		// Mismo instante con otro offset: no es un cambio
+		OffsetDateTime mismaFechaEnUtc = AHORA.minusHours(1).withOffsetSameInstant(java.time.ZoneOffset.UTC);
+
+		IncidenciaResponse respuesta = incidenciaService.corregir(100L,
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, " " + DESCRIPCION, mismaFechaEnUtc), ID_USUARIO);
+
+		assertEquals(100L, respuesta.idIncidencia());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void justoAlLimiteDelPlazoTodaviaSePuedeCorregir() {
+		guardadaHace(Duration.ofMinutes(15));
+
+		incidenciaService.corregir(100L, new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null),
+				ID_USUARIO);
+
+		verify(incidenciaDao).save(any());
+	}
+
+	@Test
+	void fueraDelPlazoSeRechaza() {
+		guardadaHace(Duration.ofMinutes(15).plusSeconds(1));
+
+		ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> incidenciaService.corregir(100L,
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null), ID_USUARIO));
+
+		assertEquals("El plazo de corrección de 15 minutos terminó", ex.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void incidenciaDeOtroUsuarioRespondeComoInexistente() {
+		Incidencia incidencia = guardadaHace(Duration.ofMinutes(1));
+		Usuario otroUsuario = new Usuario();
+		otroUsuario.setIdUsuario(8L);
+		incidencia.setUsuario(otroUsuario);
+
+		RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class,
+				() -> incidenciaService.corregir(100L,
+						new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null), ID_USUARIO));
+
+		assertEquals(IncidenciaService.INCIDENCIA_NO_EXISTE, ex.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void incidenciaInexistenteResponde404() {
+		when(incidenciaDao.findById(999L)).thenReturn(Optional.empty());
+
+		assertThrows(RecursoNoEncontradoException.class, () -> incidenciaService.corregir(999L,
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void usuarioInactivoNoPuedeCorregir() {
+		guardadaHace(Duration.ofMinutes(1));
+		usuario.setEstadoActivo(false);
+
+		assertThrows(CredencialesInvalidasException.class, () -> incidenciaService.corregir(100L,
+				new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null), ID_USUARIO));
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void vigilanteNoPuedeCambiarLaZona() {
+		hacerVigilante(zona);
+		guardadaHace(Duration.ofMinutes(1));
+
+		ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> incidenciaService.corregir(100L,
+				new IncidenciaRequest(2, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO));
+
+		assertEquals(IncidenciaService.ZONA_NO_EDITABLE, ex.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void vigilanteReasignadoCorrigeEnLaZonaDeLaIncidencia() {
+		Zona nuevaAsignada = new Zona();
+		nuevaAsignada.setIdZona(2);
+		hacerVigilante(nuevaAsignada);
+		Incidencia incidencia = guardadaHace(Duration.ofMinutes(1));
+
+		incidenciaService.corregir(100L, new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null),
+				ID_USUARIO);
+
+		assertEquals(zona, incidencia.getZona());
+		assertEquals("Otra descripción", incidencia.getDescripcion());
+	}
+
+	@Test
+	void administradorPuedeCambiarLaZona() {
+		Incidencia incidencia = guardadaHace(Duration.ofMinutes(1));
+		Zona otraZona = new Zona();
+		otraZona.setIdZona(2);
+		otraZona.setNombreZona("Sede San Isidro");
+		when(zonaDao.findById(2)).thenReturn(Optional.of(otraZona));
+
+		incidenciaService.corregir(100L, new IncidenciaRequest(2, ID_ROBO, ID_NIVEL, DESCRIPCION, null), ID_USUARIO);
+
+		assertEquals(otraZona, incidencia.getZona());
+		verify(auditoriaService).registrar(AccionAuditoria.EDITAR_INCIDENCIA, Map.of(
+				"idIncidencia", 100L, "antes", Map.of("idZona", ID_ZONA), "despues", Map.of("idZona", 2)), null, usuario);
+	}
+
+	@Test
+	void correccionAplicaLasReglasDelRegistro() {
+		guardadaHace(Duration.ofMinutes(1));
+
+		ReglaNegocioException corta = assertThrows(ReglaNegocioException.class, () -> incidenciaService.corregir(100L,
+				new IncidenciaRequest(ID_ZONA, ID_OTRO, ID_NIVEL, "Algo raro", null), ID_USUARIO));
+		ReglaNegocioException futura = assertThrows(ReglaNegocioException.class, () -> incidenciaService.corregir(
+				100L, new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, DESCRIPCION, AHORA.plusMinutes(10)), ID_USUARIO));
+		nivel.setEstadoActivo(false);
+		ReglaNegocioException inactivo = assertThrows(ReglaNegocioException.class, () -> incidenciaService.corregir(
+				100L, new IncidenciaRequest(ID_ZONA, ID_ROBO, ID_NIVEL, "Otra descripción", null), ID_USUARIO));
+
+		assertEquals("Para el tipo \"Otro\" la descripción debe tener al menos 20 caracteres", corta.getMessage());
+		assertEquals("La fecha y hora de la incidencia no puede ser futura", futura.getMessage());
+		assertEquals("El nivel de gravedad seleccionado no existe o está inactivo", inactivo.getMessage());
+		verificarQueNoSeGuardoNiAudito();
+	}
+
+	@Test
+	void mensajeDelPlazoUsaElValorConfigurado() {
+		assertEquals("El plazo de corrección de 1 minuto terminó",
+				IncidenciaService.plazoTerminado(Duration.ofMinutes(1)));
+		assertEquals("El plazo de corrección de 90 segundos terminó",
+				IncidenciaService.plazoTerminado(Duration.ofSeconds(90)));
+	}
+
+	@Test
+	void plazoPorDefectoEsDeQuinceMinutosYNoAceptaCero() {
+		assertEquals(Duration.ofMinutes(15), new IncidenciaProperties(null).plazoEdicion());
+		assertThrows(IllegalStateException.class, () -> new IncidenciaProperties(Duration.ZERO));
+	}
+
+	// Incidencia 100 del usuario del test, registrada hace el tiempo indicado y ocurrida una hora antes de AHORA
+	private Incidencia guardadaHace(Duration antiguedad) {
+		Incidencia incidencia = new Incidencia();
+		incidencia.setIdIncidencia(100L);
+		incidencia.setFechaHora(AHORA.minusHours(1));
+		incidencia.setDescripcion(DESCRIPCION);
+		incidencia.setZona(zona);
+		incidencia.setTipoEvento(robo);
+		incidencia.setNivelGravedad(nivel);
+		incidencia.setUsuario(usuario);
+		// fecha_registro la asigna la BD: la entidad no tiene setter
+		ReflectionTestUtils.setField(incidencia, "fechaRegistro", AHORA.minus(antiguedad));
+		when(incidenciaDao.findById(100L)).thenReturn(Optional.of(incidencia));
+		return incidencia;
 	}
 
 	private Incidencia capturarGuardada() {
