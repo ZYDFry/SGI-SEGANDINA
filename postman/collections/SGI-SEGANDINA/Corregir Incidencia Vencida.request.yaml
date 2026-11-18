@@ -1,0 +1,55 @@
+$kind: http-request
+description: "CP-130: se intenta corregir una incidencia propia registrada hace más de 15 minutos (la primera con editableHasta null en las del año del Administrador o, si no tiene, del Vigilante), con el token de su autor. Responde 400 con el motivo y no cambia nada."
+url: "{{baseUrl}}/api/incidencias/{{idIncidenciaVencida}}"
+method: PUT
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{tokenVencida}}"
+body:
+  type: json
+  content: |-
+    {
+      "idZona": {{idZonaVencida}},
+      "idTipoEvento": {{idTipoVencida}},
+      "idNivelGravedad": {{idNivelVencida}},
+      "descripcion": "Prueba CP-130: corrección fuera de plazo"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Una incidencia propia cuyo plazo ya venció (editableHasta null): primero del Administrador, luego del Vigilante.
+      // Se envían sus mismos zona, tipo y nivel, para que el único motivo de rechazo sea el plazo.
+      const tokens = [pm.environment.get('token'), pm.environment.get('tokenVigilante')].filter(Boolean);
+      pm.environment.set('idIncidenciaVencida', '0');
+      pm.environment.set('tokenVencida', tokens[0] || '');
+      ['idZonaVencida', 'idTipoVencida', 'idNivelVencida'].forEach((v) => pm.environment.set(v, '0'));
+      const buscar = (i) => {
+        if (i >= tokens.length) return;
+        pm.sendRequest({
+          url: pm.environment.get('baseUrl') + '/api/incidencias/mias?periodo=ANIO_ACTUAL&page=0&size=100',
+          method: 'GET',
+          header: { Authorization: 'Bearer ' + tokens[i] },
+        }, (error, respuesta) => {
+          const vencida = error ? null : respuesta.json().contenido.find((f) => f.editableHasta === null);
+          if (!vencida) return buscar(i + 1);
+          pm.environment.set('idIncidenciaVencida', String(vencida.idIncidencia));
+          pm.environment.set('tokenVencida', tokens[i]);
+          pm.environment.set('idZonaVencida', String(vencida.zona.idZona));
+          pm.environment.set('idTipoVencida', String(vencida.tipoEvento.idTipoEvento));
+          pm.environment.set('idNivelVencida', String(vencida.nivelGravedad.idNivelGravedad));
+        });
+      };
+      buscar(0);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Hay una incidencia propia con más de 15 minutos', () =>
+        pm.expect(pm.environment.get('idIncidenciaVencida'), 'no hay incidencias propias con más de 15 minutos').to.not.eql('0'));
+      pm.test('Código de estado 400', () => pm.response.to.have.status(400));
+      const data = pm.response.json();
+      pm.test('Motivo: terminó el plazo', () => pm.expect(data.mensaje).to.eql('El plazo de corrección de 15 minutos terminó'));
+      pm.test('Formato uniforme de error', () => pm.expect(data).to.include.keys('timestamp', 'status', 'mensaje'));
+    language: text/javascript
+order: 5005

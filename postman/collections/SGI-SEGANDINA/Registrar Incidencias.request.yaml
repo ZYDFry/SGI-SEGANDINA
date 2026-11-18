@@ -1,22 +1,21 @@
 $kind: http-request
+description: "CP-26: el Administrador registra una incidencia de prueba con la primera zona, tipo y nivel activos (los guardan las peticiones de catálogos). Corre con --completo o --correccion; la incidencia queda en la base (no hay borrado físico)."
 url: "{{baseUrl}}/api/incidencias"
 method: POST
 body:
   type: json
-  content: "{\r
-
-    \  \"idZona\": 1,\r
-
-    \  \"idTipoEvento\": 1,\r
-
-    \  \"idNivelGravedad\": 2,\r
-
-    \  \"descripcion\": \"Persona sospechosa en la puerta\"\r
-
-    }"
+  content: |-
+    {
+      "idZona": {{idZonaPrueba}},
+      "idTipoEvento": {{idTipoPrueba}},
+      "idNivelGravedad": {{idNivelPrueba}},
+      "descripcion": "Prueba CP-26/CP-129: registro de prueba de la API"
+    }
 scripts:
   - type: afterResponse
     code: |-
       pm.test('Código de estado 201', () => pm.response.to.have.status(201));
+      // La corrigen "Corregir Incidencia" (CP-129) y "Corregir Incidencia Ajena" (CP-131)
+      if (pm.response.code === 201) pm.environment.set('idIncidenciaCorregir', String(pm.response.json().idIncidencia));
     language: text/javascript
 order: 5000

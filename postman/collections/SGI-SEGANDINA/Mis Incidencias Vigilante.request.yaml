@@ -1,5 +1,5 @@
 $kind: http-request
-description: "CP-126: el Vigilante consulta sus incidencias. Todas son suyas: la respuesta no trae el campo usuario (es el dueño del token) y cada fila trae fechaRegistro y editableHasta (null hasta que exista la edición)."
+description: "CP-126: el Vigilante consulta sus incidencias. Todas son suyas: la respuesta no trae el campo usuario (es el dueño del token) y cada fila trae fechaRegistro y editableHasta (fin del plazo de corrección de 15 minutos, o null si ya venció)."
 url: "{{baseUrl}}/api/incidencias/mias?periodo={{periodo}}&page=0&size=20"
 method: GET
 queryParams:
@@ -21,7 +21,10 @@ scripts:
       pm.test('Cada fila trae fechaRegistro y editableHasta, sin usuario ni contraseña', () => {
         data.contenido.forEach((fila) => {
           pm.expect(fila).to.include.keys('idIncidencia', 'fechaHora', 'fechaRegistro', 'zona', 'tipoEvento', 'nivelGravedad', 'editableHasta');
-          pm.expect(fila.editableHasta).to.eql(null);
+          if (fila.editableHasta !== null) {
+            const plazo = Date.parse(fila.editableHasta) - Date.parse(fila.fechaRegistro);
+            pm.expect(plazo, 'editableHasta = fechaRegistro + 15 min').to.eql(15 * 60 * 1000);
+          }
           pm.expect(fila).to.not.have.property('usuario');
           pm.expect(fila).to.not.have.property('contrasena');
         });

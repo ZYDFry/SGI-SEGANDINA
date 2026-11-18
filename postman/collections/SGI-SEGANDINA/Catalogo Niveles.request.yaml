@@ -5,5 +5,8 @@ scripts:
   - type: afterResponse
     code: |-
       pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      // Nivel activo para la incidencia de prueba (CP-26, CP-129)
+      const nivel = pm.response.json()[0];
+      if (nivel) pm.environment.set('idNivelPrueba', String(nivel.idNivelGravedad));
     language: text/javascript
 order: 4000

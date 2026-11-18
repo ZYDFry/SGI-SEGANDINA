@@ -1,0 +1,41 @@
+$kind: http-request
+description: "CP-129: el Administrador corrige, dentro del plazo de 15 minutos, la incidencia que acaba de registrar (Registrar Incidencias). Responde 200 con la incidencia corregida y la auditoría guarda EDITAR_INCIDENCIA con la descripción antes y después."
+url: "{{baseUrl}}/api/incidencias/{{idIncidenciaCorregir}}"
+method: PUT
+body:
+  type: json
+  content: |-
+    {
+      "idZona": {{idZonaPrueba}},
+      "idTipoEvento": {{idTipoPrueba}},
+      "idNivelGravedad": {{idNivelPrueba}},
+      "descripcion": "Prueba CP-129: descripción corregida"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      const data = pm.response.json();
+      const id = pm.environment.get('idIncidenciaCorregir');
+      pm.test('Devuelve la incidencia corregida', () => {
+        pm.expect(data).to.include.keys('idIncidencia', 'fechaHora', 'descripcion', 'zona', 'tipoEvento', 'nivelGravedad', 'idUsuario');
+        pm.expect(String(data.idIncidencia)).to.eql(id);
+        pm.expect(data.descripcion).to.eql('Prueba CP-129: descripción corregida');
+      });
+      pm.test('Sin contraseña', () => pm.expect(data).to.not.have.property('contrasena'));
+      // La auditoría registra la corrección con el valor anterior y el nuevo, solo de lo que cambió
+      pm.sendRequest({
+        url: pm.environment.get('baseUrl') + '/api/auditoria?accion=EDITAR_INCIDENCIA&periodo=HOY&page=0&size=20',
+        method: 'GET',
+        header: { Authorization: 'Bearer ' + pm.environment.get('token') },
+      }, (error, respuesta) => {
+        pm.test('Auditoría EDITAR_INCIDENCIA con antes y después', () => {
+          pm.expect(error).to.eql(null);
+          const registro = respuesta.json().contenido.find((r) => String(r.detalle && r.detalle.idIncidencia) === id);
+          pm.expect(registro, 'registro de auditoría de la incidencia corregida').to.be.an('object');
+          pm.expect(registro.detalle.antes).to.eql({ descripcion: 'Prueba CP-26/CP-129: registro de prueba de la API' });
+          pm.expect(registro.detalle.despues).to.eql({ descripcion: 'Prueba CP-129: descripción corregida' });
+        });
+      });
+    language: text/javascript
+order: 5010

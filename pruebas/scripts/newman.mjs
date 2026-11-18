@@ -4,9 +4,11 @@
 //  - pruebas/reportes/newman/resumen.json  resumen saneado que usa reporte.mjs (sin credenciales ni tokens)
 //
 // El environment se arma en memoria desde variables de entorno; nunca se escribe en disco.
-// Uso: node scripts/newman.mjs [--completo | --reasignacion]
+// Uso: node scripts/newman.mjs [--completo | --reasignacion | --correccion]
 //  --reasignacion: lectura más CP-121 y CP-125 (mueve al Vigilante de prueba a otra zona, comprueba que las
 //                  incidencias por zona no cambian y lo devuelve); no toca otros datos.
+//  --correccion:   lectura más CP-129 a CP-131 (registra 1 incidencia de prueba del Administrador, la corrige y
+//                  prueba los rechazos de plazo y de autor); no toca usuarios, zonas, tipos ni niveles.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -19,6 +21,14 @@ const DIR_PRUEBAS = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR_SALIDA = join(DIR_PRUEBAS, "reportes", "newman");
 const completo = process.argv.includes("--completo");
 const reasignacion = !completo && process.argv.includes("--reasignacion");
+const correccion = !completo && !reasignacion && process.argv.includes("--correccion");
+const MODO = completo
+  ? " (modo completo, escribe datos)"
+  : reasignacion
+    ? " (solo lectura + reasignación CP-121 y CP-125)"
+    : correccion
+      ? " (solo lectura + corrección CP-129 a CP-131: 1 incidencia de prueba)"
+      : " (solo lectura)";
 
 /** Peticiones cuyo cuerpo (de ida o de vuelta) puede llevar contraseñas o el token. */
 const CUERPOS_OCULTOS = ["Login", "Login Vigilante", "Login Supervisor", "Usuarios Crear", "Usuarios Restablecer Contrasena", "Usuarios Mi Contrasena"];
@@ -71,6 +81,15 @@ const valores = {
   contrasenaSupervisor: contrasenaSupervisor ?? "",
   tokenSupervisor: "",
   idSupervisor: "",
+  idZonaPrueba: "",
+  idTipoPrueba: "",
+  idNivelPrueba: "",
+  idIncidenciaCorregir: "",
+  idIncidenciaVencida: "",
+  tokenVencida: "",
+  idZonaVencida: "",
+  idTipoVencida: "",
+  idNivelVencida: "",
 };
 
 if (reasignacion && !conVigilante) {
@@ -90,14 +109,24 @@ if (completo) {
   valores.contrasenaNueva = temporal;
 }
 
-const { coleccion, incluidas } = cargarColeccion({ completo, vigilante: conVigilante, supervisor: conSupervisor, reasignacion });
+const { coleccion, incluidas } = cargarColeccion({
+  completo,
+  vigilante: conVigilante,
+  supervisor: conSupervisor,
+  reasignacion,
+  correccion,
+});
+if (correccion && !conVigilante) console.log("Sin E2E_VIGILANTE_*: se omite CP-131 (corregir la incidencia ajena).");
 if (!conVigilante) console.log("Sin E2E_VIGILANTE_DNI/E2E_VIGILANTE_PASSWORD: se omiten CP-104 y CP-124 (peticiones del Vigilante).");
 if (!conSupervisor) console.log("Sin E2E_SUPERVISOR_DNI/E2E_SUPERVISOR_PASSWORD: se omite CP-123 (peticiones del Supervisor).");
-console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${completo ? " (modo completo, escribe datos)" : reasignacion ? " (solo lectura + reasignación CP-121 y CP-125)" : " (solo lectura)"}.`);
+console.log(`Newman: ${incluidas.length} peticiones contra ${baseUrl}${MODO}.`);
 
 mkdirSync(DIR_SALIDA, { recursive: true });
 
-newman.run(
+/** Petición real de cada ítem de la colección (por `item.id`), sin las de `pm.sendRequest` de sus scripts. */
+const reales = new Map();
+
+const corrida = newman.run(
   {
     collection: coleccion,
     environment: { name: "sgi-pruebas", values: Object.entries(valores).map(([key, value]) => ({ key, value, type: "default", enabled: true })) },
@@ -124,27 +153,54 @@ newman.run(
       process.exit(1);
     }
 
-    // Solo nombres, códigos y aserciones: nada de cuerpos, cabeceras ni variables.
-    const peticiones = summary.run.executions.map((ejecucion) => {
-      const nombre = ejecucion.item.name;
-      const aserciones = (ejecucion.assertions || []).map((a) => ({ nombre: a.assertion, ok: !a.error, error: a.error ? a.error.message : null }));
-      const errorPeticion = ejecucion.requestError ? ejecucion.requestError.message : null;
-      return {
-        nombre,
-        caso: CASO_POR_PETICION[nombre] || null,
-        metodo: ejecucion.request?.method,
-        ruta: ejecucion.request?.url?.getPath?.() || null,
-        codigo: ejecucion.response?.code ?? null,
-        tiempoMs: ejecucion.response?.responseTime ?? null,
-        aserciones,
-        errorPeticion,
-        ok: !errorPeticion && aserciones.length > 0 && aserciones.every((a) => a.ok),
-      };
-    });
+    const peticiones = resumirEjecuciones(summary.run.executions, reales);
 
     const aprobadas = peticiones.filter((p) => p.ok).length;
-    guardarResumen({ ejecutado: true, completo, reasignacion, fecha: new Date().toISOString(), baseUrl, total: peticiones.length, aprobadas, fallidas: peticiones.length - aprobadas, peticiones });
+    guardarResumen({ ejecutado: true, completo, reasignacion, correccion, fecha: new Date().toISOString(), baseUrl, total: peticiones.length, aprobadas, fallidas: peticiones.length - aprobadas, peticiones });
     console.log(`Newman: ${aprobadas} de ${peticiones.length} peticiones aprobadas. Reporte: ${join(DIR_SALIDA, "newman.html")}`);
     process.exit(aprobadas === peticiones.length ? 0 : 1);
   },
 );
+
+// Newman emite "request" también por cada pm.sendRequest de los scripts (p. ej. "Corregir Incidencia" consulta la
+// auditoría y "Corregir Incidencia Vencida" busca una incidencia vencida). Esas llamadas son GET dentro de peticiones
+// PUT, así que se guarda solo la que tiene el método definido en la colección.
+corrida.on("request", (error, args) => {
+  if (!args?.item || !args.request) return;
+  const definido = String(args.item.request?.method || "GET").toUpperCase();
+  if (String(args.request.method || "").toUpperCase() !== definido) return;
+  reales.set(args.item.id, {
+    metodo: args.request.method,
+    ruta: args.request.url?.getPath?.() || null,
+    codigo: args.response?.code ?? null,
+    tiempoMs: args.response?.responseTime ?? null,
+  });
+});
+
+/**
+ * Una fila por petición de la colección: `summary.run.executions` repite una petición cuando sus scripts usan
+ * pm.sendRequest, y esas filas muestran la URL de la última llamada. Se deja la última ejecución de cada ítem (con
+ * sus aserciones) y el método, la ruta, el código y el tiempo de la petición real. Solo nombres, códigos y
+ * aserciones: nada de cuerpos, cabeceras ni variables.
+ */
+function resumirEjecuciones(ejecuciones, realesPorItem) {
+  const porItem = new Map();
+  for (const ejecucion of ejecuciones) porItem.set(ejecucion.item.id ?? ejecucion.item.name, ejecucion);
+  return [...porItem.entries()].map(([clave, ejecucion]) => {
+    const nombre = ejecucion.item.name;
+    const real = realesPorItem.get(clave);
+    const aserciones = (ejecucion.assertions || []).map((a) => ({ nombre: a.assertion, ok: !a.error, error: a.error ? a.error.message : null }));
+    const errorPeticion = ejecucion.requestError ? ejecucion.requestError.message : null;
+    return {
+      nombre,
+      caso: CASO_POR_PETICION[nombre] || null,
+      metodo: real?.metodo ?? ejecucion.request?.method,
+      ruta: real?.ruta ?? (ejecucion.request?.url?.getPath?.() || null),
+      codigo: real?.codigo ?? ejecucion.response?.code ?? null,
+      tiempoMs: real?.tiempoMs ?? ejecucion.response?.responseTime ?? null,
+      aserciones,
+      errorPeticion,
+      ok: !errorPeticion && aserciones.length > 0 && aserciones.every((a) => a.ok),
+    };
+  });
+}

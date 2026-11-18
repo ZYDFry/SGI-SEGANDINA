@@ -5,5 +5,8 @@ scripts:
   - type: afterResponse
     code: |-
       pm.test('Código de estado 200', () => pm.response.to.have.status(200));
+      // Tipo activo que no sea "Otro" (no exige 20 caracteres) para la incidencia de prueba (CP-26, CP-129)
+      const tipo = pm.response.json().find((t) => t.nombreTipoEvento.trim().toLowerCase() !== 'otro');
+      if (tipo) pm.environment.set('idTipoPrueba', String(tipo.idTipoEvento));
     language: text/javascript
 order: 3000

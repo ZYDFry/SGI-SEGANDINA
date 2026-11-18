@@ -9,5 +9,8 @@ scripts:
       const propia = pm.environment.get('idZonaVigilante');
       const destino = pm.response.json().find((z) => String(z.idZona) !== propia);
       if (destino) pm.environment.set('idZonaDestino', String(destino.idZona));
+      // Zona activa para registrar y corregir la incidencia de prueba (CP-26, CP-129)
+      const primera = pm.response.json()[0];
+      if (primera) pm.environment.set('idZonaPrueba', String(primera.idZona));
     language: text/javascript
 order: 2000

@@ -1,7 +1,7 @@
 // Convierte la colección Postman local (formato v3: un archivo *.request.yaml por petición) al formato
 // v2.1 que entiende Newman. La conversión se hace en memoria en cada corrida: la colección versionada no cambia.
 //
-// Uso directo: node scripts/coleccion.mjs --listar [--completo | --reasignacion]   (muestra las peticiones convertidas
+// Uso directo: node scripts/coleccion.mjs --listar [--completo | --reasignacion | --correccion]   (muestra las peticiones convertidas
 // y si escriben datos)
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -30,6 +30,31 @@ export const PETICIONES_VIGILANTE = new Set([
   "Incidencias Por Zona Antes De Reasignar",
   "Incidencias Por Zona Despues De Reasignar",
   "Mis Incidencias Vigilante",
+  "Corregir Incidencia Ajena",
+]);
+
+/**
+ * Peticiones que no escriben pero dependen de una escritura previa, así que solo corren con --completo o --correccion.
+ * "Corregir Incidencia Ajena" (CP-131) usa la incidencia que registra "Registrar Incidencias" y el backend siempre la
+ * rechaza (404).
+ */
+export const SOLO_COMPLETO = new Set(["Corregir Incidencia Ajena"]);
+
+/**
+ * Cadena de la corrección por el autor (CP-129 a CP-131): corre con --completo o con --correccion. Pensada para la base
+ * real, porque solo escribe lo mínimo:
+ * - "Registrar Incidencias" (CP-26): 1 incidencia del Administrador ("Prueba CP-26/CP-129 …"), que queda para siempre
+ *   (no hay borrado físico), y 1 fila REGISTRAR_INCIDENCIA.
+ * - "Corregir Incidencia" (CP-129): cambia la descripción de esa misma incidencia y deja 1 fila EDITAR_INCIDENCIA.
+ * - "Corregir Incidencia Vencida" (CP-130) y "Corregir Incidencia Ajena" (CP-131): el backend las rechaza (400 y 404),
+ *   no cambian nada.
+ * No toca usuarios, zonas, tipos ni niveles.
+ */
+export const ESCRITURAS_CORRECCION = new Set([
+  "Registrar Incidencias",
+  "Corregir Incidencia Vencida",
+  "Corregir Incidencia",
+  "Corregir Incidencia Ajena",
 ]);
 
 /**
@@ -59,9 +84,10 @@ export const PETICIONES_SUPERVISOR = new Set([
 
 /**
  * Los login, los GET y las peticiones rechazadas del Vigilante y del Supervisor no modifican datos; el resto solo corre
- * con --completo (o, las de la reasignación, con --reasignacion).
+ * con --completo (o, las de la reasignación, con --reasignacion; las de la corrección, con --correccion).
  */
 function esLectura(nombre, metodo) {
+  if (SOLO_COMPLETO.has(nombre)) return false;
   if (ESCRITURAS_VIGILANTE.has(nombre)) return false;
   return metodo === "GET" || nombre === "Login" || PETICIONES_VIGILANTE.has(nombre) || PETICIONES_SUPERVISOR.has(nombre);
 }
@@ -116,7 +142,13 @@ function convertirPeticion(nombre, def) {
 }
 
 /** Lee la colección y la devuelve en formato v2.1, ordenada por `order`. */
-export function cargarColeccion({ completo = false, vigilante = true, supervisor = true, reasignacion = false } = {}) {
+export function cargarColeccion({
+  completo = false,
+  vigilante = true,
+  supervisor = true,
+  reasignacion = false,
+  correccion = false,
+} = {}) {
   const archivos = readdirSync(DIR_COLECCION).filter((f) => f.endsWith(".request.yaml"));
   const peticiones = archivos
     .map((f) => convertirPeticion(f.replace(/\.request\.yaml$/, ""), parse(readFileSync(join(DIR_COLECCION, f), "utf8"))))
@@ -125,7 +157,10 @@ export function cargarColeccion({ completo = false, vigilante = true, supervisor
   const incluidas = peticiones.filter(
     (p) =>
       !EXCLUIDAS.has(p.nombre) &&
-      (completo || p.lectura || (reasignacion && ESCRITURAS_VIGILANTE.has(p.nombre))) &&
+      (completo ||
+        p.lectura ||
+        (reasignacion && ESCRITURAS_VIGILANTE.has(p.nombre)) ||
+        (correccion && ESCRITURAS_CORRECCION.has(p.nombre))) &&
       (vigilante || !PETICIONES_VIGILANTE.has(p.nombre)) &&
       (supervisor || !PETICIONES_SUPERVISOR.has(p.nombre)),
   );
@@ -153,11 +188,12 @@ export function cargarColeccion({ completo = false, vigilante = true, supervisor
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const completo = process.argv.includes("--completo");
   const reasignacion = process.argv.includes("--reasignacion");
-  const { peticiones, incluidas } = cargarColeccion({ completo, reasignacion });
+  const correccion = process.argv.includes("--correccion");
+  const { peticiones, incluidas } = cargarColeccion({ completo, reasignacion, correccion });
   const nombresIncluidos = new Set(incluidas.map((p) => p.nombre));
   for (const p of peticiones) {
     const marca = nombresIncluidos.has(p.nombre) ? "corre " : "omite ";
     console.log(`${marca} ${String(p.orden).padStart(5)} ${p.metodo.padEnd(6)} ${p.lectura ? "lectura  " : "escritura"} ${p.nombre}`);
   }
-  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : reasignacion ? " (solo lectura + reasignación CP-121 y CP-125)" : " (solo lectura)"}.`);
+  console.log(`\n${peticiones.length} peticiones en la colección; ${incluidas.length} se ejecutan${completo ? " (--completo)" : reasignacion ? " (solo lectura + reasignación CP-121 y CP-125)" : correccion ? " (solo lectura + corrección CP-129 a CP-131)" : " (solo lectura)"}.`);
 }

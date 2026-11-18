@@ -9,6 +9,7 @@
     "newman": "node scripts/newman.mjs",
     "newman:completo": "node scripts/newman.mjs --completo",
     "newman:reasignacion": "node scripts/newman.mjs --reasignacion",
+    "newman:correccion": "node scripts/newman.mjs --correccion",
     "reporte": "node scripts/reporte.mjs"
   },
   "devDependencies": {
