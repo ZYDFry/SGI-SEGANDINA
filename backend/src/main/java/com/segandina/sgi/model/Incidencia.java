@@ -44,9 +44,9 @@ public class Incidencia {
 	@JoinColumn(name = "id_nivel_gravedad", nullable = false)
 	private NivelGravedad nivelGravedad;
 
-	/** Usuario que registró la incidencia (siempre el del token, nunca el del body). */
+	/** Usuario que registró la incidencia (siempre el del token, nunca el del body). No cambia al corregirla. */
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "id_usuario", nullable = false)
+	@JoinColumn(name = "id_usuario", nullable = false, updatable = false)
 	private Usuario usuario;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)

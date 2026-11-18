@@ -97,6 +97,8 @@ public class SecurityConfig {
 								.hasRole(ADMINISTRADOR)
 						.requestMatchers("/api/dashboard/**", "/api/reportes/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)
 						.requestMatchers(HttpMethod.POST, "/api/incidencias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
+						// Corrección por el autor (RF-03): solo quienes registran incidencias
+						.requestMatchers(HttpMethod.PUT, "/api/incidencias/*").hasAnyRole(ADMINISTRADOR, VIGILANTE)
 						// "Mis incidencias" (RF-04): antes de GET /api/incidencias/**, que es de Administrador y Supervisor
 						.requestMatchers(HttpMethod.GET, "/api/incidencias/mias").hasAnyRole(ADMINISTRADOR, VIGILANTE)
 						.requestMatchers(HttpMethod.GET, "/api/incidencias/**").hasAnyRole(ADMINISTRADOR, SUPERVISOR)

@@ -4,7 +4,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,7 +25,7 @@ import com.segandina.sgi.service.IncidenciaService;
 import jakarta.validation.Valid;
 
 /**
- * Endpoints de incidencias: registro (RF-03) e historial (RF-04).
+ * Endpoints de incidencias: registro y corrección por el autor (RF-03) e historial (RF-04).
  */
 @RestController
 @RequestMapping("/api/incidencias")
@@ -48,6 +50,22 @@ public class IncidenciaController {
 	public IncidenciaResponse registrar(@Valid @RequestBody IncidenciaRequest request,
 			@AuthenticationPrincipal Jwt jwt) {
 		return incidenciaService.registrar(request, Long.valueOf(jwt.getSubject()));
+	}
+
+	/**
+	 * Corrige una incidencia propia dentro del plazo de corrección (RF-03). Roles: Vigilante y Administrador.
+	 *
+	 * @param id      id de la incidencia
+	 * @param request datos corregidos (mismo cuerpo que el registro; sin {@code fechaHora} se conserva la guardada)
+	 * @param jwt     token ya validado; solo su dueño, si es el autor, puede corregirla
+	 * @return 200 con la incidencia como quedó (también si no cambió nada); 400 si venció el plazo, si el Vigilante
+	 *         cambia la zona o si los datos incumplen una regla; 401 sin token válido; 403 con rol Supervisor; 404 si
+	 *         no existe o la registró otro usuario
+	 */
+	@PutMapping("/{id}")
+	public IncidenciaResponse corregir(@PathVariable Long id, @Valid @RequestBody IncidenciaRequest request,
+			@AuthenticationPrincipal Jwt jwt) {
+		return incidenciaService.corregir(id, request, Long.valueOf(jwt.getSubject()));
 	}
 
 	/**

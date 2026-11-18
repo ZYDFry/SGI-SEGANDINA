@@ -37,6 +37,30 @@ public interface IncidenciaService {
 	/** Rechazo cuando un Vigilante envía una zona distinta de la suya. */
 	String SOLO_ZONA_ASIGNADA = "Solo puede registrar incidencias en su zona asignada";
 
+	/** Rechazo cuando un Vigilante intenta mover su incidencia a otra zona al corregirla. */
+	String ZONA_NO_EDITABLE = "El Vigilante no puede cambiar la zona de la incidencia";
+
+	/** Rechazo cuando la incidencia no existe o no la registró quien la pide (no revela que existe). */
+	String INCIDENCIA_NO_EXISTE = "La incidencia no existe";
+
+	/**
+	 * Mensaje de rechazo cuando ya pasó el plazo de corrección.
+	 *
+	 * @param plazo plazo configurado ({@code incidencias.plazo-edicion})
+	 * @return p. ej. "El plazo de corrección de 15 minutos terminó"
+	 */
+	static String plazoTerminado(Duration plazo) {
+		long minutos = plazo.toMinutes();
+		String texto;
+		if (minutos >= 1 && plazo.toSecondsPart() == 0) {
+			texto = minutos + (minutos == 1 ? " minuto" : " minutos");
+		} else {
+			long segundos = plazo.toSeconds();
+			texto = segundos + (segundos == 1 ? " segundo" : " segundos");
+		}
+		return "El plazo de corrección de " + texto + " terminó";
+	}
+
 	/**
 	 * Registra una incidencia a nombre del usuario autenticado y audita {@code REGISTRAR_INCIDENCIA} en la
 	 * misma transacción. Un Vigilante solo puede registrar en su zona asignada (y esta debe estar activa); el
@@ -51,6 +75,25 @@ public interface IncidenciaService {
 	 *         futura o si la descripción de un tipo "Otro" es demasiado corta
 	 */
 	IncidenciaResponse registrar(IncidenciaRequest request, Long idUsuario);
+
+	/**
+	 * Corrección por el autor (RF-03): reemplaza zona, tipo, nivel, descripción y, si se envía, la fecha y hora de
+	 * una incidencia propia, dentro del plazo {@code incidencias.plazo-edicion} contado desde {@code fecha_registro}.
+	 * Aplica las mismas reglas que el registro; el Vigilante no puede cambiar la zona de la incidencia. Si algo
+	 * cambió, audita {@code EDITAR_INCIDENCIA} con los valores antes y después de los campos modificados; si no
+	 * cambió nada, no guarda ni audita.
+	 *
+	 * @param idIncidencia id de la incidencia
+	 * @param request      datos corregidos; sin {@code fechaHora}, se conserva la registrada
+	 * @param idUsuario    id del usuario, tomado del token (nunca del body)
+	 * @return la incidencia tal como quedó
+	 * @throws com.segandina.sgi.exception.CredencialesInvalidasException si el usuario no existe o está inactivo
+	 * @throws com.segandina.sgi.exception.RecursoNoEncontradoException si la incidencia no existe o la registró otro
+	 *         usuario
+	 * @throws com.segandina.sgi.exception.ReglaNegocioException si venció el plazo, si el Vigilante cambia la zona o
+	 *         si los datos incumplen una regla del registro
+	 */
+	IncidenciaResponse corregir(Long idIncidencia, IncidenciaRequest request, Long idUsuario);
 
 	/**
 	 * Historial de incidencias (RF-04): las del rango y filtros indicados, de la más reciente a la más antigua

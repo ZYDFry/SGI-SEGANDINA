@@ -7,7 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Cuerpo de {@code POST /api/incidencias} (RF-03). El usuario no viaja aquí: se toma del token.
+ * Cuerpo de {@code POST /api/incidencias} y de {@code PUT /api/incidencias/{id}} (RF-03, registro y corrección).
+ * El usuario no viaja aquí: se toma del token. Al corregir, sin {@code fechaHora} se conserva la registrada.
  *
  * @param idZona          zona donde ocurrió
  * @param idTipoEvento    tipo de evento
