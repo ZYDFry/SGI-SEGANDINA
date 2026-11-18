@@ -1,5 +1,10 @@
 // Detalle de un registro de auditoría (`detalle_cambio`) en texto legible, sin mostrar JSON crudo.
 
+import { formatearFechaHora } from "@/lib/fechas";
+
+/** "2026-11-17T09:30:00-05:00" (con offset o Z); no confunde un día suelto como "2026-11-17". */
+const FECHA_HORA_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 /** Nombre en español de cada clave conocida del detalle. Una clave desconocida se muestra tal cual. */
 const ETIQUETAS: Record<string, string> = {
   motivo: "Motivo",
@@ -18,6 +23,7 @@ const ETIQUETAS: Record<string, string> = {
   idZona: "Zona (id)",
   estadoActivo: "Activo",
   idIncidencia: "Incidencia (id)",
+  fechaHora: "Fecha y hora",
   idTipoEvento: "Tipo de evento (id)",
   idNivelGravedad: "Nivel de gravedad (id)",
   formato: "Formato",
@@ -61,7 +67,11 @@ function etiqueta(clave: string): string {
 export function valorLegible(valor: unknown): string {
   if (valor === null || valor === undefined || valor === "") return "—";
   if (typeof valor === "boolean") return valor ? "Sí" : "No";
-  if (typeof valor === "string") return VALORES[valor] ?? valor;
+  if (typeof valor === "string") {
+    // Fecha y hora ISO con offset (p. ej. la corrección de una incidencia): en hora de Lima, legible
+    if (FECHA_HORA_ISO.test(valor)) return formatearFechaHora(valor);
+    return VALORES[valor] ?? valor;
+  }
   if (typeof valor === "number") return String(valor);
   if (Array.isArray(valor)) return valor.map(valorLegible).join(", ");
   if (typeof valor === "object") {

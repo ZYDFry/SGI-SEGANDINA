@@ -62,3 +62,9 @@ export function etiquetaTramo(punto: PuntoSerie, agrupacion: Agrupacion): string
   if (agrupacion === "SEMANA") return `${corto(punto.inicio)}–${corto(punto.fin)}`;
   return FORMATO_MES.format(new Date(`${punto.inicio}T00:00:00Z`));
 }
+
+/** Segundos restantes como "mm:ss" (cuenta regresiva del plazo de corrección). */
+export function formatearCuenta(segundos: number): string {
+  const s = Math.max(0, Math.floor(segundos));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}

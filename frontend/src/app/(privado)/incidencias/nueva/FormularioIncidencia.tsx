@@ -12,8 +12,15 @@ import SelectorRapido, { type OpcionSelector } from "@/components/SelectorRapido
 import { errorDeApi } from "@/lib/api";
 import { RUTA_MIS_INCIDENCIAS } from "@/lib/roles";
 import { coloresGravedad } from "@/lib/gravedad";
-import { cargarCatalogos, refrescarUsuario, registrarIncidencia, type Catalogos } from "@/lib/servicios";
-import type { IncidenciaResponse, NivelGravedad, Usuario, Zona } from "@/lib/tipos";
+import { formatearFechaHora } from "@/lib/fechas";
+import {
+  cargarCatalogos,
+  corregirIncidencia,
+  refrescarUsuario,
+  registrarIncidencia,
+  type Catalogos,
+} from "@/lib/servicios";
+import type { IncidenciaResponse, MiIncidencia, NivelGravedad, Usuario, Zona } from "@/lib/tipos";
 import { idError, useValidacion } from "@/lib/useValidacion";
 import {
   DESCRIPCION_MAX,
@@ -39,6 +46,8 @@ const REGLAS_SERVIDOR: ReglaServidor<CampoIncidencia>[] = [
   { contiene: "zona seleccionada", campo: "idZona" },
   // Vigilante: sin zona, zona inactiva o zona distinta de la asignada
   { contiene: "zona asignada", campo: "idZona" },
+  // Corrección: el Vigilante no puede mover la incidencia a otra zona
+  { contiene: "no puede cambiar la zona", campo: "idZona" },
   { contiene: "tipo de evento seleccionado", campo: "idTipo" },
   { contiene: "nivel de gravedad seleccionado", campo: "idGravedad" },
   { contiene: "descripción debe tener al menos", campo: "descripcion" },
@@ -82,6 +91,12 @@ function aIsoConOffset(valorLocal: string): string {
   return `${valorLocal}:00${offset}`;
 }
 
+/** Texto del enlace que abre o cierra el campo de fecha, según el modo. */
+function textoBotonFecha(abierto: boolean, corrigiendo: boolean): string {
+  if (abierto) return corrigiendo ? "Conservar la fecha registrada" : "Usar la hora actual";
+  return corrigiendo ? "Cambiar fecha y hora" : "¿Ocurrió antes? Cambiar fecha y hora";
+}
+
 function opcionesGravedad(niveles: NivelGravedad[]): OpcionSelector[] {
   return niveles.map((nivel) => ({
     valor: nivel.idNivelGravedad,
@@ -102,20 +117,34 @@ function opcionesZona(zonas: Zona[]): OpcionBuscable[] {
     }));
 }
 
+/** Modo corrección (RF-03): la incidencia propia que se corrige y qué hacer al terminar. */
+export interface Correccion {
+  incidencia: MiIncidencia;
+  onCorregida: (incidencia: IncidenciaResponse) => void;
+  onCancelar: () => void;
+  /** Avisa al modal que hay un envío en curso (para que no se cierre a medias). */
+  onEnviando?: (enviando: boolean) => void;
+}
+
 /**
  * Formulario Mobile-First: selectores rápidos, descripción y confirmación al guardar. Al abrirlo se vuelve a leer el
  * usuario (la zona pudo cambiar desde el login): el Vigilante ve su zona fija y solo registra en ella; el
  * Administrador elige cualquier zona activa.
+ *
+ * Con `correccion` es el formulario de "Corregir" de Mis incidencias: parte de los valores de la incidencia, el
+ * Vigilante ve fija la zona de la incidencia, la fecha registrada se conserva salvo que la cambie, y al guardar envía
+ * `PUT /api/incidencias/{id}` con las mismas validaciones del registro.
  */
-export default function FormularioIncidencia() {
+export default function FormularioIncidencia({ correccion }: { correccion?: Correccion } = {}) {
+  const original = correccion?.incidencia;
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
-  const [idZona, setIdZona] = useState<number | null>(null);
-  const [idTipo, setIdTipo] = useState<number | null>(null);
-  const [idGravedad, setIdGravedad] = useState<number | null>(null);
-  const [descripcion, setDescripcion] = useState("");
+  const [idZona, setIdZona] = useState<number | null>(original?.zona.idZona ?? null);
+  const [idTipo, setIdTipo] = useState<number | null>(original?.tipoEvento.idTipoEvento ?? null);
+  const [idGravedad, setIdGravedad] = useState<number | null>(original?.nivelGravedad.idNivelGravedad ?? null);
+  const [descripcion, setDescripcion] = useState(original?.descripcion ?? "");
   const [fechaManual, setFechaManual] = useState<string | null>(null);
   const [fechaMaxima, setFechaMaxima] = useState("");
 
@@ -134,7 +163,7 @@ export default function FormularioIncidencia() {
   const zonaAsignada = catalogos && usuario ? zonaActiva(catalogos.zonas, usuario.idZona) : undefined;
   // Vigilante sin zona o con la zona inactiva: no puede registrar hasta que el Administrador lo resuelva.
   const bloqueoZona =
-    !esVigilante || zonaAsignada ? undefined : usuario?.idZona === null ? AVISO_SIN_ZONA : AVISO_ZONA_INACTIVA;
+    !esVigilante || zonaAsignada || original ? undefined : usuario?.idZona === null ? AVISO_SIN_ZONA : AVISO_ZONA_INACTIVA;
 
   const cargar = useCallback(() => {
     Promise.all([cargarCatalogos(), refrescarUsuario()])
@@ -142,10 +171,11 @@ export default function FormularioIncidencia() {
         setCatalogos(datos);
         setUsuario(yo);
         // El Vigilante solo registra en su zona: se fija la asignada (o ninguna, si no tiene o está inactiva).
-        if (yo.rol === "Vigilante") setIdZona(zonaActiva(datos.zonas, yo.idZona)?.idZona ?? null);
+        // Al corregir se mantiene la zona de la incidencia.
+        if (yo.rol === "Vigilante" && !original) setIdZona(zonaActiva(datos.zonas, yo.idZona)?.idZona ?? null);
       })
       .catch((e) => setErrorCarga(errorDeApi(e).mensaje));
-  }, []);
+  }, [original]);
 
   useEffect(() => {
     cargar();
@@ -173,14 +203,20 @@ export default function FormularioIncidencia() {
     if (enviando || !validacion.intentarEnviar()) return;
     setError(null);
     setEnviando(true);
+    correccion?.onEnviando?.(true);
+    const datos = {
+      idZona: idZona!,
+      idTipoEvento: idTipo!,
+      idNivelGravedad: idGravedad!,
+      descripcion: descripcion.trim(),
+      ...(fechaManual ? { fechaHora: aIsoConOffset(fechaManual) } : {}),
+    };
     try {
-      const incidencia = await registrarIncidencia({
-        idZona: idZona!,
-        idTipoEvento: idTipo!,
-        idNivelGravedad: idGravedad!,
-        descripcion: descripcion.trim(),
-        ...(fechaManual ? { fechaHora: aIsoConOffset(fechaManual) } : {}),
-      });
+      if (correccion && original) {
+        correccion.onCorregida(await corregirIncidencia(original.idIncidencia, datos));
+        return;
+      }
+      const incidencia = await registrarIncidencia(datos);
       setRegistrada(incidencia);
       // Listo para otro registro: se conserva la zona y se quitan los avisos.
       setIdTipo(null);
@@ -194,9 +230,10 @@ export default function FormularioIncidencia() {
       validacion.ponerErroresServidor(campos);
       setError(general);
       // La zona del vigilante pudo cambiar con el formulario abierto: se vuelve a leer para mostrar la actual.
-      if (esVigilante && campos.idZona) cargar();
+      if (esVigilante && campos.idZona && !original) cargar();
     } finally {
       setEnviando(false);
+      correccion?.onEnviando?.(false);
     }
   }
 
@@ -212,7 +249,8 @@ export default function FormularioIncidencia() {
     if (fechaManual === null) {
       const ahora = aValorLocal(new Date());
       setFechaMaxima(ahora);
-      setFechaManual(ahora);
+      // Al corregir se parte de la fecha registrada; al registrar, de la hora actual.
+      setFechaManual(original ? aValorLocal(new Date(original.fechaHora)) : ahora);
     } else {
       setFechaManual(null);
     }
@@ -225,8 +263,8 @@ export default function FormularioIncidencia() {
   const errorFecha = validacion.error("fecha");
 
   return (
-    <form onSubmit={enviar} noValidate className="mx-auto max-w-lg space-y-5 pb-28 sm:pb-6">
-      <h1 className="text-xl font-bold text-blue-900">Registrar incidencia</h1>
+    <form onSubmit={enviar} noValidate className={original ? "space-y-5" : "mx-auto max-w-lg space-y-5 pb-28 sm:pb-6"}>
+      {!original && <h1 className="text-xl font-bold text-blue-900">Registrar incidencia</h1>}
 
       {registrada && (
         <Alerta tipo="exito">
@@ -244,7 +282,7 @@ export default function FormularioIncidencia() {
       {esVigilante ? (
         <div>
           <p id="titulo-zona" className="mb-2 block text-sm font-semibold text-slate-700">
-            Zona asignada
+            {original ? "Zona" : "Zona asignada"}
           </p>
           {/* Solo lectura: el Vigilante registra únicamente en su zona asignada */}
           <div
@@ -254,7 +292,13 @@ export default function FormularioIncidencia() {
             aria-labelledby="titulo-zona"
             aria-describedby={errorZona ? idError("idZona") : undefined}
             className={`rounded-lg border bg-slate-50 px-3 py-3 focus:outline-none focus:ring-2 ${bordeCampo(!!errorZona)}`}>
-            {zonaAsignada ? (
+            {original ? (
+              // Al corregir, la zona de la incidencia (el Vigilante no puede cambiarla)
+              <>
+                <p className="text-base font-semibold text-blue-900">{original.zona.nombreZona}</p>
+                <p className="text-sm text-slate-600">{original.zona.distrito}</p>
+              </>
+            ) : zonaAsignada ? (
               <>
                 <p className="text-base font-semibold text-blue-900">{zonaAsignada.nombreZona}</p>
                 <p className="text-sm text-slate-600">{zonaAsignada.distrito}</p>
@@ -346,10 +390,14 @@ export default function FormularioIncidencia() {
 
       <div>
         <button type="button" onClick={alternarFecha} className="text-sm font-semibold text-blue-900 underline">
-          {fechaManual === null ? "¿Ocurrió antes? Cambiar fecha y hora" : "Usar la hora actual"}
+          {textoBotonFecha(fechaManual !== null, !!original)}
         </button>
         {fechaManual === null ? (
-          <p className="mt-1 text-xs text-slate-500">Se registrará con la hora actual.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {original
+              ? `Se conserva la registrada: ${formatearFechaHora(original.fechaHora)}.`
+              : "Se registrará con la hora actual."}
+          </p>
         ) : (
           <>
             <input
@@ -371,8 +419,25 @@ export default function FormularioIncidencia() {
 
       {error && <Alerta tipo="error">{error}</Alerta>}
 
-      {/* En el celular el botón queda fijo abajo, al alcance del pulgar y por encima de la barra inferior */}
-      <div className="fixed inset-x-0 bottom-[var(--alto-barra-inferior,0px)] z-30 space-y-1 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+      {original ? (
+        <div className="space-y-1">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Boton type="button" variante="secundario" onClick={correccion?.onCancelar} disabled={enviando}>
+              Cancelar
+            </Boton>
+            <Boton
+              type="submit"
+              disabled={enviando || validacion.hayErroresVisibles}
+              title={motivoBloqueo}
+              aria-describedby={motivoBloqueo ? "motivo-correccion" : undefined}>
+              {enviando ? "Guardando…" : "Guardar corrección"}
+            </Boton>
+          </div>
+          <MotivoDesactivado id="motivo-correccion" texto={motivoBloqueo} className="text-right" />
+        </div>
+      ) : (
+        // En el celular el botón queda fijo abajo, al alcance del pulgar y por encima de la barra inferior
+        <div className="fixed inset-x-0 bottom-[var(--alto-barra-inferior,0px)] z-30 space-y-1 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
         <Boton
           type="submit"
           variante="peligro"
@@ -383,7 +448,8 @@ export default function FormularioIncidencia() {
           {enviando ? "Registrando…" : "Registrar incidencia"}
         </Boton>
         <MotivoDesactivado id="motivo-incidencia" texto={motivoBloqueo} className="mx-auto max-w-lg text-center" />
-      </div>
+        </div>
+      )}
     </form>
   );
 }

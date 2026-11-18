@@ -108,6 +108,15 @@ export async function registrarIncidencia(incidencia: IncidenciaRequest): Promis
   return data;
 }
 
+/**
+ * Corrige una incidencia propia dentro del plazo (RF-03). Sin `fechaHora`, el backend conserva la registrada.
+ * Responde 400 si venció el plazo y 404 si la incidencia no es del usuario.
+ */
+export async function corregirIncidencia(idIncidencia: number, incidencia: IncidenciaRequest): Promise<IncidenciaResponse> {
+  const { data } = await api.put<IncidenciaResponse>(`/api/incidencias/${idIncidencia}`, incidencia);
+  return data;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Consultas con filtros: historial, dashboard, reportes y auditoría
 
